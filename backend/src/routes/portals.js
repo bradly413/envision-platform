@@ -28,13 +28,22 @@ router.post('/', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Admin: update portal content
+// Admin: update portal (content, status, etc.)
 router.patch('/:id', requireAdmin, async (req, res) => {
   const { content, status, expires_at } = req.body;
   try {
+    // Build dynamic SET clause so we don't wipe fields that weren't passed
+    const updates = [];
+    const values = [];
+    let i = 1;
+    if (content !== undefined) { updates.push(`content = $${i++}`); values.push(JSON.stringify(content)); }
+    if (status !== undefined)  { updates.push(`status = $${i++}`);  values.push(status); }
+    if (expires_at !== undefined) { updates.push(`expires_at = $${i++}`); values.push(expires_at); }
+    updates.push(`updated_at = NOW()`);
+    values.push(req.params.id);
     const { rows } = await db.query(
-      'UPDATE portals SET content = $1, status = $2, expires_at = $3, updated_at = NOW() WHERE id = $4 RETURNING *',
-      [JSON.stringify(content), status, expires_at, req.params.id]
+      `UPDATE portals SET ${updates.join(', ')} WHERE id = $${i} RETURNING *`,
+      values
     );
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -76,6 +85,47 @@ router.post('/:id/events', requirePortalAuth, async (req, res) => {
       [req.params.id, event_type, JSON.stringify(payload || {}), req.headers['user-agent']]
     );
     res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Portal: list comments
+router.get('/:id/comments', requirePortalAuth, async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT id, section, text, created_at FROM portal_comments WHERE portal_id = $1 ORDER BY created_at ASC',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Portal: add comment
+router.post('/:id/comments', requirePortalAuth, async (req, res) => {
+  const { section, text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'Comment text is required' });
+  try {
+    const { rows } = await db.query(
+      'INSERT INTO portal_comments (portal_id, section, text) VALUES ($1,$2,$3) RETURNING id, section, text, created_at',
+      [req.params.id, section || 'general', text.trim()]
+    );
+    // Also track as a portal event so it shows in admin analytics
+    await db.query(
+      'INSERT INTO portal_events (portal_id, event_type, payload, user_agent) VALUES ($1,$2,$3,$4)',
+      [req.params.id, 'comment', JSON.stringify({ section, preview: text.trim().slice(0, 80) }), req.headers['user-agent']]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Admin: get single portal (used by editor)
+router.get('/:id', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT p.*, c.name as client_name, c.company FROM portals p JOIN clients c ON p.client_id = c.id WHERE p.id = $1',
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Portal not found' });
+    res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -1,0 +1,17 @@
+{
+  "name": "envision-platform",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["backend", "admin-dashboard", "client-portal"],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=admin-dashboard\" \"npm run dev --workspace=client-portal\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:admin": "npm run dev --workspace=admin-dashboard",
+    "dev:portal": "npm run dev --workspace=client-portal",
+    "build": "npm run build --workspaces",
+    "install:all": "npm install --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0"
+  }
+}

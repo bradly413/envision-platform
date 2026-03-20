@@ -13,6 +13,7 @@ const calendarRoutes = require('./routes/calendar');
 const financeRoutes = require('./routes/finance');
 const agentRoutes = require('./routes/agents');
 const analyticsRoutes = require('./routes/analytics');
+const uploadRoutes = require('./routes/uploads');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,8 +30,8 @@ app.use(cors({
 }));
 
 app.use(morgan('dev'));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Routes
 app.use('/api/auth',      authRoutes);
@@ -41,6 +42,7 @@ app.use('/api/calendar',  calendarRoutes);
 app.use('/api/finance',   financeRoutes);
 app.use('/api/agents',    agentRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/uploads',   uploadRoutes);
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));

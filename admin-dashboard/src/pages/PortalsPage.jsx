@@ -44,6 +44,16 @@ export default function PortalsPage() {
 
   const togglePassword = (id) => setShowPassword(p => ({ ...p, [id]: !p[id] }));
 
+  const deleteMutation = useMutation(id => portals.delete(id), {
+    onSuccess: () => { qc.invalidateQueries('portals'); setSelectedPortal(null); setAnalytics(null); },
+  });
+
+  const handleDelete = (portal) => {
+    if (window.confirm(`Delete portal for ${portal.client_name}? This cannot be undone.`)) {
+      deleteMutation.mutate(portal.id);
+    }
+  };
+
   return (
     <div style={{ padding: 32, fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
@@ -135,6 +145,10 @@ export default function PortalsPage() {
                   <button onClick={() => window.open(`${PORTAL_URL}/${portal.slug}`, '_blank')}
                     style={{ fontSize: 12, color: '#374151', background: '#F3F4F6', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}>
                     Open ↗
+                  </button>
+                  <button onClick={() => handleDelete(portal)}
+                    style={{ fontSize: 12, color: '#EF4444', background: '#FEF2F2', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}>
+                    Delete
                   </button>
                 </div>
               </div>

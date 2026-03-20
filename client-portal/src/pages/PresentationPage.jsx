@@ -60,20 +60,18 @@ function CommentsPanel({ portalId, open, onClose }) {
       setText('');
       track.event(portalId, 'comment', { section });
     } catch {
-      // silent fail — still track
       setCommentsList(prev => [...prev, { id: Date.now(), section, text, created_at: new Date().toISOString() }]);
       setText('');
     } finally { setSubmitting(false); }
   };
 
   const SECTIONS = ['general', 'hero', 'brand', 'logo', 'colors', 'typography'];
-if (!portal) return null;
+
+  if (!open) return null;
 
   return (
     <>
-      {/* Backdrop */}
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-      {/* Panel */}
       <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: 360, background: '#111', borderLeft: '1px solid #2A2A2A', zIndex: 999, display: 'flex', flexDirection: 'column', fontFamily: 'Inter, sans-serif' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 20px 16px', borderBottom: '1px solid #1E1E1E' }}>
           <div>
@@ -82,8 +80,6 @@ if (!portal) return null;
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: 18, padding: 4 }}>✕</button>
         </div>
-
-        {/* Comment list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
           {loading ? (
             <div style={{ fontSize: 13, color: '#4B5563', textAlign: 'center', marginTop: 40 }}>Loading…</div>
@@ -99,8 +95,6 @@ if (!portal) return null;
             </div>
           ))}
         </div>
-
-        {/* Add comment */}
         <div style={{ padding: '16px 20px', borderTop: '1px solid #1E1E1E' }}>
           <select value={section} onChange={e => setSection(e.target.value)}
             style={{ width: '100%', marginBottom: 10, padding: '8px 12px', background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, color: '#9CA3AF', fontSize: 12, outline: 'none' }}>
@@ -225,9 +219,19 @@ export default function PresentationPage() {
 
   if (!portal) return null;
 
+  // ── If custom HTML was injected, render it full-screen ──
+  if (portal.content?.customHtml) {
+    return (
+      <iframe
+        srcDoc={portal.content.customHtml}
+        style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 'none' }}
+        title="Brand Presentation"
+      />
+    );
+  }
+
   const content = portal.content || {};
 
-  // Use ordered sections array if present, otherwise fall back to fixed order
   const sections = content.sections?.filter(s => s.enabled) || [
     { id: 'hero', type: 'hero', content: content.hero },
     { id: 'brand', type: 'brand', content: content.brand },

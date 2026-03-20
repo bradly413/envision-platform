@@ -88,6 +88,14 @@ router.post('/:id/events', requirePortalAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Admin: delete portal
+router.delete('/:id', requireAdmin, async (req, res) => {
+  try {
+    await db.query('DELETE FROM portals WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Portal: list comments
 router.get('/:id/comments', requirePortalAuth, async (req, res) => {
   try {

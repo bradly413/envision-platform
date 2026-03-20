@@ -67,7 +67,6 @@ function CommentsPanel({ portalId, open, onClose }) {
   };
 
   const SECTIONS = ['general', 'hero', 'brand', 'logo', 'colors', 'typography'];
-
 if (!portal) return null;
 
 // If custom HTML was injected, render it full-screen
@@ -80,6 +79,9 @@ if (portal.content?.customHtml) {
     />
   );
 }
+
+const content = portal.content || {};
+
   return (
     <>
       {/* Backdrop */}

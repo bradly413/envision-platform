@@ -69,19 +69,6 @@ function CommentsPanel({ portalId, open, onClose }) {
   const SECTIONS = ['general', 'hero', 'brand', 'logo', 'colors', 'typography'];
 if (!portal) return null;
 
-// If custom HTML was injected, render it full-screen
-if (portal.content?.customHtml) {
-  return (
-    <iframe
-      srcDoc={portal.content.customHtml}
-      style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 'none' }}
-      title="Brand Presentation"
-    />
-  );
-}
-
-const content = portal.content || {};
-
   return (
     <>
       {/* Backdrop */}

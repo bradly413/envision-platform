@@ -21,8 +21,8 @@ router.post('/', requireAdmin, async (req, res) => {
     const slug = uuid().split('-')[0]; // short unique slug
     const password_hash = await bcrypt.hash(password, 10);
     const { rows } = await db.query(
-      'INSERT INTO portals (client_id, slug, password_hash, template_id, content, expires_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [client_id, slug, password_hash, template_id || 'brand-reveal-v1', JSON.stringify(content || {}), expires_at]
+      'INSERT INTO portals (client_id, slug, password_hash, plain_password, template_id, content, expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [client_id, slug, password_hash, password, template_id || 'brand-reveal-v1', JSON.stringify(content || {}), expires_at]
     );
     res.status(201).json({ ...rows[0], url: `${process.env.PORTAL_URL}/${slug}` });
   } catch (err) { res.status(500).json({ error: err.message }); }

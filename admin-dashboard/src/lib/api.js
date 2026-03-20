@@ -34,6 +34,7 @@ export const portals = {
   get: (id) => api.get(`/portals/${id}`),
   create: (data) => api.post('/portals', data),
   update: (id, data) => api.patch(`/portals/${id}`, data),
+  delete: (id) => api.delete(`/portals/${id}`),
   analytics: (id) => api.get(`/portals/${id}/analytics`),
 };
 

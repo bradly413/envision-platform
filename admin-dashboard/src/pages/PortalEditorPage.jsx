@@ -306,8 +306,16 @@ export default function PortalEditorPage() {
     const data = await response.json();
     if (data.error) throw new Error(data.error.message);
     const raw = data.content?.[0]?.text || '';
-    const match = raw.match(/\{[\s\S]*\}/);
-    return JSON.parse(match ? match[0] : raw);
+    // Try to extract JSON more robustly
+    try {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) return JSON.parse(match[0]);
+    } catch {
+      // If JSON parse fails, try to extract just the message
+      const msgMatch = raw.match(/"message"\s*:\s*"([^"]+)"/);
+      return { type: 'chat', message: msgMatch?.[1] || raw.substring(0, 300), suggestions: [] };
+    }
+    return { type: 'chat', message: raw.substring(0, 300), suggestions: [] };
   };
 
   const handleSend = async (messageText) => {
@@ -327,7 +335,7 @@ export default function PortalEditorPage() {
         setMessages(prev => [...prev, { role: 'assistant', content: `Fetching ${urlMatch[0]}…` }]);
         try {
           const fetchRes = await api.post('/uploads/fetch-url', { url: urlMatch[0] });
-          extraContext = `\n\nURL Analysis of ${urlMatch[0]}:\nTitle: ${fetchRes.title}\nColors found: ${fetchRes.colors?.join(', ')}\nFonts found: ${fetchRes.fonts?.join(', ')}\nHTML structure (truncated):\n${fetchRes.html?.substring(0, 3000)}`;
+          extraContext = `\n\nURL Design Analysis of ${urlMatch[0]}:\nSite title: ${fetchRes.title}\nColor palette found: ${fetchRes.colors?.join(', ')}\nFonts found: ${fetchRes.fonts?.join(', ')}\nAnimation richness: ${fetchRes.animationCount > 10 ? 'highly animated' : fetchRes.animationCount > 3 ? 'moderate animations' : 'minimal animations'}\nHas parallax/scroll effects: ${fetchRes.hasParallax ? 'yes' : 'no'}\nHas video: ${fetchRes.hasVideo ? 'yes' : 'no'}\nPage structure snippet: ${fetchRes.html?.substring(0, 1500)}\n\nPlease analyze this design style and apply similar aesthetic principles to the portal.`;
           setMessages(prev => prev.slice(0, -1)); // Remove "Fetching..." message
         } catch { extraContext = `\n\nNote: Could not fetch URL ${urlMatch[0]} — proceed based on description.`; }
       }

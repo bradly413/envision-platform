@@ -39,8 +39,9 @@ router.post('/login', async (req, res) => {
 
     res.json({ token, portalId: portal.id });
   } catch (err) { res.status(500).json({ error: err.message }); }
-}); requireAdmin, async (req, res) => {
-  const { client_id, password, template_id, content, expires_at } = req.body;
+});
+
+router.post('/', requireAdmin, async (req, res) => {  const { client_id, password, template_id, content, expires_at } = req.body;
   try {
     const slug = uuid().split('-')[0]; // short unique slug
     const password_hash = await bcrypt.hash(password, 10);

@@ -15,7 +15,31 @@ router.get('/', requireAdmin, async (req, res) => {
 });
 
 // Admin: create portal for a client
-router.post('/', requireAdmin, async (req, res) => {
+router.post('/')// Portal: public login — exchange slug + password for a JWT token
+router.post('/login', async (req, res) => {
+  const { code, password } = req.body;
+  try {
+    const { rows } = await db.query(
+      'SELECT * FROM portals WHERE slug = $1',
+      [code]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Portal not found' });
+    const portal = rows[0];
+
+    if (portal.status !== 'active') return res.status(403).json({ error: 'Portal not active' });
+
+    const valid = await bcrypt.compare(password, portal.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+    const token = require('jsonwebtoken').sign(
+      { portalId: portal.id, slug: portal.slug },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ token, portalId: portal.id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}); requireAdmin, async (req, res) => {
   const { client_id, password, template_id, content, expires_at } = req.body;
   try {
     const slug = uuid().split('-')[0]; // short unique slug

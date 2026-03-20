@@ -86,11 +86,33 @@ router.post('/fetch-url', requireAdmin, async (req, res) => {
       request.on('timeout', () => { request.destroy(); reject(new Error('Request timed out')); });
     });
     if (html.startsWith('REDIRECT:')) return res.json({ url, redirectTo: html.replace('REDIRECT:', ''), html: '' });
-    const stripped = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '').replace(/\s+/g, ' ').substring(0, 15000);
+    
+    // Extract only what's useful for design analysis
+    const stripped = html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<svg[\s\S]*?<\/svg>/gi, '[SVG]')
+      .replace(/\s+/g, ' ')
+      .substring(0, 5000); // Reduced from 15000
+
     const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
-    const colorMatches = html.match(/#[0-9A-Fa-f]{3,6}/g) || [];
-    const fontMatches = html.match(/font-family:\s*['"]?([^;'"]+)/g) || [];
-    res.json({ url, title: titleMatch?.[1] || '', colors: [...new Set(colorMatches)].slice(0, 20), fonts: [...new Set(fontMatches)].slice(0, 10), html: stripped });
+    const colorMatches = html.match(/#[0-9A-Fa-f]{6}\b/g) || []; // Only full 6-char hex
+    const fontMatches = html.match(/font-family:\s*['"]?([^;,'"]{3,40})/g) || [];
+    const animationMatches = html.match(/animation|transition|transform|@keyframes/g) || [];
+    const hasParallax = /parallax|scroll-driven|gsap|framer/i.test(html);
+    const hasVideo = /<video/i.test(html);
+
+    res.json({ 
+      url, 
+      title: titleMatch?.[1]?.replace(/[<>]/g, '') || '', 
+      colors: [...new Set(colorMatches)].slice(0, 15), 
+      fonts: [...new Set(fontMatches.map(f => f.replace('font-family:', '').trim()))].slice(0, 8),
+      animationCount: animationMatches.length,
+      hasParallax,
+      hasVideo,
+      html: stripped 
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

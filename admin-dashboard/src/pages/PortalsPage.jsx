@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { portals, clients } from '../lib/api';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function PortalsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: allPortals = [] } = useQuery('portals', portals.list);
   const { data: allClients = [] } = useQuery('clients', () => clients.list());
   const [selectedPortal, setSelectedPortal] = useState(null);
@@ -70,6 +72,7 @@ export default function PortalsPage() {
               <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{portal.total_events} events · Template: {portal.template_id}</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => navigate(`/portals/${portal.id}/edit`)} style={{ fontSize: 12, color: '#fff', background: '#111827', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}>Edit content</button>
               <button onClick={() => loadAnalytics(portal)} style={{ fontSize: 12, color: '#374151', background: '#F3F4F6', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}>Analytics</button>
               <button onClick={() => navigator.clipboard.writeText(`${import.meta.env.VITE_PORTAL_URL}/${portal.slug}`)} style={{ fontSize: 12, color: '#374151', background: '#F3F4F6', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}>Copy URL</button>
             </div>

@@ -1,0 +1,703 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { portals } from '../lib/api';
+
+// ─── Tiny icon components ────────────────────────────────────────────────────
+const Icon = ({ d, size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d={d} />
+  </svg>
+);
+const EyeIcon = () => <Icon d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6" />;
+const EyeOffIcon = () => <Icon d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22" />;
+const PlusIcon = () => <Icon d="M12 5v14M5 12h14" />;
+const TrashIcon = () => <Icon d="M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2" />;
+const GripIcon = () => <Icon d="M9 3h1v1H9zM9 7h1v1H9zM9 11h1v1H9zM14 3h1v1h-1zM14 7h1v1h-1zM14 11h1v1h-1z" size={14} />;
+const ChevronDown = () => <Icon d="M6 9l6 6 6-6" size={14} />;
+const ChevronUp = () => <Icon d="M18 15l-6-6-6 6" size={14} />;
+const SaveIcon = () => <Icon d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8" />;
+
+// ─── Section type definitions ─────────────────────────────────────────────────
+const SECTION_TYPES = {
+  hero: {
+    label: 'Hero',
+    icon: '✦',
+    color: '#8B5CF6',
+    defaultContent: {
+      headline: '',
+      subheadline: 'meet your new brand.',
+      intro: 'Everything you see here was crafted specifically for you. Scroll to experience your full brand identity.',
+    },
+  },
+  brand: {
+    label: 'Brand Strategy',
+    icon: '◆',
+    color: '#3B82F6',
+    defaultContent: {
+      headline: 'The story behind the brand.',
+      positioning: '',
+      pillars: [
+        { title: 'Pillar 1', desc: '' },
+        { title: 'Pillar 2', desc: '' },
+        { title: 'Pillar 3', desc: '' },
+      ],
+    },
+  },
+  logo: {
+    label: 'Logo',
+    icon: '◎',
+    color: '#10B981',
+    defaultContent: {
+      headline: 'The mark.',
+      description: '',
+      variations: ['primary', 'reversed', 'icon-only'],
+    },
+  },
+  colors: {
+    label: 'Color Palette',
+    icon: '●',
+    color: '#F59E0B',
+    defaultContent: {
+      headline: 'The palette.',
+      palette: [
+        { name: 'Primary', hex: '#1A1A2E', role: '' },
+        { name: 'Secondary', hex: '#E8D5B7', role: '' },
+        { name: 'Accent', hex: '#C9A84C', role: '' },
+        { name: 'Neutral', hex: '#F4F4F0', role: '' },
+      ],
+    },
+  },
+  typography: {
+    label: 'Typography',
+    icon: 'T',
+    color: '#EF4444',
+    defaultContent: {
+      headline: 'The voice in text.',
+      primaryFont: '',
+      secondaryFont: '',
+      usage: '',
+    },
+  },
+  custom: {
+    label: 'Custom Section',
+    icon: '+',
+    color: '#6B7280',
+    defaultContent: {
+      heading: 'New Section',
+      body: '',
+      links: [],
+    },
+  },
+};
+
+// ─── Field components ─────────────────────────────────────────────────────────
+const inputStyle = {
+  width: '100%',
+  padding: '8px 12px',
+  background: '#0F0F0F',
+  border: '1px solid #2A2A2A',
+  borderRadius: 6,
+  color: '#F9FAFB',
+  fontSize: 13,
+  outline: 'none',
+  boxSizing: 'border-box',
+  fontFamily: 'inherit',
+  transition: 'border-color .15s',
+};
+
+const Field = ({ label, children, hint }) => (
+  <div style={{ marginBottom: 16 }}>
+    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>
+      {label}
+    </label>
+    {children}
+    {hint && <div style={{ fontSize: 11, color: '#4B5563', marginTop: 4 }}>{hint}</div>}
+  </div>
+);
+
+const TextInput = ({ value, onChange, placeholder }) => (
+  <input
+    type="text"
+    value={value || ''}
+    onChange={e => onChange(e.target.value)}
+    placeholder={placeholder}
+    style={inputStyle}
+    onFocus={e => e.target.style.borderColor = '#6B7280'}
+    onBlur={e => e.target.style.borderColor = '#2A2A2A'}
+  />
+);
+
+const Textarea = ({ value, onChange, placeholder, rows = 3 }) => (
+  <textarea
+    value={value || ''}
+    onChange={e => onChange(e.target.value)}
+    placeholder={placeholder}
+    rows={rows}
+    style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+    onFocus={e => e.target.style.borderColor = '#6B7280'}
+    onBlur={e => e.target.style.borderColor = '#2A2A2A'}
+  />
+);
+
+// ─── Section-specific editors ─────────────────────────────────────────────────
+function HeroEditor({ content, onChange }) {
+  return (
+    <>
+      <Field label="Headline" hint="Client name is prepended automatically (e.g. 'Acme,')">
+        <TextInput value={content.headline} onChange={v => onChange({ ...content, headline: v })} placeholder="Leave blank to use client name" />
+      </Field>
+      <Field label="Subheadline">
+        <TextInput value={content.subheadline} onChange={v => onChange({ ...content, subheadline: v })} placeholder="meet your new brand." />
+      </Field>
+      <Field label="Intro paragraph">
+        <Textarea value={content.intro} onChange={v => onChange({ ...content, intro: v })} placeholder="Everything you see here was crafted specifically for you..." rows={3} />
+      </Field>
+    </>
+  );
+}
+
+function BrandEditor({ content, onChange }) {
+  const updatePillar = (i, field, val) => {
+    const pillars = [...(content.pillars || [])];
+    pillars[i] = { ...pillars[i], [field]: val };
+    onChange({ ...content, pillars });
+  };
+  const addPillar = () => onChange({ ...content, pillars: [...(content.pillars || []), { title: '', desc: '' }] });
+  const removePillar = (i) => onChange({ ...content, pillars: content.pillars.filter((_, idx) => idx !== i) });
+
+  return (
+    <>
+      <Field label="Section headline">
+        <TextInput value={content.headline} onChange={v => onChange({ ...content, headline: v })} placeholder="The story behind the brand." />
+      </Field>
+      <Field label="Positioning statement">
+        <Textarea value={content.positioning} onChange={v => onChange({ ...content, positioning: v })} placeholder="What makes this brand distinct..." rows={4} />
+      </Field>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 10 }}>
+          Brand pillars
+        </div>
+        {(content.pillars || []).map((p, i) => (
+          <div key={i} style={{ background: '#0A0A0A', border: '1px solid #1E1E1E', borderRadius: 8, padding: 14, marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={{ fontSize: 12, color: '#4B5563' }}>Pillar {i + 1}</span>
+              <button onClick={() => removePillar(i)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', opacity: .7, padding: 4 }}><TrashIcon /></button>
+            </div>
+            <TextInput value={p.title} onChange={v => updatePillar(i, 'title', v)} placeholder="Pillar title" />
+            <div style={{ marginTop: 8 }}>
+              <TextInput value={p.desc} onChange={v => updatePillar(i, 'desc', v)} placeholder="Short description" />
+            </div>
+          </div>
+        ))}
+        <button onClick={addPillar} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', background: 'none', border: '1px dashed #2A2A2A', borderRadius: 6, padding: '7px 14px', cursor: 'pointer', width: '100%', justifyContent: 'center' }}>
+          <PlusIcon /> Add pillar
+        </button>
+      </div>
+    </>
+  );
+}
+
+function LogoEditor({ content, onChange }) {
+  return (
+    <>
+      <Field label="Section headline">
+        <TextInput value={content.headline} onChange={v => onChange({ ...content, headline: v })} placeholder="The mark." />
+      </Field>
+      <Field label="Logo description / rationale">
+        <Textarea value={content.description} onChange={v => onChange({ ...content, description: v })} placeholder="Explain the thinking behind the logo design..." rows={4} />
+      </Field>
+      <Field label="Variations shown" hint="Comma-separated list (e.g. primary, reversed, icon-only)">
+        <TextInput
+          value={(content.variations || []).join(', ')}
+          onChange={v => onChange({ ...content, variations: v.split(',').map(s => s.trim()).filter(Boolean) })}
+          placeholder="primary, reversed, icon-only"
+        />
+      </Field>
+    </>
+  );
+}
+
+function ColorsEditor({ content, onChange }) {
+  const updateColor = (i, field, val) => {
+    const palette = [...(content.palette || [])];
+    palette[i] = { ...palette[i], [field]: val };
+    onChange({ ...content, palette });
+  };
+  const addColor = () => onChange({ ...content, palette: [...(content.palette || []), { name: '', hex: '#000000', role: '' }] });
+  const removeColor = (i) => onChange({ ...content, palette: content.palette.filter((_, idx) => idx !== i) });
+
+  return (
+    <>
+      <Field label="Section headline">
+        <TextInput value={content.headline} onChange={v => onChange({ ...content, headline: v })} placeholder="The palette." />
+      </Field>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 10 }}>
+          Colors
+        </div>
+        {(content.palette || []).map((c, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 1fr auto', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ position: 'relative', width: 44, height: 38 }}>
+              <input
+                type="color"
+                value={c.hex || '#000000'}
+                onChange={e => updateColor(i, 'hex', e.target.value)}
+                style={{ width: '100%', height: '100%', border: '1px solid #2A2A2A', borderRadius: 6, cursor: 'pointer', background: 'none', padding: 2 }}
+              />
+            </div>
+            <TextInput value={c.name} onChange={v => updateColor(i, 'name', v)} placeholder="Color name" />
+            <TextInput value={c.role} onChange={v => updateColor(i, 'role', v)} placeholder="Role / usage" />
+            <button onClick={() => removeColor(i)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', opacity: .7, padding: 4 }}><TrashIcon /></button>
+          </div>
+        ))}
+        <button onClick={addColor} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', background: 'none', border: '1px dashed #2A2A2A', borderRadius: 6, padding: '7px 14px', cursor: 'pointer', width: '100%', justifyContent: 'center' }}>
+          <PlusIcon /> Add color
+        </button>
+      </div>
+    </>
+  );
+}
+
+function TypographyEditor({ content, onChange }) {
+  return (
+    <>
+      <Field label="Section headline">
+        <TextInput value={content.headline} onChange={v => onChange({ ...content, headline: v })} placeholder="The voice in text." />
+      </Field>
+      <Field label="Primary typeface" hint="e.g. Playfair Display, Inter, Helvetica Neue">
+        <TextInput value={content.primaryFont} onChange={v => onChange({ ...content, primaryFont: v })} placeholder="Primary typeface name" />
+      </Field>
+      <Field label="Secondary typeface">
+        <TextInput value={content.secondaryFont} onChange={v => onChange({ ...content, secondaryFont: v })} placeholder="Secondary typeface name" />
+      </Field>
+      <Field label="Usage notes">
+        <Textarea value={content.usage} onChange={v => onChange({ ...content, usage: v })} placeholder="How each typeface should be used..." rows={3} />
+      </Field>
+    </>
+  );
+}
+
+function CustomEditor({ content, onChange }) {
+  const addLink = () => onChange({ ...content, links: [...(content.links || []), { label: '', url: '' }] });
+  const updateLink = (i, field, val) => {
+    const links = [...(content.links || [])];
+    links[i] = { ...links[i], [field]: val };
+    onChange({ ...content, links });
+  };
+  const removeLink = (i) => onChange({ ...content, links: content.links.filter((_, idx) => idx !== i) });
+
+  return (
+    <>
+      <Field label="Section heading">
+        <TextInput value={content.heading} onChange={v => onChange({ ...content, heading: v })} placeholder="Section title" />
+      </Field>
+      <Field label="Body text">
+        <Textarea value={content.body} onChange={v => onChange({ ...content, body: v })} placeholder="Content for this section..." rows={5} />
+      </Field>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 10 }}>
+          Links
+        </div>
+        {(content.links || []).map((link, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, marginBottom: 8 }}>
+            <TextInput value={link.label} onChange={v => updateLink(i, 'label', v)} placeholder="Link label" />
+            <TextInput value={link.url} onChange={v => updateLink(i, 'url', v)} placeholder="https://..." />
+            <button onClick={() => removeLink(i)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', opacity: .7, padding: 4 }}><TrashIcon /></button>
+          </div>
+        ))}
+        <button onClick={addLink} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', background: 'none', border: '1px dashed #2A2A2A', borderRadius: 6, padding: '7px 14px', cursor: 'pointer', width: '100%', justifyContent: 'center' }}>
+          <PlusIcon /> Add link
+        </button>
+      </div>
+    </>
+  );
+}
+
+const SECTION_EDITORS = { hero: HeroEditor, brand: BrandEditor, logo: LogoEditor, colors: ColorsEditor, typography: TypographyEditor, custom: CustomEditor };
+
+// ─── Preview panel ─────────────────────────────────────────────────────────────
+function PreviewPanel({ sections, clientName }) {
+  return (
+    <div style={{ background: '#0F0F0F', borderRadius: 12, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Browser chrome */}
+      <div style={{ background: '#1A1A1A', padding: '10px 16px', borderBottom: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 5 }}>
+          {['#FF5F57', '#FFBD2E', '#28C840'].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
+        </div>
+        <div style={{ flex: 1, background: '#0F0F0F', borderRadius: 4, padding: '3px 10px', fontSize: 11, color: '#4B5563', fontFamily: 'monospace' }}>
+          portal.bradlyrobert.com/{clientName?.toLowerCase().replace(/\s+/g, '-')}
+        </div>
+      </div>
+      {/* Preview content */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '0 0 40px' }}>
+        {sections.filter(s => s.enabled).map(section => {
+          const def = SECTION_TYPES[section.type] || SECTION_TYPES.custom;
+          const c = section.content || {};
+          return (
+            <div key={section.id} style={{ borderBottom: '1px solid #1A1A1A', padding: '32px 28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <span style={{ fontSize: 18, color: def.color }}>{def.icon}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: def.color }}>{def.label}</span>
+              </div>
+              {section.type === 'hero' && (
+                <div>
+                  <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', lineHeight: 1.15, margin: '0 0 8px' }}>
+                    {c.headline || clientName},<br />
+                    <span style={{ color: '#9CA3AF' }}>{c.subheadline || 'meet your new brand.'}</span>
+                  </h2>
+                  {c.intro && <p style={{ fontSize: 14, color: '#6B7280', lineHeight: 1.7, margin: 0, maxWidth: 480 }}>{c.intro}</p>}
+                </div>
+              )}
+              {section.type === 'brand' && (
+                <div>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#F9FAFB', margin: '0 0 10px' }}>{c.headline || 'The story behind the brand.'}</h3>
+                  {c.positioning && <p style={{ fontSize: 13, color: '#9CA3AF', lineHeight: 1.7, margin: '0 0 14px' }}>{c.positioning}</p>}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(c.pillars || []).map((p, i) => (
+                      <div key={i} style={{ borderLeft: '2px solid #374151', paddingLeft: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#F9FAFB' }}>{p.title}</div>
+                        <div style={{ fontSize: 12, color: '#6B7280' }}>{p.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {section.type === 'colors' && (
+                <div>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#F9FAFB', margin: '0 0 14px' }}>{c.headline || 'The palette.'}</h3>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {(c.palette || []).map((color, i) => (
+                      <div key={i} style={{ width: 56 }}>
+                        <div style={{ height: 40, borderRadius: 6, background: color.hex, marginBottom: 6, border: '1px solid rgba(255,255,255,.06)' }} />
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#F9FAFB' }}>{color.name}</div>
+                        <div style={{ fontSize: 10, color: '#6B7280', fontFamily: 'monospace' }}>{color.hex}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {section.type === 'typography' && (
+                <div>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#F9FAFB', margin: '0 0 10px' }}>{c.headline || 'The voice in text.'}</h3>
+                  {c.primaryFont && <div style={{ fontSize: 24, fontWeight: 800, color: '#F9FAFB', marginBottom: 4 }}>{c.primaryFont}</div>}
+                  {c.secondaryFont && <div style={{ fontSize: 16, color: '#9CA3AF', marginBottom: 8 }}>{c.secondaryFont}</div>}
+                  {c.usage && <p style={{ fontSize: 12, color: '#6B7280', margin: 0, lineHeight: 1.6 }}>{c.usage}</p>}
+                </div>
+              )}
+              {section.type === 'logo' && (
+                <div>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#F9FAFB', margin: '0 0 10px' }}>{c.headline || 'The mark.'}</h3>
+                  {c.description && <p style={{ fontSize: 13, color: '#9CA3AF', margin: '0 0 12px', lineHeight: 1.7 }}>{c.description}</p>}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {(c.variations || []).map((v, i) => <span key={i} style={{ fontSize: 11, background: '#1A1A1A', color: '#6B7280', borderRadius: 20, padding: '3px 10px' }}>{v}</span>)}
+                  </div>
+                </div>
+              )}
+              {section.type === 'custom' && (
+                <div>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#F9FAFB', margin: '0 0 10px' }}>{c.heading || 'Custom Section'}</h3>
+                  {c.body && <p style={{ fontSize: 13, color: '#9CA3AF', margin: '0 0 12px', lineHeight: 1.7 }}>{c.body}</p>}
+                  {(c.links || []).length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {c.links.map((l, i) => <a key={i} href={l.url} style={{ fontSize: 12, color: '#6B7280', textDecoration: 'underline' }}>{l.label}</a>)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {sections.filter(s => s.enabled).length === 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: '#374151', fontSize: 13 }}>
+            Enable sections to preview the portal
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Add section modal ────────────────────────────────────────────────────────
+function AddSectionModal({ onAdd, onClose, existingTypes }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={onClose}>
+      <div style={{ background: '#111', border: '1px solid #2A2A2A', borderRadius: 14, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#F9FAFB', marginBottom: 20 }}>Add section</div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {Object.entries(SECTION_TYPES).map(([type, def]) => {
+            const alreadyExists = type !== 'custom' && existingTypes.includes(type);
+            return (
+              <button
+                key={type}
+                disabled={alreadyExists}
+                onClick={() => { onAdd(type); onClose(); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: alreadyExists ? '#0A0A0A' : '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, cursor: alreadyExists ? 'not-allowed' : 'pointer', opacity: alreadyExists ? .4 : 1, textAlign: 'left' }}
+              >
+                <span style={{ fontSize: 20, color: def.color, width: 24, textAlign: 'center' }}>{def.icon}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#F9FAFB' }}>{def.label}</div>
+                  {alreadyExists && <div style={{ fontSize: 11, color: '#4B5563' }}>Already in portal</div>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={onClose} style={{ marginTop: 16, width: '100%', padding: '9px', background: 'none', border: '1px solid #2A2A2A', borderRadius: 8, color: '#6B7280', fontSize: 13, cursor: 'pointer' }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
+export default function PortalEditorPage() {
+  const { portalId } = useParams();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  const { data: portal, isLoading } = useQuery(['portal', portalId], () => portals.get(portalId));
+
+  const [sections, setSections] = useState([]);
+  const [activeSection, setActiveSection] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('idle'); // idle | saving | saved | error
+  const [dirty, setDirty] = useState(false);
+
+  // Initialize sections from portal content
+  useEffect(() => {
+    if (!portal) return;
+    const content = portal.content || {};
+    const savedSections = content.sections;
+    if (savedSections?.length > 0) {
+      setSections(savedSections);
+    } else {
+      // Build from existing content keys
+      const defaultOrder = ['hero', 'brand', 'logo', 'colors', 'typography'];
+      const built = defaultOrder.map((type, i) => ({
+        id: `section-${type}`,
+        type,
+        enabled: true,
+        order: i,
+        content: content[type] || SECTION_TYPES[type].defaultContent,
+      }));
+      setSections(built);
+    }
+    setActiveSection(null);
+    setDirty(false);
+  }, [portal]);
+
+  const saveMutation = useMutation(
+    (data) => portals.update(portalId, data),
+    {
+      onMutate: () => setSaveStatus('saving'),
+      onSuccess: () => {
+        setSaveStatus('saved');
+        setDirty(false);
+        qc.invalidateQueries(['portal', portalId]);
+        qc.invalidateQueries('portals');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      },
+      onError: () => {
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      },
+    }
+  );
+
+  const handleSave = () => {
+    // Build legacy content format for backwards compat with client portal
+    const contentMap = {};
+    sections.forEach(s => { if (s.type !== 'custom') contentMap[s.type] = s.content; });
+    saveMutation.mutate({ content: { ...contentMap, sections } });
+  };
+
+  const updateSectionContent = useCallback((id, newContent) => {
+    setSections(prev => prev.map(s => s.id === id ? { ...s, content: newContent } : s));
+    setDirty(true);
+  }, []);
+
+  const toggleSection = (id) => {
+    setSections(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
+    setDirty(true);
+  };
+
+  const moveSection = (id, dir) => {
+    setSections(prev => {
+      const idx = prev.findIndex(s => s.id === id);
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+      return next.map((s, i) => ({ ...s, order: i }));
+    });
+    setDirty(true);
+  };
+
+  const addSection = (type) => {
+    const newSection = {
+      id: `section-${type}-${Date.now()}`,
+      type,
+      enabled: true,
+      order: sections.length,
+      content: { ...SECTION_TYPES[type].defaultContent },
+    };
+    setSections(prev => [...prev, newSection]);
+    setActiveSection(newSection.id);
+    setDirty(true);
+  };
+
+  const removeSection = (id) => {
+    setSections(prev => prev.filter(s => s.id !== id));
+    if (activeSection === id) setActiveSection(null);
+    setDirty(true);
+  };
+
+  if (isLoading) return <div style={{ padding: 40, color: '#6B7280', fontSize: 14 }}>Loading portal…</div>;
+  if (!portal) return <div style={{ padding: 40, color: '#EF4444', fontSize: 14 }}>Portal not found.</div>;
+
+  const activeSec = sections.find(s => s.id === activeSection);
+  const ActiveEditor = activeSec ? SECTION_EDITORS[activeSec.type] : null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0A0A0A', fontFamily: 'Inter, sans-serif', color: '#F9FAFB' }}>
+
+      {/* ── Top bar ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 24px', background: '#111', borderBottom: '1px solid #1E1E1E', flexShrink: 0 }}>
+        <button onClick={() => navigate('/portals')} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, padding: 0 }}>
+          ← Portals
+        </button>
+        <div style={{ width: 1, height: 18, background: '#2A2A2A' }} />
+        <div>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#F9FAFB' }}>{portal.client_name}</span>
+          <span style={{ fontSize: 12, color: '#4B5563', marginLeft: 8 }}>Portal editor</span>
+        </div>
+        <div style={{ flex: 1 }} />
+
+        {dirty && <span style={{ fontSize: 11, color: '#F59E0B', letterSpacing: '.06em' }}>Unsaved changes</span>}
+
+        <button
+          onClick={() => setShowPreview(p => !p)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '7px 14px', background: showPreview ? '#1A1A1A' : 'transparent', border: '1px solid #2A2A2A', borderRadius: 8, color: showPreview ? '#F9FAFB' : '#6B7280', cursor: 'pointer' }}
+        >
+          {showPreview ? <EyeOffIcon /> : <EyeIcon />}
+          {showPreview ? 'Hide preview' : 'Preview'}
+        </button>
+
+        <button
+          onClick={handleSave}
+          disabled={saveStatus === 'saving'}
+          style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, padding: '8px 18px', background: saveStatus === 'saved' ? '#10B981' : saveStatus === 'error' ? '#EF4444' : '#F9FAFB', color: saveStatus === 'saved' || saveStatus === 'error' ? '#fff' : '#111', border: 'none', borderRadius: 8, cursor: saveStatus === 'saving' ? 'wait' : 'pointer', transition: 'background .2s' }}
+        >
+          <SaveIcon />
+          {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Error' : 'Save'}
+        </button>
+      </div>
+
+      {/* ── Main layout ── */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: showPreview ? '260px 1fr 1fr' : '260px 1fr', overflow: 'hidden' }}>
+
+        {/* Left: section list */}
+        <div style={{ background: '#0D0D0D', borderRight: '1px solid #1E1E1E', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '16px 16px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#4B5563' }}>
+            Sections
+          </div>
+          {sections.map((section, idx) => {
+            const def = SECTION_TYPES[section.type] || SECTION_TYPES.custom;
+            const isActive = section.id === activeSection;
+            return (
+              <div
+                key={section.id}
+                style={{ margin: '2px 8px', borderRadius: 8, background: isActive ? '#1A1A1A' : 'transparent', border: isActive ? '1px solid #2A2A2A' : '1px solid transparent', cursor: 'pointer', transition: 'all .12s' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 10px' }} onClick={() => setActiveSection(isActive ? null : section.id)}>
+                  <span style={{ fontSize: 16, color: section.enabled ? def.color : '#2A2A2A', width: 20, textAlign: 'center', flexShrink: 0 }}>{def.icon}</span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: isActive ? 700 : 500, color: section.enabled ? '#F9FAFB' : '#3A3A3A' }}>{def.label}</span>
+                  <div style={{ display: 'flex', gap: 2, opacity: isActive ? 1 : 0 }} className="section-actions">
+                    <button onClick={e => { e.stopPropagation(); moveSection(section.id, -1); }} disabled={idx === 0} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', padding: 2, opacity: idx === 0 ? .3 : 1 }}><ChevronUp /></button>
+                    <button onClick={e => { e.stopPropagation(); moveSection(section.id, 1); }} disabled={idx === sections.length - 1} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', padding: 2, opacity: idx === sections.length - 1 ? .3 : 1 }}><ChevronDown /></button>
+                    <button onClick={e => { e.stopPropagation(); toggleSection(section.id); }} style={{ background: 'none', border: 'none', color: section.enabled ? '#10B981' : '#4B5563', cursor: 'pointer', padding: 2 }} title={section.enabled ? 'Hide section' : 'Show section'}>
+                      {section.enabled ? <EyeIcon /> : <EyeOffIcon />}
+                    </button>
+                    {section.type === 'custom' && (
+                      <button onClick={e => { e.stopPropagation(); removeSection(section.id); }} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 2, opacity: .7 }}><TrashIcon /></button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          <div style={{ padding: '8px 8px 16px' }}>
+            <button
+              onClick={() => setShowAddModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', background: 'none', border: '1px dashed #2A2A2A', borderRadius: 8, color: '#4B5563', fontSize: 12, cursor: 'pointer' }}
+            >
+              <PlusIcon /> Add section
+            </button>
+          </div>
+        </div>
+
+        {/* Center: content editor */}
+        <div style={{ overflow: 'auto', background: '#0A0A0A' }}>
+          {activeSec && ActiveEditor ? (
+            <div style={{ padding: 28, maxWidth: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
+                <span style={{ fontSize: 22, color: (SECTION_TYPES[activeSec.type] || SECTION_TYPES.custom).color }}>
+                  {(SECTION_TYPES[activeSec.type] || SECTION_TYPES.custom).icon}
+                </span>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#F9FAFB' }}>
+                    {(SECTION_TYPES[activeSec.type] || SECTION_TYPES.custom).label}
+                  </h2>
+                  <div style={{ fontSize: 11, color: activeSec.enabled ? '#10B981' : '#4B5563', marginTop: 2 }}>
+                    {activeSec.enabled ? '● Visible' : '○ Hidden'}
+                  </div>
+                </div>
+                <div style={{ flex: 1 }} />
+                <button
+                  onClick={() => toggleSection(activeSec.id)}
+                  style={{ fontSize: 12, padding: '6px 14px', background: activeSec.enabled ? '#1A2A1A' : '#1A1A1A', border: `1px solid ${activeSec.enabled ? '#10B981' : '#2A2A2A'}`, borderRadius: 7, color: activeSec.enabled ? '#10B981' : '#6B7280', cursor: 'pointer' }}
+                >
+                  {activeSec.enabled ? 'Visible' : 'Hidden'}
+                </button>
+              </div>
+              <ActiveEditor
+                content={activeSec.content}
+                onChange={(newContent) => updateSectionContent(activeSec.id, newContent)}
+              />
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#374151', gap: 12 }}>
+              <div style={{ fontSize: 36, opacity: .3 }}>◈</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Select a section to edit</div>
+              <div style={{ fontSize: 12, color: '#2A2A2A' }}>Or add a new section from the sidebar</div>
+            </div>
+          )}
+        </div>
+
+        {/* Right: live preview */}
+        {showPreview && (
+          <div style={{ borderLeft: '1px solid #1E1E1E', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '10px 16px', background: '#0D0D0D', borderBottom: '1px solid #1E1E1E', fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#4B5563' }}>
+              Live preview
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <PreviewPanel sections={sections} clientName={portal.client_name} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showAddModal && (
+        <AddSectionModal
+          existingTypes={sections.map(s => s.type)}
+          onAdd={addSection}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
+    </div>
+  );
+}

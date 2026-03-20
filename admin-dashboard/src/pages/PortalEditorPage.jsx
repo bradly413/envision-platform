@@ -10,54 +10,35 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://envision-platform-produ
 // ─── System prompt ────────────────────────────────────────────────────────────
 const makeSystemPrompt = (portal) => `You are an AI creative director and web developer helping build a premium client brand reveal portal for ${portal?.client_name || 'a client'} at Bradley Robert Creative, a brand design agency.
 
-You can do two things:
-1. Update portal CONTENT (text, colors, typography, brand copy)
-2. Generate a full custom HTML presentation when the user wants a completely custom layout
+You have TWO modes:
 
-Always respond with JSON only in one of these two formats:
+MODE 1 — CONTENT UPDATE (default): Update text, colors, fonts, brand copy in the structured sections.
+MODE 2 — CUSTOM HTML: Generate a complete self-contained HTML page when the user explicitly asks for "custom HTML", "full HTML", "animations", "custom template", "custom layout", or references wanting something like a specific website's design/animations.
 
-FORMAT A — Content update:
-{
-  "type": "content",
-  "message": "What you changed",
-  "content": { ...full content object... },
-  "suggestions": ["follow-up suggestion 1", "follow-up suggestion 2", "follow-up suggestion 3"]
-}
+CRITICAL: When the user asks for custom HTML or animations, you MUST use FORMAT B and generate a COMPLETE working HTML file. Do not use FORMAT A for these requests.
 
-FORMAT B — Custom HTML (when user wants a completely new layout/template):
-{
-  "type": "html",
-  "message": "What you built",
-  "html": "<!DOCTYPE html><html>...</html>",
-  "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]
-}
+Always respond with valid JSON only:
 
-FORMAT C — Conversation only (no changes):
-{
-  "type": "chat",
-  "message": "Your response",
-  "suggestions": ["suggestion 1", "suggestion 2"]
-}
+FORMAT A — Content update (text/colors/copy changes):
+{"type":"content","message":"What changed","content":{...full content object...},"suggestions":["s1","s2","s3"]}
+
+FORMAT B — Custom HTML (animations, custom layouts, full redesigns):
+{"type":"html","message":"What you built","html":"<!DOCTYPE html><html lang=\\"en\\"><head>...</head><body>...</body></html>","suggestions":["s1","s2","s3"]}
+
+FORMAT C — Chat only:
+{"type":"chat","message":"Your response","suggestions":["s1","s2"]}
 
 Content object structure:
-{
-  "hero": { "headline": "", "subheadline": "", "intro": "" },
-  "brand": { "headline": "", "positioning": "", "pillars": [{ "title": "", "desc": "" }] },
-  "logo": { "headline": "", "description": "", "variations": [] },
-  "colors": { "headline": "", "palette": [{ "name": "", "hex": "#000000", "role": "" }] },
-  "typography": { "headline": "", "primaryFont": "", "secondaryFont": "", "usage": "" },
-  "sections": []
-}
+{"hero":{"headline":"","subheadline":"","intro":""},"brand":{"headline":"","positioning":"","pillars":[{"title":"","desc":""}]},"logo":{"headline":"","description":"","variations":[]},"colors":{"headline":"","palette":[{"name":"","hex":"#000000","role":""}]},"typography":{"headline":"","primaryFont":"","secondaryFont":"","usage":""},"sections":[]}
 
-For custom HTML portals:
-- Use full HTML with embedded CSS and JS
-- Include Google Fonts via @import
-- Make it beautiful, immersive, scroll-animated
-- Use the client's brand colors and name
-- Include all brand sections: hero, brand story, colors, typography, logo, approval CTA
-- Make it production-quality, not a demo
-
-When analyzing a URL or screenshot reference, extract the design system (colors, fonts, layout style, spacing, animation approach) and apply it to the portal.`;
+For FORMAT B custom HTML:
+- Write a COMPLETE HTML file with all CSS inline in <style> tags and JS inline in <script> tags
+- Use Google Fonts via @import in the style tag
+- Include smooth scroll reveal animations using Intersection Observer or CSS animations
+- Dark background (#0F0F0F or similar), premium typography, immersive full-screen sections
+- Sections: hero (full viewport), brand story, color palette (visual swatches), typography showcase, logo presentation, approval CTA
+- Use the client name "${portal?.client_name}" and brand content throughout
+- This will be rendered directly in an iframe — make it fully self-contained`;
 
 // ─── Live preview ─────────────────────────────────────────────────────────────
 function LivePreview({ content, customHtml, clientName, previewMode, setPreviewMode }) {
@@ -289,16 +270,18 @@ export default function PortalEditorPage() {
     const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error('VITE_ANTHROPIC_API_KEY not set in Netlify environment variables');
 
+    const isHtmlRequest = /custom html|full html|animation|custom template|custom layout|custom version|generate.*html|html version/i.test(userMessage);
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
+        max_tokens: isHtmlRequest ? 8000 : 2000,
         system: makeSystemPrompt(portal),
         messages: [
-          ...messages.slice(-6).filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: m.content })),
-          { role: 'user', content: `Current content:\n${JSON.stringify(content, null, 2)}\n${extraContext}\n\nRequest: ${userMessage}` }
+          ...messages.slice(-4).filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: m.content })),
+          { role: 'user', content: `Current content:\n${JSON.stringify(content)}\n${extraContext}\n\nRequest: ${userMessage}` }
         ],
       }),
     });

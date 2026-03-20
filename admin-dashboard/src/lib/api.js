@@ -31,6 +31,7 @@ export const clients = {
 
 export const portals = {
   list: () => api.get('/portals'),
+  get: (id) => api.get(`/portals/${id}`),
   create: (data) => api.post('/portals', data),
   update: (id, data) => api.patch(`/portals/${id}`, data),
   analytics: (id) => api.get(`/portals/${id}/analytics`),

@@ -11,6 +11,7 @@ import TasksPage from './pages/TasksPage';
 import FinancePage from './pages/FinancePage';
 import AgentsPage from './pages/AgentsPage';
 import PortalsPage from './pages/PortalsPage';
+import PortalEditorPage from './pages/PortalEditorPage';
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="finance" element={<FinancePage />} />
             <Route path="agents" element={<AgentsPage />} />
             <Route path="portals" element={<PortalsPage />} />
+            <Route path="portals/:portalId/edit" element={<PortalEditorPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

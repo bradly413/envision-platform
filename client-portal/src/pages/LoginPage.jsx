@@ -30,7 +30,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280' }}>Envision x</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginTop: 4 }}>Bradley Robert Creative</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginTop: 4 }}>Envision Creative</div>
         </div>
 
         <form onSubmit={handleLogin}>

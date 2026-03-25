@@ -4,7 +4,6 @@ const db = require('../config/db');
 
 router.use(requireAdmin);
 
-// Run an AI agent via Claude API
 router.post('/run', async (req, res) => {
   const { agent, context } = req.body;
 
@@ -33,6 +32,55 @@ router.post('/run', async (req, res) => {
       Project type: ${ctx.projectType}. Estimated budget: $${ctx.budget}.
       Key deliverables: ${ctx.deliverables?.join(', ')}.
       Write a professional, concise proposal outline with scope, timeline, and investment sections.`,
+
+    'client-outreach': (ctx) => {
+      const client = ctx.client || {};
+      const name = client.name || 'there';
+      const company = client.company || '';
+      const agency = ctx.agencyName || 'Bradley Robert Creative';
+
+      if (ctx.status === 'approved') {
+        return `You are a senior account representative at ${agency}, a premium creative agency.
+A client named ${name}${company ? ` from ${company}` : ''} just approved their brand proposal through the Envision portal on ${ctx.approvedAt ? new Date(ctx.approvedAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'today'}.
+
+Write a warm, professional first-touch email to kick off the project. The tone should be excited but composed — the kind of email a high-end creative studio sends when a relationship officially begins. 
+
+Include:
+- A genuine congratulations on taking this step
+- A brief mention of what comes next (kickoff call, final file delivery, onboarding)
+- A specific call to action to schedule a 30-minute kickoff call
+- Sign off as the ${agency} team
+
+Keep it under 150 words. No fluff. Make it feel like the start of something great.`;
+      }
+
+      if (ctx.status === 'revision') {
+        return `You are a senior account representative at ${agency}, a premium creative agency.
+A client named ${name}${company ? ` from ${company}` : ''} reviewed their brand proposal and submitted feedback requesting changes.
+
+Their feedback: "${ctx.revisionNotes || 'No specific notes provided.'}"
+
+Write a professional, empathetic response email that:
+- Acknowledges their feedback warmly and without defensiveness
+- Affirms that their input makes the work stronger
+- Briefly outlines the next step (revision review call or timeline for updates)
+- Ends with a clear call to action
+
+Keep it under 150 words. Tone: warm, confident, collaborative.`;
+      }
+
+      // pending / follow-up
+      return `You are a senior account representative at ${agency}, a premium creative agency.
+A client named ${name}${company ? ` from ${company}` : ''} has viewed their brand proposal portal but has not yet made a decision.
+
+Write a short, non-pushy follow-up email that:
+- Checks in warmly
+- Offers to answer any questions or jump on a quick call
+- Reminds them the portal is available at ${ctx.portalUrl || 'their unique link'}
+- Does not feel like a sales email — feels like a genuine check-in from someone who cares about their project
+
+Keep it under 120 words.`;
+    },
   };
 
   const promptFn = PROMPTS[agent];
@@ -49,7 +97,7 @@ router.post('/run', async (req, res) => {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
-        messages: [{ role: 'user', content: promptFn(context) }],
+        messages: [{ role: 'user', content: typeof promptFn === 'function' ? promptFn(context) : promptFn }],
       }),
     });
     const data = await response.json();

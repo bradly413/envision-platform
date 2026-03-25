@@ -55,6 +55,7 @@ export default function PresentationPage() {
       <ColorSection content={content.colors} />
       <TypographySection content={content.typography} />
       <ApprovalSection portalId={portal.id} clientName={portal.clientName} />
+      <SpecSheetSection />
     </div>
   );
 }

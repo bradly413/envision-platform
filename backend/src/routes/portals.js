@@ -111,5 +111,27 @@ router.post('/:id/events', requirePortalAuth, async (req, res) => {
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Portal: login by slug + password
+router.post('/login', async (req, res) => {
+  const { slug, password } = req.body;
+  try {
+    const { rows } = await db.query(
+      'SELECT * FROM portals WHERE slug = $1',
+      [slug]
+    );
+    const portal = rows[0];
+    if (!portal) return res.status(404).json({ error: 'Portal not found' });
+    if (portal.status === 'expired') return res.status(403).json({ error: 'Portal has expired' });
 
+    const valid = await bcrypt.compare(password, portal.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+    await db.query(
+      'INSERT INTO portal_events (portal_id, event_type, payload, user_agent) VALUES ($1,$2,$3,$4)',
+      [portal.id, 'login', JSON.stringify({}), req.headers['user-agent']]
+    );
+
+    res.json({ success: true, portal_id: portal.id, slug: portal.slug, content: portal.content });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 module.exports = router;

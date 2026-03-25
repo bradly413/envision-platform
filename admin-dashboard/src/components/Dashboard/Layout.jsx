@@ -23,7 +23,7 @@ export default function Layout() {
       <aside style={{ width: 240, background: '#fff', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #E5E7EB' }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 4 }}>Envision</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#111827' }}>Bradley Robert</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#111827' }}>Envision Creative</div>
         </div>
         <nav style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
           {NAV.map(({ to, label, icon }) => (

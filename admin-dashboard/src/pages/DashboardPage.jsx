@@ -13,7 +13,7 @@ export default function DashboardPage() {
     setLoading(true);
     try {
       const result = await agents.run('daily-briefing', {
-        agencyName: 'Bradley Robert Creative',
+        agencyName: 'Envision Creative',
         clients: overview?.clientsByStage || [],
         openTasks: overview?.tasksByStatus?.find(t => t.status === 'todo')?.count,
       });

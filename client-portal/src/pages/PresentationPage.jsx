@@ -3,6 +3,7 @@ import { usePortalStore } from '../lib/store';
 import { track } from '../lib/api';
 import HeroSection from '../components/Hero/HeroSection';
 import BrandSection from '../components/ScrollSections/BrandSection';
+import SpecSheetSection from "../components/ScrollSections/SpecSheetSection";
 import LogoSection from '../components/ScrollSections/LogoSection';
 import ColorSection from '../components/ScrollSections/ColorSection';
 import TypographySection from '../components/ScrollSections/TypographySection';

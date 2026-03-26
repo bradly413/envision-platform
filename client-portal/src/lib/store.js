@@ -8,5 +8,13 @@ export const usePortalStore = create(persist(
     setPortalAuth: (token, portal) => set({ token, portal }),
     logout: () => set({ token: null, portal: null }),
   }),
-  { name: 'envision-portal-auth' }
+  {
+    name: 'envision-portal-auth',
+    partialize: (state) => ({
+      token: state.token,
+      portal: state.portal
+        ? { id: state.portal.id, slug: state.portal.slug }
+        : null,
+    }),
+  }
 ));

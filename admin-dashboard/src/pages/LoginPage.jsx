@@ -4,7 +4,7 @@ import { auth } from '../lib/api';
 import { useAuthStore } from '../lib/store';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('bradly@bradlyrobert.com');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +19,8 @@ export default function LoginPage() {
       setAuth(token, user);
       navigate('/');
     } catch (err) {
-      setError(typeof err === 'string' ? err : 'Invalid credentials');
+      setError(typeof err === 'string' ? err : 'Network Error — check that the backend is running');
+      setPassword('');
     } finally { setLoading(false); }
   };
 
@@ -30,15 +31,17 @@ export default function LoginPage() {
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 6 }}>Envision · Admin</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: '#111827' }}>Sign in</div>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} autoComplete="off">
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#6B7280', marginBottom: 6 }}>Email</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+              autoComplete="username"
               style={{ width: '100%', boxSizing: 'border-box', padding: '11px 13px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 14, fontFamily: 'Inter, sans-serif', outline: 'none', color: '#111827' }} />
           </div>
           <div style={{ marginBottom: 20 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#6B7280', marginBottom: 6 }}>Password</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
+              autoComplete="current-password" placeholder="Enter password"
               style={{ width: '100%', boxSizing: 'border-box', padding: '11px 13px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 14, fontFamily: 'Inter, sans-serif', outline: 'none', color: '#111827' }} />
           </div>
           {error && <div style={{ color: '#EF4444', fontSize: 13, marginBottom: 14 }}>{error}</div>}

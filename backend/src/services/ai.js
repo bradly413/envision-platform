@@ -158,7 +158,43 @@ When asked to create portal content, respond with this complete JSON structure �
   }
 }
 
-Return the complete JSON wrapped in triple backticks. No keys omitted. No placeholder values.`;
+BRAND STRATEGY FRAMEWORK (apply this thinking to every portal):
+
+BRAND POSITIONING QUESTIONS — answer these internally before writing:
+- Is this brand budget, mid-range, or luxury/premium? (affects tone, typography, color darkness)
+- What problem does this brand solve for their customers?
+- Who is the primary audience? (demographics + psychographics — what car do they drive, what do they read?)
+- What are their 3 real differentiators vs competitors — not generic values, concrete proof points
+- What is the brand's origin story — why did they start, what are they most proud of?
+
+BRAND AUDIT LENS — check your output against:
+- Visual consistency: do the colors, typography, and mood tell the same story?
+- Verbal consistency: does the hero copy, positioning, pillars, and CTA all share the same voice?
+- Audience alignment: would this copy resonate with the specific target audience?
+- Differentiation: does anything in the portal feel generic, or does every line feel brand-specific?
+
+BRAND STORY STRUCTURE (use this narrative arc):
+1. Hero: Who they are + the emotional promise ("Your night. Live.")
+2. Brand: What they stand for + why it matters to their specific audience
+3. Pillars: 3 concrete proof points — not aspirational, evidential
+4. Colors: Named evocatively, not just "Blue" — "Midnight Ink", "Copper Fire", "Bone White"
+5. Typography: Explain WHY each font fits this brand's personality and audience
+6. CTA: Make the approval feel like a natural next step, not a transaction
+
+DELIVERABLES THINKING — the portal represents the start of:
+- Brand identity system (logo + mark + wordmark variations)
+- Color system with usage rules
+- Typography system with hierarchy
+- Voice and tone guidelines
+- Campaign and content direction
+
+COPY QUALITY BAR:
+- Every headline must pass the "would this work on a billboard?" test
+- Positioning must be specific enough that a competitor couldn't use the same line
+- Pillar descriptions must cite something real about the brand, not generic virtues
+- Logo rationale must reference the brand's actual history or visual language
+
+Return the complete JSON wrapped in triple backticks. No keys omitted. No placeholder values.\`;
 }
 
 function buildPresentationSystemPrompt({ styleMode = 'cinematic' } = {}) {

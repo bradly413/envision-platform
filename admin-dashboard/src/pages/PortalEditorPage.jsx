@@ -34,7 +34,16 @@ const OUTPUT_MODES = [
 ];
 
 const MODE_INTRO = {
-  portal: `Hi! I'm your Envision builder. Tell me about the client, the brand mood, and the type of reveal you want. I can generate high-end portal JSON using Claude, GPT, or Gemini, complete with art direction and curated motion presets.`,
+  portal: `Hi! I'm your Envision brand director. To generate a cinematic portal that matches the Jazz Club quality, I need a few things:
+
+**Drop any of these and I'll get started:**
+- Client name + website URL (I'll auto-fetch their brand)
+- A PDF or pasted branding brief
+- A description: industry, audience, brand personality, colors they love/hate
+- Competitors they want to stand apart from
+
+**The more context you give, the more specific the output.** I'll use your brief to extract real positioning, audience psychographics, color palette, typography, and brand differentiators — then generate a full cinematic portal with immersive animations, shader backgrounds, and scroll effects.`,
+
   presentation: `Hi! I'm your Envision presentation director. Tell me about the client, the audience, and the story you want to tell. I can generate reveal.js-ready presentation JSON with themes, slide transitions, fragments, media backgrounds, notes, and cinematic pacing.`,
 };
 
@@ -384,12 +393,31 @@ Use the above site content to extract the brand's real name, colors, tone, typog
         </div>
 
         {/* Input */}
-        <div style={{ padding: '14px 16px', background: '#fff', borderTop: '1px solid #E5E7EB' }}>
+        <div style={{ padding: '12px 16px', background: '#fff', borderTop: '1px solid #E5E7EB' }}>
+          {/* Quick context chips */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {[
+              { label: '📋 Brand brief', text: 'Create a cinematic portal using this branding brief as context:
+
+' },
+              { label: '🔗 From URL', text: 'Analyze this website and create a cinematic portal: ' },
+              { label: '🎨 Luxury brand', text: 'Create a luxury cinematic portal for ' },
+              { label: '⚡ Bold campaign', text: 'Create a bold campaign-style portal for ' },
+              { label: '🏙️ Culture/venue', text: 'Create an immersive culture portal for ' },
+            ].map(chip => (
+              <button key={chip.label} onClick={() => setInput(prev => prev ? prev : chip.text)}
+                style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', cursor: 'pointer', color: '#6B7280', whiteSpace: 'nowrap' }}
+                onMouseOver={e => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = '#111827'; }}
+                onMouseOut={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#6B7280'; }}>
+                {chip.label}
+              </button>
+            ))}
+          </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
             <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
               placeholder={outputMode === 'presentation'
-                ? 'Describe the audience, pacing, and story arc... (Enter to send)'
-                : 'Describe the client, paste content, or ask for revisions... (Enter to send)'}
+                ? 'Describe the client, audience, and story arc... paste a brief, or drop a URL (Enter to send)'
+                : 'Describe the client, paste a branding brief, drop a URL, or ask for revisions... (Enter to send)'}
               rows={3}
               style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 13, fontFamily: 'Inter, sans-serif', resize: 'none', outline: 'none', lineHeight: 1.5 }} />
             <button onClick={sendMessage} disabled={loading || !input.trim()}

@@ -288,27 +288,27 @@ IMPORTANT: Keep this exact experience/visual system. Only change the client name
     if (referencedPortals.length === 0) return text;
     const refs = referencedPortals.map(p => {
       const c = p.content || {};
-      return `[PORTAL REFERENCE: @${p.client_name || p.slug}]
-Client: ${p.client_name || p.slug}
-Slug: /${p.slug}
-Status: ${p.status}
-Hero headline: ${c.hero?.headline || 'N/A'}
-Subheadline: ${c.hero?.subheadline || 'N/A'}
-Positioning: ${c.brand?.positioning || 'N/A'}
-Brand pillars: ${(c.brand?.pillars || []).map(pl => pl.title).join(', ') || 'N/A'}
-Colors: ${JSON.stringify((c.colors?.palette || c.colors || []).slice(0, 5))}
-Primary font: ${c.typography?.primaryFont || 'N/A'}
-Secondary font: ${c.typography?.secondaryFont || 'N/A'}
-Experience preset: ${c.experience?.preset || 'N/A'}
-Motion level: ${c.experience?.motionLevel || 'N/A'}
-Hero effects: ${(c.experience?.heroEffects || []).join(', ') || 'N/A'}
-Background: ${JSON.stringify(c.experience?.background || {})}
-[END PORTAL REFERENCE]`;
+      return '[PORTAL REFERENCE: @' + (p.client_name || p.slug) + ']\n' +
+        'Client: ' + (p.client_name || p.slug) + '\n' +
+        'Slug: /' + p.slug + '\n' +
+        'Status: ' + p.status + '\n' +
+        'Hero headline: ' + (c.hero?.headline || 'N/A') + '\n' +
+        'Subheadline: ' + (c.hero?.subheadline || 'N/A') + '\n' +
+        'Positioning: ' + (c.brand?.positioning || 'N/A') + '\n' +
+        'Brand pillars: ' + ((c.brand?.pillars || []).map(pl => pl.title).join(', ') || 'N/A') + '\n' +
+        'Colors: ' + JSON.stringify((c.colors?.palette || c.colors || []).slice(0, 5)) + '\n' +
+        'Primary font: ' + (c.typography?.primaryFont || 'N/A') + '\n' +
+        'Secondary font: ' + (c.typography?.secondaryFont || 'N/A') + '\n' +
+        'Experience preset: ' + (c.experience?.preset || 'N/A') + '\n' +
+        'Motion level: ' + (c.experience?.motionLevel || 'N/A') + '\n' +
+        'Hero effects: ' + ((c.experience?.heroEffects || []).join(', ') || 'N/A') + '\n' +
+        'Background: ' + JSON.stringify(c.experience?.background || {}) + '\n' +
+        '[END PORTAL REFERENCE]';
     }).join('\n\n');
     return text + '\n\n' + refs;
   };
 
-  const sendMessage = async () => {  const sendMessage = async () => {
+  const sendMessage = async () => {
     if (!input.trim() || loading) return;
     setLoading(true);
     setExtractedJSON(null);

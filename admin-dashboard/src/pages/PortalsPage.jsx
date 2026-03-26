@@ -127,6 +127,12 @@ export default function PortalsPage() {
     onSuccess: () => qc.invalidateQueries('portals'),
   });
 
+  const statusMutation = useMutation(({ id, status }) => portals.update(id, { status }), {
+    onSuccess: () => qc.invalidateQueries('portals'),
+  });
+
+  const [openMenu, setOpenMenu] = useState(null);
+
   const loadAnalytics = async (portal) => {
     if (selectedPortal?.id === portal.id) { setSelectedPortal(null); setAnalyticsData(null); setOutreachDraft(''); return; }
     setSelectedPortal(portal);
@@ -180,7 +186,7 @@ export default function PortalsPage() {
   };
 
   return (
-    <div style={{ padding: 32, fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ padding: 32, fontFamily: 'Inter, sans-serif' }} onClick={(e) => { if (!e.target.closest('[data-menu]')) setOpenMenu(null); }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
@@ -253,7 +259,14 @@ export default function PortalsPage() {
                 </div>
 
                 {/* Actions */}
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                  {/* Status toggle */}
+                  <button onClick={() => statusMutation.mutate({ id: portal.id, status: portal.status === 'active' ? 'draft' : 'active' })}
+                    style={{ padding: '6px 12px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      background: portal.status === 'active' ? '#D1FAE5' : '#FEF3C7',
+                      color: portal.status === 'active' ? '#065F46' : '#92400E' }}>
+                    {portal.status === 'active' ? '● Active' : '○ Set Active'}
+                  </button>
                   <button onClick={() => navigate('/portal-editor')} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151' }}>Edit</button>
                   <button onClick={() => sendToClient(portal)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151' }}>Send ↗</button>
                   <button onClick={() => loadAnalytics(portal)} style={{
@@ -265,6 +278,37 @@ export default function PortalsPage() {
                     {copied === portal.id ? 'Copied!' : 'Copy URL'}
                   </button>
                   <a href={`${PORTAL_URL}/${portal.slug}`} target="_blank" rel="noreferrer" style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151', textDecoration: 'none' }}>Open ↗</a>
+
+                  {/* ⋯ menu */}
+                  <div style={{ position: 'relative' }}>
+                    <button onClick={() => setOpenMenu(openMenu === portal.id ? null : portal.id)}
+                      style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', fontSize: 16, cursor: 'pointer', color: '#6B7280', lineHeight: 1 }}>
+                      ···
+                    </button>
+                    {openMenu === portal.id && (
+                      <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.12)', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
+                        <button onClick={() => { statusMutation.mutate({ id: portal.id, status: portal.status === 'active' ? 'draft' : 'active' }); setOpenMenu(null); }}
+                          style={{ width: '100%', padding: '10px 16px', border: 'none', background: 'none', fontSize: 13, cursor: 'pointer', textAlign: 'left', color: '#374151', display: 'block' }}
+                          onMouseOver={e => e.currentTarget.style.background = '#F9FAFB'}
+                          onMouseOut={e => e.currentTarget.style.background = 'none'}>
+                          {portal.status === 'active' ? '○ Set as Draft' : '● Set as Active'}
+                        </button>
+                        <button onClick={() => { copyURL(portal); setOpenMenu(null); }}
+                          style={{ width: '100%', padding: '10px 16px', border: 'none', background: 'none', fontSize: 13, cursor: 'pointer', textAlign: 'left', color: '#374151', display: 'block' }}
+                          onMouseOver={e => e.currentTarget.style.background = '#F9FAFB'}
+                          onMouseOut={e => e.currentTarget.style.background = 'none'}>
+                          Copy URL
+                        </button>
+                        <div style={{ height: 1, background: '#F3F4F6', margin: '4px 0' }} />
+                        <button onClick={() => { if (window.confirm('Archive this portal?')) { deleteMutation.mutate(portal.id); setOpenMenu(null); } }}
+                          style={{ width: '100%', padding: '10px 16px', border: 'none', background: 'none', fontSize: 13, cursor: 'pointer', textAlign: 'left', color: '#EF4444', display: 'block' }}
+                          onMouseOver={e => e.currentTarget.style.background = '#FEF2F2'}
+                          onMouseOut={e => e.currentTarget.style.background = 'none'}>
+                          Archive portal
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

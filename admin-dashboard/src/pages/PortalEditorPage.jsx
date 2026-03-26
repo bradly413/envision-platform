@@ -397,13 +397,11 @@ Use the above site content to extract the brand's real name, colors, tone, typog
           {/* Quick context chips */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
             {[
-              { label: '📋 Brand brief', text: 'Create a cinematic portal using this branding brief as context:
-
-' },
+              { label: '📋 Brand brief', text: 'Create a cinematic portal using this branding brief:\n\n' },
               { label: '🔗 From URL', text: 'Analyze this website and create a cinematic portal: ' },
               { label: '🎨 Luxury brand', text: 'Create a luxury cinematic portal for ' },
               { label: '⚡ Bold campaign', text: 'Create a bold campaign-style portal for ' },
-              { label: '🏙️ Culture/venue', text: 'Create an immersive culture portal for ' },
+              { label: '🏙 Culture/venue', text: 'Create an immersive culture portal for ' },
             ].map(chip => (
               <button key={chip.label} onClick={() => setInput(prev => prev ? prev : chip.text)}
                 style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', cursor: 'pointer', color: '#6B7280', whiteSpace: 'nowrap' }}

@@ -1,7 +1,7 @@
 const PROVIDER_DEFAULTS = {
   anthropic: process.env.ANTHROPIC_PORTAL_EDITOR_MODEL || 'claude-sonnet-4-20250514',
   openai: process.env.OPENAI_PORTAL_EDITOR_MODEL || 'gpt-4.1',
-  google: process.env.GOOGLE_PORTAL_EDITOR_MODEL || 'gemini-1.5-pro',
+  google: process.env.GOOGLE_PORTAL_EDITOR_MODEL || 'gemini-2.5-flash',
 };
 
 const STYLE_DIRECTIVES = {

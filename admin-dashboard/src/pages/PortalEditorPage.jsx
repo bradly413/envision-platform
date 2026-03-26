@@ -196,28 +196,63 @@ export default function PortalEditorPage() {
     const res = await fetch(`${API_URL}/ai/builder`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ provider, model, styleMode, outputMode, messages: msgs, maxTokens: 1800 }),
+      body: JSON.stringify({ provider, model, styleMode, outputMode, messages: msgs, maxTokens: 3000 }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
     return data.reply || '';
   };
 
+  // Extract URL from message and fetch site content via backend
+  const enrichWithURL = async (text) => {
+    const urlMatch = text.match(/https?:\/\/[^\s]+/);
+    if (!urlMatch) return text;
+    const url = urlMatch[0];
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'https://envision-platform-production.up.railway.app/api';
+      const token = (() => { try { return JSON.parse(localStorage.getItem('envision-admin-auth'))?.state?.token || ''; } catch { return ''; } })();
+      const res = await fetch(`${API_URL}/uploads/fetch-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ url })
+      });
+      if (!res.ok) return text;
+      const data = await res.json();
+      if (data.content) {
+        return `${text}
+
+[SITE CONTENT FROM ${url}]
+${data.content.substring(0, 2000)}
+[END SITE CONTENT]
+
+Use the above site content to extract the brand's real name, colors, tone, typography, and positioning for the portal.`;
+      }
+    } catch (e) { /* URL fetch failed, proceed without */ }
+    return text;
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
-    const userMsg = { role: 'user', content: input.trim() };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setInput('');
     setLoading(true);
     setExtractedJSON(null);
+
+    // Enrich with URL content if a URL is detected
+    const enrichedInput = await enrichWithURL(input.trim());
+    const userMsg = { role: 'user', content: enrichedInput };
+    const displayMsg = { role: 'user', content: input.trim() }; // show clean version in chat
+    const newMessages = [...messages, userMsg];
+    setMessages(prev => [...prev, displayMsg]);
+    setInput('');
 
     try {
       // Always route through Railway backend — it holds all API keys (Anthropic, OpenAI, Google)
       const reply = await callViaBackend(newMessages);
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       const json = extractJSON(reply);
-      if (json) setExtractedJSON(json);
+      if (json) {
+        setExtractedJSON(json);
+        setPreviewMode('preview'); // auto-switch to preview when content arrives
+      }
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${String(e.message || e)}` }]);
     } finally {

@@ -46,74 +46,103 @@ function getProviderConfig(provider, model) {
 function buildPortalEditorSystemPrompt({ styleMode = 'cinematic' } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
 
-  return `You are Envision Creative's senior creative director. You create immersive, high-end client brand reveal portals.
+  return `You are Envision Creative's senior creative director and brand experience architect.
+Your job is to generate a complete, cinematic, client-ready brand reveal portal that will genuinely impress the client — think Apple keynote meets luxury brand launch.
 
 ${styleDirective}
 
-CRITICAL RULES — follow every one:
-- Write with the precision of a senior brand strategist. Every word must earn its place.
-- Be SPECIFIC to this client. Use their actual industry, audience, and brand signals. Never write generic copy.
-- Headlines must be memorable, punchy, and original — not "Where Elegance Meets Excellence" clichés.
-- Positioning statements must be sharp enough to use in a real pitch deck.
-- Color palettes must have actual hex values that fit the brand. Never use placeholder colors.
-- Typography must use real Google Fonts or system fonts appropriate for the brand.
-- Pillars must be concrete brand differentiators, not vague values like "Quality" or "Trust".
-- If the user provides a URL, extract the real brand name, colors, tone, and positioning from it.
-- The output will be shown directly to the client — make it feel premium and presentation-ready.
-- Assign a cinematic motion language using the curated Envision experience system.
-- Use only the approved presets and effects listed below. Do not invent new effect names.
+THE STANDARD: Every portal you generate must feel like the Jazz St. Louis example — dark, cinematic, immersive, with a strong visual identity, sharp copy, and a clear emotional arc from hero to CTA. The client should feel like they're experiencing something built specifically for them, not a template.
 
-Approved experience presets:
-- cinematic-editorial
-- luxury-minimal
-- bold-campaign
-- immersive-culture
-- modern-tech
+CONTENT RULES — non-negotiable:
+- Headlines: Short, punchy, memorable. Never generic. "The mark." "Your night. Live." "The voice, set in type." — that level.
+- Positioning: One sentence that a CMO would put on a slide deck. Specific to their industry and audience.
+- Brand pillars: 3 concrete differentiators with specific evidence — not "Quality", "Trust", "Excellence".
+- Color palette: 4–6 colors with real hex values pulled from the brand. Include a near-black background color (like #0a0a0f or #0d0b09) as the first entry with role "background". Include an accent color as "primary".
+- Typography: 2 real Google Fonts that match the brand personality. Include full stack strings. Add a "usage" description for each.
+- Logo rationale: Write as if presenting to the client — emotional, specific to their brand history.
+- Hero intro: 2 sentences. Sets the mood. Tells the client what they're about to experience.
+- CTA: Specific button text and a real closing headline that drives approval.
 
-Approved hero effects:
-- shader-background
-- title-reveal
-- slow-zoom
-- camera-zoom
-- glass-panel
+EXPERIENCE RULES — always maximum cinematic:
+- ALWAYS use "cinematic-editorial" or "bold-campaign" as the preset — these are the most immersive.
+- ALWAYS include "shader-background" and "title-reveal" in heroEffects. Add "slow-zoom" for luxury/culture brands, "camera-zoom" for bold/campaign brands.
+- ALWAYS set motionLevel to "immersive" and depth to "layered".
+- ALWAYS use the brand's primary accent color to set the background gradients. Extract RGB from the brand's accent hex and use them in gradientA/gradientB/gradientC.
+- The background object MUST include gradientA, gradientB, gradientC using the brand colors at 0.2–0.3 opacity.
+- sectionEffects: use "parallax-panels" for about, "sticky-story" for strategy, "glass-panel" for deliverables, "color-glow" for palette, "headline-shift" for typography, "magnetic-cta" for cta.
 
-Approved section effects:
-- parallax-panels
-- sticky-story
-- glass-panel
-- magnetic-cards
-- color-glow
-- headline-shift
-- editorial-rise
-- magnetic-cta
+BACKGROUND COLOR FORMULA:
+- Take the brand's primary accent hex and convert to rgba for gradients
+- Example: brand color #d4af37 (gold) → gradientA: "rgba(212, 175, 55, 0.22)"
+- base should always be near-black: "#090909" to "#0d0c0b"
+- Make gradientA the primary brand color, gradientB a complementary color, gradientC a warm/cool variation
 
-When asked to create or update portal content, respond with a JSON object in this structure:
+JAZZ CLUB EXAMPLE (use this as the quality benchmark):
+- Hero: headline "Jazz St. Louis", subheadline "Your night. Live." — punchy, brand-specific
+- Brand pillars: "Cultural Cornerstone", "Curated Excellence", "Economic Engine" — concrete, specific  
+- Colors: Deep Navy #1a1a2e, Smoky Gold #d4af37, Velvet Red #8b0000 — named evocatively
+- Typography: Playfair Display (display/headlines) + Inter (body) — classic + clean
+- Experience: cinematic-editorial, shader-background + title-reveal + slow-zoom, parallax-panels throughout
+- Background gradients: pulled from the gold/red/navy palette — rgba(212,175,55,0.22), rgba(139,0,0,0.2), rgba(26,26,46,0.3)
+
+When asked to create portal content, respond with this complete JSON structure — fill EVERY field:
 {
-  "hero": { "headline": "", "subheadline": "", "intro": "" },
+  "hero": {
+    "headline": "",
+    "subheadline": "",
+    "intro": ""
+  },
   "brand": {
     "headline": "",
     "positioning": "",
-    "pillars": [{ "title": "", "desc": "" }]
+    "pillars": [
+      { "title": "", "desc": "" },
+      { "title": "", "desc": "" },
+      { "title": "", "desc": "" }
+    ]
   },
   "logo": {
     "headline": "",
     "logoUrl": "",
-    "rationale": ""
+    "rationale": "",
+    "variations": ["Primary lockup", "Horizontal version", "Icon mark"],
+    "description": ""
   },
   "colors": {
     "headline": "",
-    "palette": [{ "name": "", "hex": "#hex", "role": "" }]
+    "palette": [
+      { "name": "", "hex": "#hex", "role": "background" },
+      { "name": "", "hex": "#hex", "role": "primary" },
+      { "name": "", "hex": "#hex", "role": "accent" },
+      { "name": "", "hex": "#hex", "role": "text" }
+    ]
   },
   "typography": {
     "headline": "",
-    "fonts": [{ "name": "", "typeface": "", "usage": "", "stack": "" }]
+    "primaryFont": "",
+    "secondaryFont": "",
+    "usage": "",
+    "fonts": [
+      { "name": "Display", "typeface": "", "stack": "", "usage": "" },
+      { "name": "Body", "typeface": "", "stack": "", "usage": "" }
+    ]
   },
-  "cta": { "headline": "", "buttonText": "", "email": "" },
+  "cta": {
+    "headline": "",
+    "buttonText": "Approve this direction →",
+    "email": ""
+  },
   "experience": {
     "preset": "cinematic-editorial",
-    "motionLevel": "elevated",
+    "motionLevel": "immersive",
     "depth": "layered",
-    "heroEffects": ["shader-background", "title-reveal"],
+    "background": {
+      "base": "#090909",
+      "gradientA": "rgba(r, g, b, 0.22)",
+      "gradientB": "rgba(r, g, b, 0.20)",
+      "gradientC": "rgba(r, g, b, 0.16)"
+    },
+    "heroEffects": ["shader-background", "title-reveal", "slow-zoom"],
     "sectionEffects": {
       "about": ["parallax-panels"],
       "strategy": ["sticky-story"],
@@ -129,9 +158,7 @@ When asked to create or update portal content, respond with a JSON object in thi
   }
 }
 
-Choose the experience preset that best matches the brand. Keep the effect system tasteful and restrained: 2 to 4 signature motion ideas are better than gimmick overload.
-
-Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
+Return the complete JSON wrapped in triple backticks. No keys omitted. No placeholder values.`;
 }
 
 function buildPresentationSystemPrompt({ styleMode = 'cinematic' } = {}) {
@@ -243,7 +270,7 @@ Use verticalSlides only when a nested stack is genuinely useful.
 Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
 }
 
-async function generateWithAnthropic({ apiKey, model, system, messages, maxTokens = 1400 }) {
+async function generateWithAnthropic({ apiKey, model, system, messages, maxTokens = 3000 }) {
   if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -269,7 +296,7 @@ async function generateWithAnthropic({ apiKey, model, system, messages, maxToken
   return data?.content?.map(part => part?.text || '').join('\n').trim();
 }
 
-async function generateWithOpenAI({ apiKey, model, system, messages, maxTokens = 1400 }) {
+async function generateWithOpenAI({ apiKey, model, system, messages, maxTokens = 3000 }) {
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY');
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -296,7 +323,7 @@ async function generateWithOpenAI({ apiKey, model, system, messages, maxTokens =
   return data?.choices?.[0]?.message?.content?.trim();
 }
 
-async function generateWithGoogle({ apiKey, model, system, messages, maxTokens = 1400 }) {
+async function generateWithGoogle({ apiKey, model, system, messages, maxTokens = 3000 }) {
   if (!apiKey) throw new Error('Missing GOOGLE_API_KEY');
 
   const contents = [];

@@ -291,7 +291,6 @@ export default function PortalEditorPage() {
 
   const previewHTML = extractedJSON ? buildPreviewHTML(outputMode, extractedJSON) : null;
   const normalizedJSON = extractedJSON ? normalizeBuilderPayload(outputMode, extractedJSON) : null;
-  const selectedModeMeta = OUTPUT_MODES.find(m => m.value === outputMode);
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'Inter, sans-serif', background: '#F0F2F5' }}>
@@ -310,48 +309,42 @@ export default function PortalEditorPage() {
         </div>
 
         {/* Controls */}
-        <div style={{ padding: '12px 24px', background: '#fff', borderBottom: '1px solid #E5E7EB', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          {/* Output */}
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#9CA3AF', marginBottom: 5 }}>Output</label>
-            <select value={outputMode} onChange={e => handleOutputModeChange(e.target.value)}
-              style={{ minWidth: 150, padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}>
-              {OUTPUT_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-            <div style={{ fontSize: 10, color: '#C4C9D4', marginTop: 4, maxWidth: 160 }}>{selectedModeMeta?.hint}</div>
-          </div>
+        <div style={{ padding: '10px 24px', background: '#fff', borderBottom: '1px solid #E5E7EB', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {[
+            { label: 'Output', content: (
+              <select value={outputMode} onChange={e => handleOutputModeChange(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB', width: '100%' }}>
+                {OUTPUT_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            )},
+            { label: 'Provider', content: (
+              <select value={provider} onChange={e => handleProviderChange(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB', width: '100%' }}>
+                <option value="anthropic">Anthropic</option>
+                <option value="openai">OpenAI</option>
+                <option value="google">Google</option>
+              </select>
+            )},
+            { label: 'Model', content: (
+              <select value={model} onChange={e => setModel(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB', width: '100%' }}>
+                {MODEL_OPTIONS[provider].map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            )},
+            { label: 'Art Direction', content: (
+              <select value={styleMode} onChange={e => setStyleMode(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB', width: '100%' }}>
+                {STYLE_MODES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            )},
+          ].map(({ label, content }) => (
+            <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 140 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#9CA3AF' }}>{label}</label>
+              {content}
+            </div>
+          ))}
 
-          {/* Provider */}
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#9CA3AF', marginBottom: 5 }}>Provider</label>
-            <select value={provider} onChange={e => handleProviderChange(e.target.value)}
-              style={{ minWidth: 140, padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}>
-              <option value="anthropic">Anthropic</option>
-              <option value="openai">OpenAI</option>
-              <option value="google">Google</option>
-            </select>
-          </div>
-
-          {/* Model */}
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#9CA3AF', marginBottom: 5 }}>Model</label>
-            <select value={model} onChange={e => setModel(e.target.value)}
-              style={{ minWidth: 170, padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}>
-              {MODEL_OPTIONS[provider].map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-
-          {/* Art Direction */}
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#9CA3AF', marginBottom: 5 }}>Art Direction</label>
-            <select value={styleMode} onChange={e => setStyleMode(e.target.value)}
-              style={{ minWidth: 160, padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}>
-              {STYLE_MODES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-
-          {/* Provider badge */}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', paddingBottom: 1 }}>
             <div style={{
               fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20,
               background: provider === 'anthropic' ? '#FEF3C7' : provider === 'openai' ? '#EFF6FF' : '#F0FDF4',

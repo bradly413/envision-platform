@@ -10,7 +10,7 @@ api.interceptors.request.use(config => {
 });
 
 export const portalAuth = {
-  login: (slug, password) => api.post('/auth/portal-login', { slug, password }).then(r => r.data),
+  login: (slug, password) => api.post('/portals/login', { slug, password }).then(r => r.data),
 };
 
 export const track = {

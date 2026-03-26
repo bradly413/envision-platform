@@ -220,9 +220,9 @@ export default function PortalsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {allPortals.map(portal => (
-            <div key={portal.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', marginBottom: 10, overflow: 'hidden' }}>
+            <div key={portal.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', marginBottom: 10, position: 'relative' }}>
               {/* Portal card row */}
-              <div style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 16, overflow: 'visible' }}>
                 {/* Avatar */}
                 <div style={{
                   width: 40, height: 40, borderRadius: 10, background: portal.status === 'active' ? '#111827' : '#F3F4F6',
@@ -300,9 +300,9 @@ export default function PortalsPage() {
                           Copy URL
                         </button>
                         <div style={{ height: 1, background: '#F3F4F6', margin: '4px 0' }} />
-                        <button onClick={() => { if (window.confirm('Archive this portal?')) { deleteMutation.mutate(portal.id); setOpenMenu(null); } }}
-                          style={{ width: '100%', padding: '10px 16px', border: 'none', background: 'none', fontSize: 13, cursor: 'pointer', textAlign: 'left', color: '#EF4444', display: 'block' }}
-                          onMouseOver={e => e.currentTarget.style.background = '#FEF2F2'}
+                        <button onClick={() => { if (window.confirm('Archive this portal? It will be hidden from the list.')) { deleteMutation.mutate(portal.id); setOpenMenu(null); } }}
+                          style={{ width: '100%', padding: '10px 16px', border: 'none', background: 'none', fontSize: 13, cursor: 'pointer', textAlign: 'left', color: '#F59E0B', display: 'block' }}
+                          onMouseOver={e => e.currentTarget.style.background = '#FFFBEB'}
                           onMouseOut={e => e.currentTarget.style.background = 'none'}>
                           Archive portal
                         </button>

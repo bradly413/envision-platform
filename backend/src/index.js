@@ -20,15 +20,15 @@ const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1);
 
+// CORS — admin dashboard + client portal
+app.use(cors({
+  origin: [process.env.ADMIN_URL, process.env.PORTAL_URL, 'http://localhost:3001'],
+  credentials: true,
+}));
+
 // Security
 app.use(helmet());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
-
-// CORS — admin dashboard + client portal
-app.use(cors({
-  origin: [process.env.ADMIN_URL, process.env.PORTAL_URL],
-  credentials: true,
-}));
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));

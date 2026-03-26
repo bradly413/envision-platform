@@ -19,12 +19,7 @@ export default function LoginPage() {
       const data = await portalAuth.login(slug, password);
       const portal = { id: data.portal_id, slug: data.slug, content: data.content };
       setPortalAuth(data.token || 'authenticated', portal);
-      // Jazz Club gets the cinematic Three.js experience served directly
-      if ((data.slug || slug) === 'jazz-club') {
-        window.location.href = '/jazz-stl';
-      } else {
-        navigate('/present');
-      }
+      navigate('/present');
     } catch (err) {
       setError(err.response?.data?.error || 'Invalid credentials');
     } finally { setLoading(false); }

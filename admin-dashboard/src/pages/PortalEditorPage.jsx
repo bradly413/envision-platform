@@ -2,8 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { portals as portalsApi } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
-
 const MODEL_OPTIONS = {
   anthropic: [
     { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
@@ -39,14 +37,6 @@ const MODE_INTRO = {
   portal: `Hi! I'm your Envision builder. Tell me about the client, the brand mood, and the type of reveal you want. I can generate high-end portal JSON using Claude, GPT, or Gemini, complete with art direction and curated motion presets.`,
   presentation: `Hi! I'm your Envision presentation director. Tell me about the client, the audience, and the story you want to tell. I can generate reveal.js-ready presentation JSON with themes, slide transitions, fragments, media backgrounds, notes, and cinematic pacing.`,
 };
-
-const SYSTEM_PROMPT = (outputMode, styleMode) => `You are an expert brand experience designer for Envision Creative, a premium agency.
-Generate ${outputMode === 'presentation' ? 'a reveal.js presentation deck' : 'immersive portal content'} in ${styleMode} style.
-Always respond with valid JSON wrapped in \`\`\`json ... \`\`\` code blocks.
-${outputMode === 'presentation'
-  ? 'Structure: { "mode": "presentation", "presentation": { "theme": "", "slides": [...] } }'
-  : 'Structure: { "hero": {}, "brand": {}, "colors": [], "typography": {}, "sections": [] }'}
-Be concise, creative, and on-brand.`;
 
 function extractJSON(text) {
   const match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -197,30 +187,7 @@ export default function PortalEditorPage() {
     } catch (e) { console.error('Failed to fetch portals', e); }
   };
 
-  // Call Anthropic directly from the browser (same as existing pattern)
-  const callAnthropic = async (msgs) => {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('VITE_ANTHROPIC_API_KEY not set in .env');
 
-    const res = await fetch(ANTHROPIC_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-calls': 'true',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: outputMode === 'presentation' ? 2000 : 1500,
-        system: SYSTEM_PROMPT(outputMode, styleMode),
-        messages: msgs.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content })),
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || `Anthropic error ${res.status}`);
-    return data.content?.[0]?.text || '';
-  };
 
   // Route to backend for OpenAI / Google (backend holds those keys)
   const callViaBackend = async (msgs) => {
@@ -246,12 +213,8 @@ export default function PortalEditorPage() {
     setExtractedJSON(null);
 
     try {
-      let reply;
-      if (provider === 'anthropic') {
-        reply = await callAnthropic(newMessages);
-      } else {
-        reply = await callViaBackend(newMessages);
-      }
+      // Always route through Railway backend — it holds all API keys (Anthropic, OpenAI, Google)
+      const reply = await callViaBackend(newMessages);
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       const json = extractJSON(reply);
       if (json) setExtractedJSON(json);
@@ -350,7 +313,7 @@ export default function PortalEditorPage() {
               background: provider === 'anthropic' ? '#FEF3C7' : provider === 'openai' ? '#EFF6FF' : '#F0FDF4',
               color: provider === 'anthropic' ? '#92400E' : provider === 'openai' ? '#1D4ED8' : '#166534',
             }}>
-              {provider === 'anthropic' ? '⚡ Direct API' : '🔀 Via backend'}
+              ⚡ Via Railway
             </div>
           </div>
         </div>

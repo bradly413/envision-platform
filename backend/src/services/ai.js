@@ -194,7 +194,7 @@ COPY QUALITY BAR:
 - Pillar descriptions must cite something real about the brand, not generic virtues
 - Logo rationale must reference the brand's actual history or visual language
 
-Return the complete JSON wrapped in triple backticks. No keys omitted. No placeholder values.\`;
+Return the complete JSON wrapped in triple backticks. No keys omitted. No placeholder values.`;
 }
 
 function buildPresentationSystemPrompt({ styleMode = 'cinematic' } = {}) {

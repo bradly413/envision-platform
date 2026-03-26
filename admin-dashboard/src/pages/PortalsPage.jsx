@@ -186,7 +186,7 @@ export default function PortalsPage() {
   };
 
   return (
-    <div style={{ padding: 32, fontFamily: 'Inter, sans-serif' }} onClick={(e) => { if (!e.target.closest('[data-menu]')) setOpenMenu(null); }}>
+    <div style={{ padding: 32, fontFamily: 'Inter, sans-serif' }} onClick={() => setOpenMenu(null)}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
@@ -281,12 +281,12 @@ export default function PortalsPage() {
 
                   {/* ⋯ menu */}
                   <div style={{ position: 'relative' }}>
-                    <button onClick={() => setOpenMenu(openMenu === portal.id ? null : portal.id)}
+                    <button onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === portal.id ? null : portal.id); }}
                       style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', fontSize: 16, cursor: 'pointer', color: '#6B7280', lineHeight: 1 }}>
                       ···
                     </button>
                     {openMenu === portal.id && (
-                      <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.12)', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
+                      <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.12)', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
                         <button onClick={() => { statusMutation.mutate({ id: portal.id, status: portal.status === 'active' ? 'draft' : 'active' }); setOpenMenu(null); }}
                           style={{ width: '100%', padding: '10px 16px', border: 'none', background: 'none', fontSize: 13, cursor: 'pointer', textAlign: 'left', color: '#374151', display: 'block' }}
                           onMouseOver={e => e.currentTarget.style.background = '#F9FAFB'}

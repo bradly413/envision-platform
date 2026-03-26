@@ -432,14 +432,26 @@ export default function PortalEditorPage() {
 
         {/* Push button */}
         <div style={{ padding: '14px 16px', borderTop: '1px solid #E5E7EB' }}>
+          {extractedJSON && !selectedPortal && (
+            <div style={{ marginBottom: 8, fontSize: 12, color: '#F59E0B', fontWeight: 600, textAlign: 'center' }}>
+              ↑ Select a target portal above to push
+            </div>
+          )}
           <button onClick={saveToPortal} disabled={!extractedJSON || !selectedPortal || saving}
-            style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none',
-              background: !extractedJSON || !selectedPortal ? '#E5E7EB' : '#111827',
-              color: !extractedJSON || !selectedPortal ? '#9CA3AF' : '#fff',
-              fontSize: 13, fontWeight: 700, cursor: !extractedJSON || !selectedPortal ? 'default' : 'pointer' }}>
-            {saving ? 'Saving...' : `Push ${outputMode === 'presentation' ? 'presentation' : 'portal'} →`}
+            style={{ width: '100%', padding: 13, borderRadius: 10, border: 'none',
+              background: extractedJSON && selectedPortal ? '#111827' : '#E5E7EB',
+              color: extractedJSON && selectedPortal ? '#fff' : '#9CA3AF',
+              fontSize: 13, fontWeight: 700,
+              cursor: extractedJSON && selectedPortal ? 'pointer' : 'default',
+              animation: extractedJSON && selectedPortal && !saving ? 'readyPulse 2s ease-in-out 3' : 'none',
+              transition: 'background .2s' }}>
+            {saving ? 'Pushing to portal...' : `Push ${outputMode === 'presentation' ? 'presentation' : 'portal'} →`}
           </button>
-          {saveMsg && <div style={{ marginTop: 8, fontSize: 12, textAlign: 'center', color: saveMsg.startsWith('✓') ? '#10B981' : '#EF4444' }}>{saveMsg}</div>}
+          {saveMsg && (
+            <div style={{ marginTop: 8, fontSize: 12, textAlign: 'center', fontWeight: 600, color: saveMsg.startsWith('✓') ? '#10B981' : '#EF4444' }}>
+              {saveMsg}
+            </div>
+          )}
         </div>
       </div>
 

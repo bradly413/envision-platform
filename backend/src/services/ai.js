@@ -1,7 +1,7 @@
 const PROVIDER_DEFAULTS = {
   anthropic: process.env.ANTHROPIC_PORTAL_EDITOR_MODEL || 'claude-sonnet-4-20250514',
   openai: process.env.OPENAI_PORTAL_EDITOR_MODEL || 'gpt-4.1',
-  google: process.env.GOOGLE_PORTAL_EDITOR_MODEL || 'gemini-2.0-flash',
+  google: process.env.GOOGLE_PORTAL_EDITOR_MODEL || 'gemini-1.5-pro',
 };
 
 const STYLE_DIRECTIVES = {
@@ -312,7 +312,7 @@ async function generateWithGoogle({ apiKey, model, system, messages, maxTokens =
     });
   }
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

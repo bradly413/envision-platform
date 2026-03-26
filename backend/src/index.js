@@ -23,7 +23,7 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
 // CORS — admin dashboard + client portal
 app.use(cors({
-  origin: [process.env.ADMIN_URL, process.env.PORTAL_URL],
+  origin: [process.env.ADMIN_URL, process.env.PORTAL_URL, 'http://localhost:3001'],
   credentials: true,
 }));
 

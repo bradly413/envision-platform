@@ -100,10 +100,28 @@ export default function PortalsPage() {
   const [form, setForm] = useState({ client_id: '', password: '', template_id: 'brand-reveal-v1' });
   const [outreachLoading, setOutreachLoading] = useState(false);
   const [outreachDraft, setOutreachDraft] = useState('');
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientForm, setNewClientForm] = useState({ name: '', company: '', email: '' });
+  const [savingClient, setSavingClient] = useState(false);
 
   const createMutation = useMutation(portals.create, {
-    onSuccess: () => { qc.invalidateQueries('portals'); setShowCreate(false); setForm({ client_id: '', password: '', template_id: 'brand-reveal-v1' }); }
+    onSuccess: () => { qc.invalidateQueries('portals'); setShowCreate(false); setForm({ client_id: '', password: '', template_id: 'brand-reveal-v1' }); setShowNewClient(false); }
   });
+
+  const createNewClient = async () => {
+    if (!newClientForm.name.trim()) return;
+    setSavingClient(true);
+    try {
+      const created = await clients.create({ ...newClientForm, stage: 'lead' });
+      qc.invalidateQueries('clients');
+      // Try to get the id from the response
+      const newId = created?.id || created?.client?.id || '';
+      if (newId) setForm(f => ({ ...f, client_id: newId }));
+      setShowNewClient(false);
+      setNewClientForm({ name: '', company: '', email: '' });
+    } catch (e) { console.error(e); }
+    setSavingClient(false);
+  };
 
   const deleteMutation = useMutation(id => portals.update(id, { status: 'archived' }), {
     onSuccess: () => qc.invalidateQueries('portals'),
@@ -272,17 +290,43 @@ export default function PortalsPage() {
       {/* Create Portal Modal */}
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,.15)' }}>
+          onClick={e => { if (e.target === e.currentTarget) { setShowCreate(false); setShowNewClient(false); } }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 440, boxShadow: '0 20px 60px rgba(0,0,0,.15)' }}>
             <div style={{ fontSize: 16, fontWeight: 800, color: '#111827', marginBottom: 20 }}>Generate portal</div>
 
+            {/* Client selector */}
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Client</div>
-              <select value={form.client_id} onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, background: '#fff', fontFamily: 'Inter, sans-serif' }}>
-                <option value="">Select client...</option>
-                {allClients.map(c => <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ''}</option>)}
-              </select>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Client</div>
+                <button onClick={() => setShowNewClient(v => !v)} style={{ fontSize: 11, fontWeight: 600, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  {showNewClient ? '← Back to list' : '+ New client'}
+                </button>
+              </div>
+
+              {!showNewClient ? (
+                <select value={form.client_id} onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, background: '#fff', fontFamily: 'Inter, sans-serif' }}>
+                  <option value="">Select client...</option>
+                  {allClients.map(c => <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ''}</option>)}
+                </select>
+              ) : (
+                <div style={{ background: '#F9FAFB', borderRadius: 10, padding: 14, border: '1px solid #E5E7EB' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>New client</div>
+                  {[
+                    { key: 'name', placeholder: 'Full name *', autoFocus: true },
+                    { key: 'company', placeholder: 'Company' },
+                    { key: 'email', placeholder: 'Email' },
+                  ].map(({ key, placeholder, autoFocus }) => (
+                    <input key={key} value={newClientForm[key]} onChange={e => setNewClientForm(f => ({ ...f, [key]: e.target.value }))}
+                      placeholder={placeholder} autoFocus={autoFocus}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 7, border: '1px solid #E5E7EB', fontSize: 12, outline: 'none', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif', marginBottom: 8 }} />
+                  ))}
+                  <button onClick={createNewClient} disabled={!newClientForm.name.trim() || savingClient}
+                    style={{ width: '100%', padding: '8px 0', borderRadius: 7, border: 'none', background: newClientForm.name.trim() ? '#111827' : '#E5E7EB', color: newClientForm.name.trim() ? '#fff' : '#9CA3AF', fontSize: 12, fontWeight: 700, cursor: newClientForm.name.trim() ? 'pointer' : 'default' }}>
+                    {savingClient ? 'Creating...' : 'Create client & continue'}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: 14 }}>
@@ -302,9 +346,9 @@ export default function PortalsPage() {
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowCreate(false)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#374151' }}>Cancel</button>
-              <button onClick={() => createMutation.mutate(form)} disabled={!form.client_id || createMutation.isLoading}
-                style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: '#111827', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#fff' }}>
+              <button onClick={() => { setShowCreate(false); setShowNewClient(false); }} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#374151' }}>Cancel</button>
+              <button onClick={() => createMutation.mutate(form)} disabled={!form.client_id || createMutation.isLoading || showNewClient}
+                style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: !form.client_id || showNewClient ? '#E5E7EB' : '#111827', fontSize: 13, fontWeight: 600, cursor: !form.client_id || showNewClient ? 'default' : 'pointer', color: !form.client_id || showNewClient ? '#9CA3AF' : '#fff' }}>
                 {createMutation.isLoading ? 'Creating...' : 'Generate portal'}
               </button>
             </div>

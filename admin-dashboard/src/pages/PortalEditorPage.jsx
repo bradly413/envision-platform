@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { portals as portalsApi } from '../lib/api';
+import { portals as portalsApi, designSystems as dsApi } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 
 const MODEL_OPTIONS = {
@@ -184,16 +184,61 @@ export default function PortalEditorPage() {
   const [model, setModel] = useState(MODEL_OPTIONS.anthropic[0].value);
   const [styleMode, setStyleMode] = useState('cinematic');
   const [previewMode, setPreviewMode] = useState('preview'); // 'preview' | 'json'
+  const [rightTab, setRightTab] = useState('save'); // 'save' | 'design-systems'
+  const [designSystems, setDesignSystems] = useState([]);
+  const [selectedDS, setSelectedDS] = useState(null);
+  const [savingDS, setSavingDS] = useState(false);
+  const [dsSaveMsg, setDSSaveMsg] = useState('');
   const bottomRef = useRef(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-  useEffect(() => { fetchPortals(); }, []);
+  useEffect(() => { fetchPortals(); fetchDesignSystems(); }, []);
 
   const fetchPortals = async () => {
     try {
       const data = await portalsApi.list();
       setPortals(data.portals || data || []);
     } catch (e) { console.error('Failed to fetch portals', e); }
+  };
+
+  const fetchDesignSystems = async () => {
+    try {
+      const data = await dsApi.list();
+      setDesignSystems(Array.isArray(data) ? data : []);
+    } catch (e) { console.error('Failed to fetch design systems', e); }
+  };
+
+  const saveAsDesignSystem = async (portal) => {
+    setSavingDS(true); setDSSaveMsg('');
+    try {
+      const name = `${portal.client_name || portal.slug} Design System`;
+      await dsApi.fromPortal(portal.id, { name });
+      await fetchDesignSystems();
+      setDSSaveMsg(`✓ Saved "${name}"`);
+    } catch (e) { setDSSaveMsg('✗ Could not save design system'); }
+    setSavingDS(false);
+    setTimeout(() => setDSSaveMsg(''), 3000);
+  };
+
+  const applyDesignSystem = (ds) => {
+    setSelectedDS(ds);
+    // Inject DS context into the next message
+    const dsContext = `[DESIGN SYSTEM APPLIED: "${ds.name}"]
+Experience preset: ${ds.experience?.preset || 'cinematic-editorial'}
+Background: base ${ds.experience?.background?.base || '#090909'}, gradients from brand colors
+Hero effects: ${(ds.experience?.heroEffects || ['shader-background','title-reveal','slow-zoom']).join(', ')}
+Color palette: ${JSON.stringify(ds.colors?.slice?.(0,4) || ds.colors || [])}
+Typography: ${JSON.stringify(ds.typography?.fonts?.slice?.(0,2) || [])}
+Copy style signals: ${JSON.stringify(ds.copy_style || {})}
+
+IMPORTANT: Keep this exact experience/visual system. Only change the client name, copy, positioning, colors, and typography to match the new client. Maintain the same cinematic quality, motion level, and structural DNA.`;
+    setInput(prev => prev ? prev + '\n\n' + dsContext : dsContext);
+    setRightTab('save');
+  };
+
+  const deleteDS = async (id) => {
+    if (!window.confirm('Delete this design system?')) return;
+    try { await dsApi.delete(id); await fetchDesignSystems(); } catch (e) { console.error(e); }
   };
 
 
@@ -426,96 +471,227 @@ Use the above site content to extract the brand's real name, colors, tone, typog
         </div>
       </div>
 
-      {/* Right: preview + save panel */}
-      <div style={{ width: 400, background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column' }}>
-        {/* Save header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #E5E7EB' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Save to Portal</div>
-          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>Push generated content to a live client experience</div>
+      {/* Right: tabbed panel */}
+      <div style={{ width: 420, background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Tab bar */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB', background: '#FAFAFA' }}>
+          {[
+            { id: 'save', label: 'Save to Portal' },
+            { id: 'design-systems', label: '✦ Design Systems' },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setRightTab(tab.id)} style={{
+              flex: 1, padding: '12px 8px', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              background: rightTab === tab.id ? '#fff' : 'transparent',
+              color: rightTab === tab.id ? '#111827' : '#9CA3AF',
+              borderBottom: rightTab === tab.id ? '2px solid #111827' : '2px solid transparent',
+              transition: 'all .1s',
+            }}>{tab.label}</button>
+          ))}
         </div>
 
-        {/* Portal selector */}
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid #E5E7EB' }}>
-          <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#9CA3AF', display: 'block', marginBottom: 6 }}>Target portal</label>
-          <select value={selectedPortal || ''} onChange={e => handlePortalSelect(e.target.value)}
-            style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, color: '#111827', background: '#F9FAFB', outline: 'none' }}>
-            <option value="">Select a portal...</option>
-            {portals.map(p => (
-              <option key={p.id} value={p.id}>{p.client_name || p.slug} ({p.status || 'draft'})</option>
-            ))}
-            <option value="__new__" style={{ color: '#3B82F6', fontWeight: 600 }}>+ Create new portal →</option>
-          </select>
-        </div>
-
-        {/* Preview / JSON toggle */}
-        {extractedJSON && (
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid #E5E7EB', display: 'flex', gap: 4 }}>
-            <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 3, gap: 2 }}>
-              {['preview', 'json'].map(mode => (
-                <button key={mode} onClick={() => setPreviewMode(mode)} style={{
-                  padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  background: previewMode === mode ? '#fff' : 'transparent',
-                  color: previewMode === mode ? '#111827' : '#9CA3AF',
-                  boxShadow: previewMode === mode ? '0 1px 3px rgba(0,0,0,.1)' : 'none',
-                }}>
-                  {mode === 'preview' ? '👁 Preview' : '</> JSON'}
-                </button>
-              ))}
+        {/* ====== SAVE TAB ====== */}
+        {rightTab === 'save' && (<>
+          {selectedDS && (
+            <div style={{ padding: '10px 16px', background: '#F0FDF4', borderBottom: '1px solid #BBF7D0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 11, color: '#166534' }}>
+                <span style={{ fontWeight: 700 }}>✦ DS:</span> {selectedDS.name}
+              </div>
+              <button onClick={() => setSelectedDS(null)}
+                style={{ fontSize: 11, color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
             </div>
-            <div style={{ marginLeft: 'auto', fontSize: 11, color: '#10B981', fontWeight: 700, alignSelf: 'center' }}>✓ Content ready</div>
+          )}
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid #E5E7EB' }}>
+            <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#9CA3AF', display: 'block', marginBottom: 6 }}>Target portal</label>
+            <select value={selectedPortal || ''} onChange={e => handlePortalSelect(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, color: '#111827', background: '#F9FAFB', outline: 'none' }}>
+              <option value="">Select a portal...</option>
+              {portals.map(p => (
+                <option key={p.id} value={p.id}>{p.client_name || p.slug} ({p.status || 'draft'})</option>
+              ))}
+              <option value="__new__" style={{ color: '#3B82F6', fontWeight: 600 }}>+ Create new portal →</option>
+            </select>
+          </div>
+          {extractedJSON && (
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid #E5E7EB', display: 'flex', gap: 4 }}>
+              <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 3, gap: 2 }}>
+                {['preview', 'json'].map(mode => (
+                  <button key={mode} onClick={() => setPreviewMode(mode)} style={{
+                    padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    background: previewMode === mode ? '#fff' : 'transparent',
+                    color: previewMode === mode ? '#111827' : '#9CA3AF',
+                    boxShadow: previewMode === mode ? '0 1px 3px rgba(0,0,0,.1)' : 'none',
+                  }}>
+                    {mode === 'preview' ? '👁 Preview' : '</> JSON'}
+                  </button>
+                ))}
+              </div>
+              <div style={{ marginLeft: 'auto', fontSize: 11, color: '#10B981', fontWeight: 700, alignSelf: 'center' }}>✓ Content ready</div>
+            </div>
+          )}
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            {extractedJSON ? (
+              previewMode === 'preview' && previewHTML ? (
+                <iframe srcDoc={previewHTML} style={{ flex: 1, border: 'none', width: '100%' }} sandbox="allow-scripts" title="Portal Preview" />
+              ) : (
+                <pre style={{ flex: 1, overflow: 'auto', fontSize: 10, color: '#6B7280', background: '#F9FAFB', padding: 14, lineHeight: 1.5, margin: 0 }}>
+                  {JSON.stringify(normalizedJSON, null, 2)}
+                </pre>
+              )
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 12, lineHeight: 1.7 }}>
+                  <div style={{ fontSize: 28, marginBottom: 12 }}>✦</div>
+                  Ask the AI to generate portal content and a live preview will appear here.
+                </div>
+              </div>
+            )}
+          </div>
+          <div style={{ padding: '14px 16px', borderTop: '1px solid #E5E7EB' }}>
+            {extractedJSON && !selectedPortal && (
+              <div style={{ marginBottom: 8, fontSize: 12, color: '#F59E0B', fontWeight: 600, textAlign: 'center' }}>
+                ↑ Select a target portal above to push
+              </div>
+            )}
+            <button onClick={saveToPortal} disabled={!extractedJSON || !selectedPortal || saving}
+              style={{ width: '100%', padding: 13, borderRadius: 10, border: 'none',
+                background: extractedJSON && selectedPortal ? '#111827' : '#E5E7EB',
+                color: extractedJSON && selectedPortal ? '#fff' : '#9CA3AF',
+                fontSize: 13, fontWeight: 700,
+                cursor: extractedJSON && selectedPortal ? 'pointer' : 'default',
+                animation: extractedJSON && selectedPortal && !saving ? 'readyPulse 2s ease-in-out 3' : 'none',
+                transition: 'background .2s' }}>
+              {saving ? 'Pushing to portal...' : 'Push portal →'}
+            </button>
+            {saveMsg && (
+              <div style={{ marginTop: 8, fontSize: 12, textAlign: 'center', fontWeight: 600, color: saveMsg.startsWith('✓') ? '#10B981' : '#EF4444' }}>
+                {saveMsg}
+              </div>
+            )}
+          </div>
+        </>)}
+
+        {/* ====== DESIGN SYSTEMS TAB ====== */}
+        {rightTab === 'design-systems' && (
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid #E5E7EB' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>✦ Design Systems</div>
+              <div style={{ fontSize: 11, color: '#9CA3AF' }}>Save a portal's visual DNA. Apply it to any new client — same cinematic quality, different brand.</div>
+            </div>
+
+            {/* Save active portals as DS */}
+            {portals.filter(p => p.status === 'active').length > 0 && (
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Save as design system</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {portals.filter(p => p.status === 'active').map(p => (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#fff', borderRadius: 8, border: '1px solid #E5E7EB' }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{p.client_name || p.slug}</div>
+                        <div style={{ fontSize: 10, color: '#9CA3AF' }}>/{p.slug} • {p.status}</div>
+                      </div>
+                      <button onClick={() => saveAsDesignSystem(p)} disabled={savingDS}
+                        style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 6, border: 'none', background: '#111827', color: '#fff', cursor: savingDS ? 'default' : 'pointer' }}>
+                        {savingDS ? '...' : 'Save DS'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {dsSaveMsg && <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: dsSaveMsg.startsWith('✓') ? '#10B981' : '#EF4444' }}>{dsSaveMsg}</div>}
+              </div>
+            )}
+
+            {/* DS List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+              {designSystems.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>✦</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>No design systems yet</div>
+                  <div style={{ fontSize: 11, color: '#9CA3AF', lineHeight: 1.6 }}>Save the Jazz Club portal (or any active portal) as a design system. Its colors, typography, motion language, and cinematic experience will be saved and can be applied to any new client.</div>
+                </div>
+              ) : designSystems.map(ds => {
+                const isActive = selectedDS && selectedDS.id === ds.id;
+                const colors = Array.isArray(ds.colors) ? ds.colors : [];
+                const fonts = ds.typography && ds.typography.fonts ? ds.typography.fonts : [];
+                return (
+                  <div key={ds.id} style={{ marginBottom: 12, borderRadius: 12, border: isActive ? '2px solid #111827' : '1px solid #E5E7EB', overflow: 'visible', transition: 'border .15s', position: 'relative' }}>
+                    {/* Color strip */}
+                    <div style={{ height: 5, borderRadius: '10px 10px 0 0', background: colors.length > 1
+                      ? 'linear-gradient(to right, ' + colors.slice(0,5).map(c => c.hex || c).join(', ') + ')'
+                      : (ds.thumbnail_color || '#d4af37') }} />
+
+                    <div style={{ padding: '12px 14px 14px' }}>
+                      {/* Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{ds.name}</div>
+                          {ds.description && <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{ds.description}</div>}
+                        </div>
+                        <button onClick={() => deleteDS(ds.id)} title="Delete"
+                          style={{ fontSize: 14, color: '#D1D5DB', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}
+                          onMouseOver={e => e.currentTarget.style.color = '#EF4444'}
+                          onMouseOut={e => e.currentTarget.style.color = '#D1D5DB'}>
+                          ×
+                        </button>
+                      </div>
+
+                      {/* Color swatches */}
+                      {colors.length > 0 && (
+                        <div style={{ display: 'flex', gap: 4, marginBottom: 8, alignItems: 'center' }}>
+                          {colors.slice(0, 7).map((c, i) => (
+                            <div key={i} title={c.name || c.hex || ''} style={{ width: 16, height: 16, borderRadius: 3, background: c.hex || c, border: '1px solid rgba(0,0,0,.1)', flexShrink: 0 }} />
+                          ))}
+                          {colors.length > 7 && <span style={{ fontSize: 10, color: '#9CA3AF' }}>+{colors.length - 7}</span>}
+                        </div>
+                      )}
+
+                      {/* Tags */}
+                      <div style={{ display: 'flex', gap: 5, marginBottom: 10, flexWrap: 'wrap' }}>
+                        {ds.experience && ds.experience.preset && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#F3F4F6', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                            {ds.experience.preset}
+                          </span>
+                        )}
+                        {ds.experience && ds.experience.motionLevel && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#FEF3C7', color: '#92400E' }}>
+                            {ds.experience.motionLevel}
+                          </span>
+                        )}
+                        {fonts[0] && fonts[0].typeface && (
+                          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: '#F3F4F6', color: '#6B7280' }}>
+                            {fonts[0].typeface}
+                          </span>
+                        )}
+                        {fonts[1] && fonts[1].typeface && (
+                          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: '#F3F4F6', color: '#9CA3AF' }}>
+                            {fonts[1].typeface}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Hero effects preview */}
+                      {ds.experience && ds.experience.heroEffects && ds.experience.heroEffects.length > 0 && (
+                        <div style={{ fontSize: 10, color: '#9CA3AF', marginBottom: 10 }}>
+                          ☄ {ds.experience.heroEffects.join(' · ')}
+                        </div>
+                      )}
+
+                      {/* Apply button */}
+                      <button onClick={() => applyDesignSystem(ds)}
+                        style={{ width: '100%', padding: '9px 0', borderRadius: 8, border: 'none',
+                          background: isActive ? '#10B981' : '#111827',
+                          color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          transition: 'background .15s' }}>
+                        {isActive ? '✓ Applied — go to chat →' : 'Apply to next portal'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
-
-        {/* Preview area */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {extractedJSON ? (
-            previewMode === 'preview' && previewHTML ? (
-              <iframe
-                srcDoc={previewHTML}
-                style={{ flex: 1, border: 'none', width: '100%' }}
-                sandbox="allow-scripts"
-                title="Portal Preview"
-              />
-            ) : (
-              <pre style={{ flex: 1, overflow: 'auto', fontSize: 10, color: '#6B7280', background: '#F9FAFB', padding: 14, lineHeight: 1.5, margin: 0 }}>
-                {JSON.stringify(normalizedJSON, null, 2)}
-              </pre>
-            )
-          ) : (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-              <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 12, lineHeight: 1.7 }}>
-                <div style={{ fontSize: 28, marginBottom: 12 }}>✦</div>
-                Ask the AI to generate {outputMode === 'presentation' ? 'a presentation deck' : 'portal content'} and a live preview will appear here.
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Push button */}
-        <div style={{ padding: '14px 16px', borderTop: '1px solid #E5E7EB' }}>
-          {extractedJSON && !selectedPortal && (
-            <div style={{ marginBottom: 8, fontSize: 12, color: '#F59E0B', fontWeight: 600, textAlign: 'center' }}>
-              ↑ Select a target portal above to push
-            </div>
-          )}
-          <button onClick={saveToPortal} disabled={!extractedJSON || !selectedPortal || saving}
-            style={{ width: '100%', padding: 13, borderRadius: 10, border: 'none',
-              background: extractedJSON && selectedPortal ? '#111827' : '#E5E7EB',
-              color: extractedJSON && selectedPortal ? '#fff' : '#9CA3AF',
-              fontSize: 13, fontWeight: 700,
-              cursor: extractedJSON && selectedPortal ? 'pointer' : 'default',
-              animation: extractedJSON && selectedPortal && !saving ? 'readyPulse 2s ease-in-out 3' : 'none',
-              transition: 'background .2s' }}>
-            {saving ? 'Pushing to portal...' : `Push ${outputMode === 'presentation' ? 'presentation' : 'portal'} →`}
-          </button>
-          {saveMsg && (
-            <div style={{ marginTop: 8, fontSize: 12, textAlign: 'center', fontWeight: 600, color: saveMsg.startsWith('✓') ? '#10B981' : '#EF4444' }}>
-              {saveMsg}
-            </div>
-          )}
-        </div>
       </div>
-
       <style>{`@keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }`}</style>
     </div>
   );

@@ -57,4 +57,12 @@ export const ai = {
   generatePortalContent: (payload) => api.post('/ai/portal-editor', payload),
 };
 
+export const designSystems = {
+  list: () => api.get('/design-systems'),
+  create: (data) => api.post('/design-systems', data),
+  fromPortal: (portalId, data) => api.post(`/design-systems/from-portal/${portalId}`, data),
+  update: (id, data) => api.patch(`/design-systems/${id}`, data),
+  delete: (id) => api.delete(`/design-systems/${id}`),
+};
+
 export default api;

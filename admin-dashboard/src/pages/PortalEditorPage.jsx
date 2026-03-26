@@ -189,6 +189,10 @@ export default function PortalEditorPage() {
   const [selectedDS, setSelectedDS] = useState(null);
   const [savingDS, setSavingDS] = useState(false);
   const [dsSaveMsg, setDSSaveMsg] = useState('');
+  const [atMention, setAtMention] = useState(null); // { query, position }
+  const [atDropdownOpen, setAtDropdownOpen] = useState(false);
+  const [referencedPortals, setReferencedPortals] = useState([]); // portals @mentioned
+  const textareaRef = useRef(null);
   const bottomRef = useRef(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -273,25 +277,45 @@ IMPORTANT: Keep this exact experience/visual system. Only change the client name
       if (!res.ok) return text;
       const data = await res.json();
       if (data.content) {
-        return `${text}
-
-[SITE CONTENT FROM ${url}]
-${data.content.substring(0, 2000)}
-[END SITE CONTENT]
-
-Use the above site content to extract the brand's real name, colors, tone, typography, and positioning for the portal.`;
+        return `${text}\n\n[SITE CONTENT FROM ${url}]\n${data.content.substring(0, 2000)}\n[END SITE CONTENT]\n\nUse the above site content to extract the brand's real name, colors, tone, typography, and positioning for the portal.`;
       }
     } catch (e) { /* URL fetch failed, proceed without */ }
     return text;
   };
 
-  const sendMessage = async () => {
+  // Inject @referenced portal content into message
+  const enrichWithPortalRefs = (text) => {
+    if (referencedPortals.length === 0) return text;
+    const refs = referencedPortals.map(p => {
+      const c = p.content || {};
+      return `[PORTAL REFERENCE: @${p.client_name || p.slug}]
+Client: ${p.client_name || p.slug}
+Slug: /${p.slug}
+Status: ${p.status}
+Hero headline: ${c.hero?.headline || 'N/A'}
+Subheadline: ${c.hero?.subheadline || 'N/A'}
+Positioning: ${c.brand?.positioning || 'N/A'}
+Brand pillars: ${(c.brand?.pillars || []).map(pl => pl.title).join(', ') || 'N/A'}
+Colors: ${JSON.stringify((c.colors?.palette || c.colors || []).slice(0, 5))}
+Primary font: ${c.typography?.primaryFont || 'N/A'}
+Secondary font: ${c.typography?.secondaryFont || 'N/A'}
+Experience preset: ${c.experience?.preset || 'N/A'}
+Motion level: ${c.experience?.motionLevel || 'N/A'}
+Hero effects: ${(c.experience?.heroEffects || []).join(', ') || 'N/A'}
+Background: ${JSON.stringify(c.experience?.background || {})}
+[END PORTAL REFERENCE]`;
+    }).join('\n\n');
+    return text + '\n\n' + refs;
+  };
+
+  const sendMessage = async () => {  const sendMessage = async () => {
     if (!input.trim() || loading) return;
     setLoading(true);
     setExtractedJSON(null);
 
     // Enrich with URL content if a URL is detected
-    const enrichedInput = await enrichWithURL(input.trim());
+    let enrichedInput = await enrichWithURL(input.trim());
+    enrichedInput = enrichWithPortalRefs(enrichedInput);
     const userMsg = { role: 'user', content: enrichedInput };
     const displayMsg = { role: 'user', content: input.trim() }; // show clean version in chat
     const newMessages = [...messages, userMsg];
@@ -320,6 +344,50 @@ Use the above site content to extract the brand's real name, colors, tone, typog
     setMessages([{ role: 'assistant', content: MODE_INTRO[m] }]); setSaveMsg('');
   };
   const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setInput(val);
+    // Detect @ trigger
+    const caret = e.target.selectionStart;
+    const textBefore = val.slice(0, caret);
+    const atMatch = textBefore.match(/@(\w*)$/);
+    if (atMatch) {
+      setAtMention({ query: atMatch[1], position: caret - atMatch[0].length });
+      setAtDropdownOpen(true);
+    } else {
+      setAtDropdownOpen(false);
+      setAtMention(null);
+    }
+  };
+
+  const handleAtKeyDown = (e) => {
+    if (e.key === 'Escape') { setAtDropdownOpen(false); setAtMention(null); }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  };
+
+  const selectAtPortal = (portal) => {
+    // Replace the @query with @PortalName in the input
+    const atStr = '@' + (atMention?.query || '');
+    const before = input.slice(0, atMention?.position || input.length);
+    const after = input.slice((atMention?.position || 0) + atStr.length);
+    const label = portal.client_name || portal.slug;
+    setInput(before + '@' + label + ' ' + after);
+    setAtDropdownOpen(false);
+    setAtMention(null);
+    // Add to referenced portals list (deduped)
+    setReferencedPortals(prev => prev.find(p => p.id === portal.id) ? prev : [...prev, portal]);
+    textareaRef.current?.focus();
+  };
+
+  const removePortalRef = (id) => setReferencedPortals(prev => prev.filter(p => p.id !== id));
+
+  // Filtered portals for @ dropdown
+  const atFilteredPortals = portals.filter(p => {
+    const q = (atMention?.query || '').toLowerCase();
+    if (!q) return true;
+    return (p.client_name || '').toLowerCase().includes(q) || p.slug.toLowerCase().includes(q);
+  }).slice(0, 6);
 
   const handlePortalSelect = (val) => {
     if (val === '__new__') { navigate('/portals'); return; }
@@ -456,11 +524,45 @@ Use the above site content to extract the brand's real name, colors, tone, typog
               </button>
             ))}
           </div>
+          {/* @ referenced portals badges */}
+          {referencedPortals.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+              {referencedPortals.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 20, background: '#EFF6FF', border: '1px solid #BFDBFE', fontSize: 11, fontWeight: 600, color: '#1D4ED8' }}>
+                  <span>@{p.client_name || p.slug}</span>
+                  <button onClick={() => removePortalRef(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93C5FD', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* @ dropdown */}
+          {atDropdownOpen && atFilteredPortals.length > 0 && (
+            <div style={{ marginBottom: 6, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.12)', overflow: 'hidden' }}>
+              <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em' }}>Reference portal</div>
+              {atFilteredPortals.map(p => (
+                <div key={p.id} onClick={() => selectAtPortal(p)}
+                  style={{ padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, borderTop: '1px solid #F3F4F6' }}
+                  onMouseOver={e => e.currentTarget.style.background = '#F9FAFB'}
+                  onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: '#111827', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{(p.client_name || p.slug)[0].toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{p.client_name || p.slug}</div>
+                    <div style={{ fontSize: 10, color: '#9CA3AF' }}>/{p.slug} · {p.status}</div>
+                  </div>
+                  <div style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 6px', borderRadius: 4, background: p.status === 'active' ? '#D1FAE5' : '#F3F4F6', color: p.status === 'active' ? '#065F46' : '#6B7280', fontWeight: 600 }}>{p.status}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-            <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
+            <textarea ref={textareaRef} value={input} onChange={handleInputChange} onKeyDown={handleAtKeyDown}
               placeholder={outputMode === 'presentation'
-                ? 'Describe the client, audience, and story arc... paste a brief, or drop a URL (Enter to send)'
-                : 'Describe the client, paste a branding brief, drop a URL, or ask for revisions... (Enter to send)'}
+                ? 'Describe the client... type @ to reference a portal (Enter to send)'
+                : 'Describe the client, paste a brief, drop a URL, or type @ to reference a portal... (Enter to send)'}
               rows={3}
               style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 13, fontFamily: 'Inter, sans-serif', resize: 'none', outline: 'none', lineHeight: 1.5 }} />
             <button onClick={sendMessage} disabled={loading || !input.trim()}

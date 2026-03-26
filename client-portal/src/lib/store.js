@@ -12,9 +12,7 @@ export const usePortalStore = create(persist(
     name: 'envision-portal-auth',
     partialize: (state) => ({
       token: state.token,
-      portal: state.portal
-        ? { id: state.portal.id, slug: state.portal.slug }
-        : null,
+      portal: state.portal || null,
     }),
   }
 ));

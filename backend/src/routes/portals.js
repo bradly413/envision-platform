@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { requireAdmin, requirePortalAuth } = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { v4: uuid } = require('uuid');
 const db = require('../config/db');
 
@@ -56,6 +57,19 @@ router.patch('/:id', requireAdmin, async (req, res) => {
       `UPDATE portals SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`,
       values
     );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Admin: update only portal content
+router.put('/:id/content', requireAdmin, async (req, res) => {
+  const { content } = req.body || {};
+  try {
+    const { rows } = await db.query(
+      'UPDATE portals SET content = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [JSON.stringify(content || {}), req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -116,22 +130,45 @@ router.post('/login', async (req, res) => {
   const { slug, password } = req.body;
   try {
     const { rows } = await db.query(
-      'SELECT * FROM portals WHERE slug = $1',
+      'SELECT p.*, c.name as client_name, c.company FROM portals p JOIN clients c ON p.client_id = c.id WHERE p.slug = $1',
       [slug]
     );
     const portal = rows[0];
     if (!portal) return res.status(404).json({ error: 'Portal not found' });
-    if (portal.status === 'expired') return res.status(403).json({ error: 'Portal has expired' });
+    if (portal.status !== 'active') return res.status(403).json({ error: 'Portal is not active' });
+    if (portal.expires_at && new Date(portal.expires_at) < new Date()) {
+      return res.status(403).json({ error: 'This presentation has expired' });
+    }
 
     const valid = await bcrypt.compare(password, portal.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+    const token = jwt.sign(
+      { portalId: portal.id, slug: portal.slug, clientId: portal.client_id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
     await db.query(
       'INSERT INTO portal_events (portal_id, event_type, payload, user_agent) VALUES ($1,$2,$3,$4)',
       [portal.id, 'login', JSON.stringify({}), req.headers['user-agent']]
     );
 
-    res.json({ success: true, portal_id: portal.id, slug: portal.slug, content: portal.content });
+    res.json({
+      success: true,
+      token,
+      portal: {
+        id: portal.id,
+        slug: portal.slug,
+        clientName: portal.client_name,
+        company: portal.company,
+        content: portal.content,
+      },
+      // Keep legacy fields so older frontend bundles continue to work.
+      portal_id: portal.id,
+      slug: portal.slug,
+      content: portal.content,
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 module.exports = router;

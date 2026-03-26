@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import { track } from '../../lib/api';
 
-export default function ApprovalSection({ portalId, clientName }) {
+export default function ApprovalSection({ portalId, clientName, content = {} }) {
   const [ref, inView] = useInView({ triggerOnce: true, threshold: 0.2 });
   const [status, setStatus] = useState('pending');
   const [comment, setComment] = useState('');
@@ -75,7 +75,9 @@ export default function ApprovalSection({ portalId, clientName }) {
           {!submitted ? (
             <>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 24 }}>Your decision</div>
-              <h2 style={{ fontSize: 'clamp(28px, 5vw, 48px)', fontWeight: 800, color: '#F9FAFB', margin: '0 0 16px' }}>What do you think?</h2>
+              <h2 style={{ fontSize: 'clamp(28px, 5vw, 48px)', fontWeight: 800, color: '#F9FAFB', margin: '0 0 16px' }}>
+                {content.headline || 'What do you think?'}
+              </h2>
               <p style={{ fontSize: 16, color: '#6B7280', lineHeight: 1.7, marginBottom: 40 }}>
                 Your feedback shapes the final deliverable. Approve to move forward, or let us know what you would like refined.
               </p>
@@ -105,7 +107,7 @@ export default function ApprovalSection({ portalId, clientName }) {
                   onClick={handleApprove}
                   style={{ flex: 1, padding: 16, borderRadius: 10, border: 'none', background: '#F9FAFB', color: '#111827', fontSize: 15, fontWeight: 700, cursor: 'pointer', letterSpacing: '.01em' }}
                 >
-                  Approve Proposal ✓
+                  {content.buttonText || 'Approve Proposal ✓'}
                 </button>
                 <button
                   onClick={handleRevision}

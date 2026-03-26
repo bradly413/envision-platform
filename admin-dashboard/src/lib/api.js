@@ -33,6 +33,7 @@ export const portals = {
   list: () => api.get('/portals'),
   create: (data) => api.post('/portals', data),
   update: (id, data) => api.patch(`/portals/${id}`, data),
+  updateContent: (id, content) => api.put(`/portals/${id}/content`, { content }),
   analytics: (id) => api.get(`/portals/${id}/analytics`),
 };
 
@@ -49,6 +50,11 @@ export const agents = {
 
 export const analytics = {
   overview: () => api.get('/analytics/overview'),
+};
+
+export const ai = {
+  generateBuilderContent: (payload) => api.post('/ai/builder', payload),
+  generatePortalContent: (payload) => api.post('/ai/portal-editor', payload),
 };
 
 export default api;

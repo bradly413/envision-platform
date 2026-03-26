@@ -13,6 +13,7 @@ const calendarRoutes = require('./routes/calendar');
 const financeRoutes = require('./routes/finance');
 const agentRoutes = require('./routes/agents');
 const analyticsRoutes = require('./routes/analytics');
+const aiRoutes = require('./routes/ai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,7 +24,7 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
 // CORS — admin dashboard + client portal
 app.use(cors({
-  origin: [process.env.ADMIN_URL, process.env.PORTAL_URL, 'http://localhost:3001'],
+  origin: [process.env.ADMIN_URL, process.env.PORTAL_URL],
   credentials: true,
 }));
 
@@ -40,6 +41,7 @@ app.use('/api/calendar',  calendarRoutes);
 app.use('/api/finance',   financeRoutes);
 app.use('/api/agents',    agentRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/ai',        aiRoutes);
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));

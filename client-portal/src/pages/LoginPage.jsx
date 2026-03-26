@@ -16,8 +16,9 @@ export default function LoginPage() {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
-      const { token, portal } = await portalAuth.login(slug, password);
-      setPortalAuth(token, portal);
+      const data = await portalAuth.login(slug, password);
+      const portal = { id: data.portal_id, slug: data.slug, content: data.content };
+      setPortalAuth(data.token || 'authenticated', portal);
       navigate('/present');
     } catch (err) {
       setError(err.response?.data?.error || 'Invalid credentials');
@@ -27,12 +28,10 @@ export default function LoginPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#0F0F0F', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ width: '100%', maxWidth: 380, padding: 32 }}>
-        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280' }}>Envision x</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginTop: 4 }}>Envision Creative</div>
         </div>
-
         <form onSubmit={handleLogin}>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>Presentation code</label>
@@ -49,7 +48,6 @@ export default function LoginPage() {
             {loading ? 'Loading...' : 'View your presentation →'}
           </button>
         </form>
-
         <div style={{ marginTop: 32, textAlign: 'center', fontSize: 12, color: '#374151' }}>Your exclusive brand reveal awaits.</div>
       </div>
     </div>

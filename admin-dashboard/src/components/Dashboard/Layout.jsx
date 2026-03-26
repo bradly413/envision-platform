@@ -8,7 +8,8 @@ const NAV = [
   { to: '/tasks',    label: 'Tasks',      icon: '◻' },
   { to: '/finance',  label: 'Finance',    icon: '◻' },
   { to: '/agents',   label: 'AI Agents',  icon: '◻' },
-  { to: '/portals',  label: 'Portals',    icon: '◻' },
+  { to: '/portals',        label: 'Portals',       icon: '◻' },
+  { to: '/portal-editor', label: 'Portal Editor', icon: '✦' },
 ];
 
 export default function Layout() {

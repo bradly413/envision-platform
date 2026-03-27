@@ -74,12 +74,12 @@ export default function ApprovalSection({ portalId, clientName, content = {} }) 
         <motion.div initial={{ opacity: 0, y: 40 }} animate={inView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.9 }} style={{ maxWidth: 560, width: '100%' }}>
           {!submitted ? (
             <>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 24 }}>Your decision</div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 24 }}>{content.eyebrow || 'Your decision'}</div>
               <h2 style={{ fontSize: 'clamp(28px, 5vw, 48px)', fontWeight: 800, color: '#F9FAFB', margin: '0 0 16px' }}>
                 {content.headline || 'What do you think?'}
               </h2>
               <p style={{ fontSize: 16, color: '#6B7280', lineHeight: 1.7, marginBottom: 40 }}>
-                Your feedback shapes the final deliverable. Approve to move forward, or let us know what you would like refined.
+                {content.body || 'Your feedback shapes the final deliverable. Approve to move forward, or let us know what you would like refined.'}
               </p>
 
               <AnimatePresence>

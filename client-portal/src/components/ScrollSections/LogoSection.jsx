@@ -9,7 +9,7 @@ export default function LogoSection({ content = {}, portalId }) {
     <section ref={ref} data-section="logo" style={{ padding: '120px 32px', background: '#111' }}>
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <motion.div initial={{ opacity: 0, y: 40 }} animate={inView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.9 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 20 }}>02 — Logo system</div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 20 }}>{content.eyebrow || '02 — Logo system'}</div>
           <h2 style={{ fontSize: 'clamp(28px, 5vw, 52px)', fontWeight: 800, color: '#F9FAFB', margin: '0 0 48px' }}>
             {content.headline || 'Your mark.'}
           </h2>

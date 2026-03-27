@@ -7,7 +7,7 @@ export default function TypographySection({ content = {} }) {
   return (
     <section ref={ref} data-section="typography" style={{ padding: '120px 32px', background: '#111' }}>
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 20 }}>04 — Typography</div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 20 }}>{content.eyebrow || '04 — Typography'}</div>
         <h2 style={{ fontSize: 'clamp(28px, 5vw, 52px)', fontWeight: 800, color: '#F9FAFB', margin: '0 0 48px' }}>
           {content.headline || 'The voice, set in type.'}
         </h2>

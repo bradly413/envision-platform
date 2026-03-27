@@ -20,6 +20,13 @@ const TEMPLATE_DIRECTIVES = {
   'full-identity': `Design for a comprehensive identity system presentation. Include a more complete rationale across brand, logo, palette, typography, and how the pieces work together.`,
 };
 
+const PORTAL_INTENT_DIRECTIVES = {
+  'brand-identity': `The portal is a brand identity reveal. Focus on strategic position, mark logic, visual system, and why the identity feels right for the client.`,
+  'campaign-launch': `The portal is a campaign launch. Focus on the big idea, audience energy, key assets, rollout framing, and momentum.`,
+  'sales-proposal': `The portal is a sales proposal. Focus on business pressure, recommended solution, value framing, proof, and a decisive call to action.`,
+  'editorial-story': `The portal is an editorial story. Focus on narrative, mood, worldview, and cultural resonance more than a standard agency pitch structure.`,
+};
+
 const PRESENTATION_THEMES = [
   'black',
   'white',
@@ -51,9 +58,10 @@ function getProviderConfig(provider, model) {
   return { provider: normalizedProvider, model: resolvedModel };
 }
 
-function buildPortalEditorSystemPrompt({ styleMode = 'cinematic', templateId = 'brand-reveal-v1' } = {}) {
+function buildPortalEditorSystemPrompt({ styleMode = 'cinematic', templateId = 'brand-reveal-v1', portalIntent = 'brand-identity' } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
   const templateDirective = TEMPLATE_DIRECTIVES[templateId] || TEMPLATE_DIRECTIVES['brand-reveal-v1'];
+  const intentDirective = PORTAL_INTENT_DIRECTIVES[portalIntent] || PORTAL_INTENT_DIRECTIVES['brand-identity'];
   const motionKnowledge = formatMotionKnowledgeBase();
 
   return `You are Envision Creative's senior creative director and portal content editor.
@@ -61,6 +69,7 @@ You create client-facing presentation portal content that feels high-end, art di
 
 ${styleDirective}
 ${templateDirective}
+${intentDirective}
 
 Follow these rules:
 - Write with the taste level of a senior brand strategist and design director, not a generic AI assistant.
@@ -78,7 +87,10 @@ Follow these rules:
 - If the builder context includes parsed creative briefs, treat those structured brief details as the source of truth for campaign theme, launch date, objectives, assets, spec sections, and brand signals.
 - When source material includes campaign deliverables or spec sheets, reflect that structure in the output instead of flattening it into generic brand copy.
 - Respect the selected portal template and make the section framing feel materially different across templates.
+- Respect the selected portal strategy and change the narrative structure, not just the adjectives.
 - Do not recycle the same Envision Marketing headline structure unless the user's prompt explicitly asks for it.
+- Write fresh section eyebrows that fit the chosen strategy. Avoid generic defaults when a more specific framing is available.
+- If the brief reads like a campaign, sales narrative, or editorial story, let the section language follow that category even though the JSON keys stay consistent.
 
 Motion engine roles:
 ${motionKnowledge.engineBlock}
@@ -112,28 +124,33 @@ Approved section effects:
 
 When asked to create or update portal content, respond with a JSON object in this structure:
 {
-  "hero": { "headline": "", "subheadline": "", "intro": "" },
+  "hero": { "eyebrow": "", "headline": "", "subheadline": "", "intro": "" },
   "brand": {
+    "eyebrow": "",
     "headline": "",
     "positioning": "",
     "pillars": [{ "title": "", "desc": "" }]
   },
   "logo": {
+    "eyebrow": "",
     "headline": "",
     "logoUrl": "",
     "rationale": ""
   },
   "colors": {
+    "eyebrow": "",
     "headline": "",
     "palette": [{ "name": "", "hex": "#hex", "role": "" }]
   },
   "typography": {
+    "eyebrow": "",
     "headline": "",
     "fonts": [{ "name": "", "typeface": "", "usage": "", "stack": "" }]
   },
-  "cta": { "headline": "", "buttonText": "", "email": "" },
+  "cta": { "eyebrow": "", "headline": "", "body": "", "buttonText": "", "email": "" },
   "portalTemplate": "${templateId}",
   "artDirection": "${styleMode}",
+  "portalIntent": "${portalIntent}",
   "experience": {
     "preset": "cinematic-editorial",
     "motionLevel": "elevated",
@@ -374,6 +391,7 @@ async function generateBuilderContent({
   model,
   styleMode,
   templateId,
+  portalIntent,
   outputMode = 'portal',
   messages,
   maxTokens,
@@ -381,7 +399,7 @@ async function generateBuilderContent({
   const config = getProviderConfig(provider, model);
   const system = outputMode === 'presentation'
     ? buildPresentationSystemPrompt({ styleMode })
-    : buildPortalEditorSystemPrompt({ styleMode, templateId });
+    : buildPortalEditorSystemPrompt({ styleMode, templateId, portalIntent });
   const safeMessages = (messages || []).map(message => ({
     role: message.role,
     content: String(message.content || ''),

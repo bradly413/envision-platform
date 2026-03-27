@@ -29,6 +29,13 @@ const OUTPUT_MODES = [
   { value: 'presentation', label: 'Presentation', hint: 'Reveal.js-style deck with slides, fragments, media, and notes' },
 ];
 
+const PORTAL_STRATEGIES = [
+  { value: 'brand-identity', label: 'Brand Identity', hint: 'Positioning, mark, palette, typography, and a polished approval flow.' },
+  { value: 'campaign-launch', label: 'Campaign Launch', hint: 'Big idea, audience momentum, rollout, and channel-specific framing.' },
+  { value: 'sales-proposal', label: 'Sales Proposal', hint: 'Problem, offer framing, proof, confidence, and clear next steps.' },
+  { value: 'editorial-story', label: 'Editorial Story', hint: 'Narrative, worldview, mood, and a more culture-led portal tone.' },
+];
+
 const CLIENT_STAGE_OPTIONS = [
   { value: 'lead', label: 'Lead' },
   { value: 'proposal', label: 'Proposal' },
@@ -49,7 +56,7 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 const MODE_INTRO = {
-  portal: `Hi! I'm your Envision builder. Tell me about the client, the brand mood, and the type of reveal you want. I can generate high-end portal JSON using Claude, GPT, or Gemini, complete with art direction and curated motion presets.`,
+  portal: `Hi! I'm your Envision builder. Tell me about the client, the portal strategy you want, and the visual territory it should live in. I can generate portal JSON that behaves differently for a brand identity reveal, campaign launch, sales proposal, or editorial story.`,
   presentation: `Hi! I'm your Envision presentation director. Tell me about the client, the audience, and the story you want to tell. I can generate reveal.js-ready presentation JSON with themes, slide transitions, fragments, media backgrounds, notes, and cinematic pacing.`,
 };
 
@@ -74,13 +81,14 @@ function normalizeBuilderPayload(outputMode, json) {
   return json;
 }
 
-function withPortalMetadata(content, { templateId, styleMode }) {
+function withPortalMetadata(content, { templateId, styleMode, portalIntent }) {
   if (!content || typeof content !== 'object') return content;
 
   return {
     ...content,
     portalTemplate: content.portalTemplate || templateId || 'brand-reveal-v1',
     artDirection: content.artDirection || styleMode || 'cinematic',
+    portalIntent: content.portalIntent || portalIntent || 'brand-identity',
   };
 }
 
@@ -157,7 +165,7 @@ function describeAsset(asset) {
   return lines.join('\n');
 }
 
-function buildContextMessage({ client, portal, assets, outputMode }) {
+function buildContextMessage({ client, portal, assets, outputMode, portalIntent }) {
   const lines = [];
 
   if (client) {
@@ -171,6 +179,10 @@ function buildContextMessage({ client, portal, assets, outputMode }) {
     lines.push(`Target portal slug: ${portal.slug}`);
     if (portal.template_id) lines.push(`Existing portal template: ${portal.template_id}`);
     lines.push(`Saving into existing ${outputMode} destination for this client.`);
+  }
+
+  if (outputMode === 'portal' && portalIntent) {
+    lines.push(`Portal strategy: ${portalIntent}`);
   }
 
   if (assets.length) {
@@ -362,6 +374,7 @@ export default function PortalEditorPage() {
   const [provider, setProvider] = useState('anthropic');
   const [model, setModel] = useState(MODEL_OPTIONS.anthropic[0].value);
   const [styleMode, setStyleMode] = useState('cinematic');
+  const [portalIntent, setPortalIntent] = useState('brand-identity');
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showCreatePortal, setShowCreatePortal] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
@@ -453,6 +466,7 @@ export default function PortalEditorPage() {
       portal: selectedPortalRecord,
       assets,
       outputMode,
+      portalIntent,
     });
 
     return context ? [context, ...newMessages] : newMessages;
@@ -474,6 +488,7 @@ export default function PortalEditorPage() {
         model,
         styleMode,
         templateId: activeTemplateId,
+        portalIntent,
         outputMode,
         messages: requestMessages.map((message) => ({
           role: message.role,
@@ -530,6 +545,7 @@ export default function PortalEditorPage() {
           : withPortalMetadata(normalizedPreview || {}, {
               templateId: portalForm.template_id,
               styleMode,
+              portalIntent,
             }),
       });
       const nextPortals = [created, ...portals];
@@ -557,6 +573,7 @@ export default function PortalEditorPage() {
         : withPortalMetadata(rawPayload, {
             templateId: activeTemplateId,
             styleMode,
+            portalIntent,
           });
       await portalsApi.updateContent(selectedPortal, payload);
       setSaveMsg(`✓ Saved ${outputMode === 'presentation' ? 'presentation' : 'portal'} to portal`);
@@ -663,7 +680,9 @@ export default function PortalEditorPage() {
         <div style={{ padding: '14px 24px 8px', background: '#fff', borderBottom: '1px solid #E5E7EB' }}>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(220px, 1.35fr) repeat(4, minmax(150px, 1fr))',
+            gridTemplateColumns: outputMode === 'portal'
+              ? 'minmax(220px, 1.35fr) repeat(5, minmax(150px, 1fr))'
+              : 'minmax(220px, 1.35fr) repeat(4, minmax(150px, 1fr))',
             gap: 12,
             alignItems: 'start',
           }}>
@@ -704,6 +723,20 @@ export default function PortalEditorPage() {
                 ))}
               </select>
             </ControlField>
+
+            {outputMode === 'portal' && (
+              <ControlField label="Portal Strategy" hint={PORTAL_STRATEGIES.find((option) => option.value === portalIntent)?.hint}>
+                <select
+                  value={portalIntent}
+                  onChange={(e) => setPortalIntent(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}
+                >
+                  {PORTAL_STRATEGIES.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </ControlField>
+            )}
 
             <ControlField label="Provider" hint="Choose the model family driving the builder.">
               <select

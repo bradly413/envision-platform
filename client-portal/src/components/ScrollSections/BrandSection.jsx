@@ -7,7 +7,7 @@ export default function BrandSection({ content = {} }) {
   return (
     <section ref={ref} data-section="brand-strategy" style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', padding: '120px 32px', maxWidth: 960, margin: '0 auto' }}>
       <motion.div initial={{ opacity: 0, y: 60 }} animate={inView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.9 }} style={{ width: '100%' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 20 }}>01 — Brand strategy</div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 20 }}>{content.eyebrow || '01 — Brand strategy'}</div>
         <h2 style={{ fontSize: 'clamp(28px, 5vw, 52px)', fontWeight: 800, color: '#F9FAFB', lineHeight: 1.15, margin: '0 0 32px' }}>
           {content.headline || 'The story behind the brand.'}
         </h2>

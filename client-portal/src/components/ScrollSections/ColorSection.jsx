@@ -15,7 +15,7 @@ export default function ColorSection({ content = {} }) {
   return (
     <section ref={ref} data-section="color-palette" style={{ padding: '120px 32px' }}>
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 20 }}>03 — Color palette</div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 20 }}>{content.eyebrow || '03 — Color palette'}</div>
         <h2 style={{ fontSize: 'clamp(28px, 5vw, 52px)', fontWeight: 800, color: '#F9FAFB', margin: '0 0 48px' }}>
           {content.headline || 'The palette.'}
         </h2>

@@ -18,7 +18,7 @@ function DefaultHero({ cinematic, glassPanel, zoomEffect, content, clientName, e
       }}>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4, duration: 0.8 }}
         style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.25em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 24 }}>
-        Envision Creative · {experience?.presetLabel || 'Brand Reveal'}
+        {content.eyebrow || `Envision Creative · ${experience?.presetLabel || 'Brand Reveal'}`}
       </motion.div>
 
       <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7, duration: 0.9 }}
@@ -52,7 +52,7 @@ function MinimalHero({ content, clientName, company, experience }) {
       style={{ position: 'relative', width: 'min(1080px, 100%)', textAlign: 'left' }}
     >
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.22em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 24 }}>
-        Envision Creative · {experience?.presetLabel || 'Brand Reveal'}
+        {content.eyebrow || `Envision Creative · ${experience?.presetLabel || 'Brand Reveal'}`}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 36, alignItems: 'end' }}>
         <div>
@@ -84,7 +84,7 @@ function IdentityHero({ content, clientName, company, experience }) {
       style={{ position: 'relative', width: 'min(1120px, 100%)', textAlign: 'left' }}
     >
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.22em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 20 }}>
-        Envision Creative · {experience?.presetLabel || 'Full Identity'}
+        {content.eyebrow || `Envision Creative · ${experience?.presetLabel || 'Full Identity'}`}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 32, alignItems: 'start' }}>
         <div>

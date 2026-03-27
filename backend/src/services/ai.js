@@ -67,6 +67,8 @@ Follow these rules:
 - Always prefer 2 to 4 signature motion ideas over gimmick overload.
 - Every motion choice must have a mobile fallback and a reduced-motion fallback in mind.
 - Use only the approved presets and effects listed below. Do not invent new effect names in the JSON.
+- If the builder context includes parsed creative briefs, treat those structured brief details as the source of truth for campaign theme, launch date, objectives, assets, spec sections, and brand signals.
+- When source material includes campaign deliverables or spec sheets, reflect that structure in the output instead of flattening it into generic brand copy.
 
 Motion engine roles:
 ${motionKnowledge.engineBlock}
@@ -164,6 +166,8 @@ Follow these rules:
 - Keep custom CSS short, tasteful, and additive.
 - Use the motion knowledge base below to decide where Motion-style interaction, GSAP-like scrollytelling, or 3D hero concepts are appropriate conceptually, even if the render target is reveal.js.
 - Do not spec elaborate motion for every slide. Reserve higher-intensity motion for opening, pivotal proof, and closing moments.
+- If the builder context includes parsed creative briefs, use those structured fields as the source of truth for campaign framing, launch timing, asset inventory, and deliverable sections.
+- When campaign spec sheets are attached, translate them into a presentation narrative: overview, creative direction, deliverables, specs, rollout, and CTA.
 
 Motion engine roles:
 ${motionKnowledge.engineBlock}

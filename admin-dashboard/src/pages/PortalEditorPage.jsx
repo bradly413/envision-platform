@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ai, clients as clientsApi, portals as portalsApi } from '../lib/api';
+import { formatBriefForContext, parseCreativeBrief } from '../lib/briefParser';
 
 const MODEL_OPTIONS = {
   anthropic: [
@@ -83,7 +84,7 @@ function isTextLikeFile(file) {
   return TEXT_EXTENSIONS.has(getFileExtension(file.name));
 }
 
-function readTextExcerpt(file) {
+function readTextContent(file) {
   return new Promise((resolve) => {
     if (!isTextLikeFile(file)) {
       resolve('');
@@ -92,12 +93,19 @@ function readTextExcerpt(file) {
 
     const reader = new FileReader();
     reader.onload = () => {
-      const raw = typeof reader.result === 'string' ? reader.result : '';
-      resolve(raw.replace(/\s+/g, ' ').trim().slice(0, 1800));
+      resolve(typeof reader.result === 'string' ? reader.result : '');
     };
     reader.onerror = () => resolve('');
     reader.readAsText(file);
   });
+}
+
+function buildTextExcerpt(raw = '') {
+  return String(raw || '')
+    .replace(/data:[^"'\s>]+/gi, 'data:[embedded]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 1800);
 }
 
 function humanizeFileSize(size = 0) {
@@ -129,6 +137,12 @@ function describeAsset(asset) {
   if (asset.mimeType) lines.push(`  mimeType: ${asset.mimeType}`);
   if (asset.sizeLabel) lines.push(`  size: ${asset.sizeLabel}`);
   if (asset.excerpt) lines.push(`  excerpt: ${asset.excerpt}`);
+  if (asset.brief) {
+    lines.push('  parsedBrief:');
+    for (const line of formatBriefForContext(asset.brief).split('\n')) {
+      lines.push(`    ${line}`);
+    }
+  }
 
   return lines.join('\n');
 }
@@ -163,7 +177,7 @@ function buildContextMessage({ client, portal, assets, outputMode }) {
   };
 }
 
-function buildAssetRecord(file, excerpt) {
+function buildAssetRecord(file, excerpt, brief) {
   const kind = file.type.startsWith('image/')
     ? 'image'
     : file.type.startsWith('video/')
@@ -179,7 +193,67 @@ function buildAssetRecord(file, excerpt) {
     mimeType: file.type || 'application/octet-stream',
     sizeLabel: humanizeFileSize(file.size),
     excerpt,
+    brief,
     previewUrl: kind === 'image' || kind === 'video' ? URL.createObjectURL(file) : '',
+  };
+}
+
+function summarizeMotionStrategy(outputMode, preview) {
+  if (!preview) return null;
+
+  if (outputMode === 'presentation' && preview.presentation) {
+    const presentation = preview.presentation;
+    const slides = Array.isArray(presentation.slides) ? presentation.slides : [];
+    const backgroundTypes = [...new Set(slides.map((slide) => slide?.background?.type).filter(Boolean))];
+    const transitions = [...new Set(slides.map((slide) => slide?.transition).filter(Boolean))];
+    const autoAnimatedSlides = slides.filter((slide) => slide?.autoAnimate).length;
+    const fragmentCount = slides.reduce((count, slide) => count + (Array.isArray(slide?.fragments) ? slide.fragments.length : 0), 0);
+    const verticalStacks = slides.filter((slide) => Array.isArray(slide?.verticalSlides) && slide.verticalSlides.length).length;
+
+    return {
+      title: 'Motion strategy',
+      eyebrow: 'Presentation direction',
+      items: [
+        { label: 'Theme', value: presentation.theme || 'custom' },
+        { label: 'Deck transition', value: presentation.transition || 'slide' },
+        { label: 'Background motion', value: presentation.backgroundTransition || 'fade' },
+        { label: 'Slides', value: String(slides.length || 0) },
+        { label: 'Auto-animate', value: `${autoAnimatedSlides}/${slides.length || 0} slides` },
+        { label: 'Fragments', value: String(fragmentCount) },
+        { label: 'Vertical stacks', value: String(verticalStacks) },
+      ],
+      chips: [
+        ...(backgroundTypes.length ? backgroundTypes.map((type) => `background:${type}`) : []),
+        ...(transitions.length ? transitions.map((transition) => `transition:${transition}`) : []),
+        ...(presentation.scrollView ? ['scroll-view'] : []),
+        ...(presentation.autoSlide ? [`auto-slide:${presentation.autoSlide}`] : []),
+      ],
+    };
+  }
+
+  const experience = preview.experience;
+  if (!experience) return null;
+
+  const sectionEffects = Object.entries(experience.sectionEffects || {}).flatMap(([section, effects]) =>
+    Array.isArray(effects) ? effects.map((effect) => `${section}:${effect}`) : []
+  );
+
+  return {
+    title: 'Motion strategy',
+    eyebrow: 'Portal direction',
+    items: [
+      { label: 'Preset', value: experience.preset || 'custom' },
+      { label: 'Motion level', value: experience.motionLevel || 'elevated' },
+      { label: 'Depth', value: experience.depth || 'layered' },
+      { label: 'Hero effects', value: String((experience.heroEffects || []).length) },
+      { label: 'Section effects', value: String(sectionEffects.length) },
+      { label: 'Mobile fallback', value: experience?.fallbacks?.mobile || 'reduced' },
+      { label: 'Reduced motion', value: experience?.fallbacks?.reducedMotion ? 'enabled' : 'off' },
+    ],
+    chips: [
+      ...(experience.heroEffects || []),
+      ...sectionEffects,
+    ],
   };
 }
 
@@ -239,6 +313,22 @@ function AssetCard({ asset, onRemove }) {
       {asset.excerpt && (
         <div style={{ fontSize: 11, color: '#4B5563', marginTop: 8, lineHeight: 1.5, maxHeight: 52, overflow: 'hidden' }}>
           {asset.excerpt}
+        </div>
+      )}
+      {asset.brief && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #F3F4F6' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 4 }}>
+            Parsed brief
+          </div>
+          <div style={{ fontSize: 11, color: '#111827', lineHeight: 1.5 }}>
+            {asset.brief.campaignTheme || asset.brief.title}
+          </div>
+          <div style={{ fontSize: 10, color: '#6B7280', marginTop: 3, lineHeight: 1.5 }}>
+            {[
+              asset.brief.launchDate,
+              asset.brief.objectives?.length ? asset.brief.objectives.join(', ') : '',
+            ].filter(Boolean).join(' · ') || asset.brief.summary}
+          </div>
         </div>
       )}
     </div>
@@ -315,6 +405,7 @@ export default function PortalEditorPage() {
     : portals;
   const selectedModeMeta = OUTPUT_MODES.find((mode) => mode.value === outputMode);
   const normalizedPreview = extractedJSON ? normalizeBuilderPayload(outputMode, extractedJSON) : null;
+  const motionSummary = summarizeMotionStrategy(outputMode, normalizedPreview);
 
   const handleProviderChange = (nextProvider) => {
     setProvider(nextProvider);
@@ -466,8 +557,10 @@ export default function PortalEditorPage() {
     if (!files.length) return;
 
     const nextAssets = await Promise.all(files.map(async (file) => {
-      const excerpt = await readTextExcerpt(file);
-      return buildAssetRecord(file, excerpt);
+      const rawText = await readTextContent(file);
+      const brief = rawText ? parseCreativeBrief(rawText, { name: file.name, mimeType: file.type || getFileExtension(file.name) }) : null;
+      const excerpt = brief?.summary || buildTextExcerpt(rawText);
+      return buildAssetRecord(file, excerpt, brief);
     }));
 
     setAssets((prev) => [...prev, ...nextAssets]);
@@ -889,6 +982,29 @@ export default function PortalEditorPage() {
         <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
           {normalizedPreview ? (
             <div>
+              {motionSummary && (
+                <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>{motionSummary.eyebrow}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 10 }}>{motionSummary.title}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: motionSummary.chips.length ? 10 : 0 }}>
+                    {motionSummary.items.map((item) => (
+                      <div key={item.label} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 9px' }}>
+                        <div style={{ fontSize: 10, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 4 }}>{item.label}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', lineHeight: 1.4 }}>{item.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {motionSummary.chips.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {motionSummary.chips.map((chip) => (
+                        <span key={chip} style={{ fontSize: 10, color: '#4B5563', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 999, padding: '4px 8px' }}>
+                          {chip}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#10B981', marginBottom: 8 }}>✓ Content ready</div>
               <pre style={{ fontSize: 10, color: '#6B7280', background: '#F9FAFB', borderRadius: 8, padding: 12, overflow: 'auto', maxHeight: 460, lineHeight: 1.5 }}>
                 {JSON.stringify(normalizedPreview, null, 2)}

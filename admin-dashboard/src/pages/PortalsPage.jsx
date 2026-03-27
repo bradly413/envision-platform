@@ -105,6 +105,7 @@ export default function PortalsPage() {
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClientForm, setNewClientForm] = useState({ name: '', company: '', email: '' });
   const [savingClient, setSavingClient] = useState(false);
+  const canGeneratePortal = Boolean(form.client_id) && !createMutation.isLoading && !savingClient;
 
   const createMutation = useMutation(portals.create, {
     onSuccess: () => { qc.invalidateQueries('portals'); setShowCreate(false); setForm({ client_id: '', password: '', template_id: 'brand-reveal-v1' }); setShowNewClient(false); }
@@ -114,10 +115,24 @@ export default function PortalsPage() {
     if (!newClientForm.name.trim()) return;
     setSavingClient(true);
     try {
-      const created = await clients.create({ ...newClientForm, stage: 'lead' });
+      const payload = {
+        ...newClientForm,
+        name: newClientForm.name.trim(),
+        company: newClientForm.company.trim() || null,
+        email: newClientForm.email.trim() || null,
+        stage: 'lead',
+      };
+      const created = await clients.create(payload);
       qc.invalidateQueries('clients');
-      // Try to get the id from the response
-      const newId = created?.id || created?.client?.id || '';
+      let newId = created?.id || created?.client?.id || '';
+      if (!newId) {
+        const refreshedClients = await qc.fetchQuery('clients', () => clients.list());
+        const matchedClient = (refreshedClients || []).find((client) => {
+          if (payload.email && client.email && client.email === payload.email) return true;
+          return client.name === payload.name && (client.company || '') === (payload.company || '');
+        });
+        newId = matchedClient?.id || '';
+      }
       if (newId) setForm(f => ({ ...f, client_id: newId }));
       setShowNewClient(false);
       setNewClientForm({ name: '', company: '', email: '' });
@@ -364,6 +379,9 @@ export default function PortalsPage() {
                     style={{ width: '100%', padding: '8px 0', borderRadius: 7, border: 'none', background: newClientForm.name.trim() ? '#111827' : '#E5E7EB', color: newClientForm.name.trim() ? '#fff' : '#9CA3AF', fontSize: 12, fontWeight: 700, cursor: newClientForm.name.trim() ? 'pointer' : 'default' }}>
                     {savingClient ? 'Creating...' : 'Create client & continue'}
                   </button>
+                  <div style={{ fontSize: 11, color: '#6B7280', marginTop: 8, lineHeight: 1.5 }}>
+                    Step 1: create the client. Step 2: generate the portal once that client is selected.
+                  </div>
                 </div>
               )}
             </div>
@@ -386,8 +404,8 @@ export default function PortalsPage() {
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowCreate(false); setShowNewClient(false); }} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#374151' }}>Cancel</button>
-              <button onClick={() => createMutation.mutate(form)} disabled={!form.client_id || createMutation.isLoading || showNewClient}
-                style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: !form.client_id || showNewClient ? '#E5E7EB' : '#111827', fontSize: 13, fontWeight: 600, cursor: !form.client_id || showNewClient ? 'default' : 'pointer', color: !form.client_id || showNewClient ? '#9CA3AF' : '#fff' }}>
+              <button onClick={() => createMutation.mutate(form)} disabled={!canGeneratePortal}
+                style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: canGeneratePortal ? '#111827' : '#E5E7EB', fontSize: 13, fontWeight: 600, cursor: canGeneratePortal ? 'pointer' : 'default', color: canGeneratePortal ? '#fff' : '#9CA3AF' }}>
                 {createMutation.isLoading ? 'Creating...' : 'Generate portal'}
               </button>
             </div>

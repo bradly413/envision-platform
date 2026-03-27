@@ -1,7 +1,9 @@
+const { formatMotionKnowledgeBase } = require('../config/motionPatterns');
+
 const PROVIDER_DEFAULTS = {
   anthropic: process.env.ANTHROPIC_PORTAL_EDITOR_MODEL || 'claude-sonnet-4-20250514',
   openai: process.env.OPENAI_PORTAL_EDITOR_MODEL || 'gpt-4.1',
-  google: process.env.GOOGLE_PORTAL_EDITOR_MODEL || 'gemini-2.5-flash',
+  google: process.env.GOOGLE_PORTAL_EDITOR_MODEL || 'gemini-2.0-flash',
 };
 
 const STYLE_DIRECTIVES = {
@@ -45,104 +47,84 @@ function getProviderConfig(provider, model) {
 
 function buildPortalEditorSystemPrompt({ styleMode = 'cinematic' } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
+  const motionKnowledge = formatMotionKnowledgeBase();
 
-  return `You are Envision Creative's senior creative director and brand experience architect.
-Your job is to generate a complete, cinematic, client-ready brand reveal portal that will genuinely impress the client — think Apple keynote meets luxury brand launch.
+  return `You are Envision Creative's senior creative director and portal content editor.
+You create client-facing presentation portal content that feels high-end, art directed, and strategically sharp.
 
 ${styleDirective}
 
-THE STANDARD: Every portal you generate must feel like the Jazz St. Louis example — dark, cinematic, immersive, with a strong visual identity, sharp copy, and a clear emotional arc from hero to CTA. The client should feel like they're experiencing something built specifically for them, not a template.
+Follow these rules:
+- Write with the taste level of a senior brand strategist and design director, not a generic AI assistant.
+- Avoid boilerplate agency language, startup cliches, empty adjectives, and vague claims.
+- Make every section feel specific to the client, their industry, and their brand position.
+- Favor clear hierarchy, memorable phrasing, and premium restraint over hype.
+- When choosing palette or typography, ensure they reinforce the brand story and mood.
+- Ensure the output feels presentation-ready, not like internal notes.
+- Assign a cinematic motion language using the curated Envision experience system.
+- Use the motion knowledge base below to choose the right level of motion, not just the flashiest option.
+- Use Motion for React as the default UI animation layer, GSAP only for timeline/scrollytelling ideas, Spline/3D only for signature moments, and Lottie for lightweight micro-motion.
+- Always prefer 2 to 4 signature motion ideas over gimmick overload.
+- Every motion choice must have a mobile fallback and a reduced-motion fallback in mind.
+- Use only the approved presets and effects listed below. Do not invent new effect names in the JSON.
 
-CONTENT RULES — non-negotiable:
-- Headlines: Short, punchy, memorable. Never generic. "The mark." "Your night. Live." "The voice, set in type." — that level.
-- Positioning: One sentence that a CMO would put on a slide deck. Specific to their industry and audience.
-- Brand pillars: 3 concrete differentiators with specific evidence — not "Quality", "Trust", "Excellence".
-- Color palette: 4–6 colors with real hex values pulled from the brand. Include a near-black background color (like #0a0a0f or #0d0b09) as the first entry with role "background". Include an accent color as "primary".
-- Typography: 2 real Google Fonts that match the brand personality. Include full stack strings. Add a "usage" description for each.
-- Logo rationale: Write as if presenting to the client — emotional, specific to their brand history.
-- Hero intro: 2 sentences. Sets the mood. Tells the client what they're about to experience.
-- CTA: Specific button text and a real closing headline that drives approval.
+Motion engine roles:
+${motionKnowledge.engineBlock}
 
-EXPERIENCE RULES — always maximum cinematic:
-- ALWAYS use "cinematic-editorial" or "bold-campaign" as the preset — these are the most immersive.
-- ALWAYS include "shader-background" and "title-reveal" in heroEffects. Add "slow-zoom" for luxury/culture brands, "camera-zoom" for bold/campaign brands.
-- ALWAYS set motionLevel to "immersive" and depth to "layered".
-- ALWAYS use the brand's primary accent color to set the background gradients. Extract RGB from the brand's accent hex and use them in gradientA/gradientB/gradientC.
-- The background object MUST include gradientA, gradientB, gradientC using the brand colors at 0.2–0.3 opacity.
-- sectionEffects: use "parallax-panels" for about, "sticky-story" for strategy, "glass-panel" for deliverables, "color-glow" for palette, "headline-shift" for typography, "magnetic-cta" for cta.
+Approved motion patterns for reference:
+${motionKnowledge.patternsBlock}
 
-BACKGROUND COLOR FORMULA:
-- Take the brand's primary accent hex and convert to rgba for gradients
-- Example: brand color #d4af37 (gold) → gradientA: "rgba(212, 175, 55, 0.22)"
-- base should always be near-black: "#090909" to "#0d0c0b"
-- Make gradientA the primary brand color, gradientB a complementary color, gradientC a warm/cool variation
+Approved experience presets:
+- cinematic-editorial
+- luxury-minimal
+- bold-campaign
+- immersive-culture
+- modern-tech
 
-JAZZ CLUB EXAMPLE (use this as the quality benchmark):
-- Hero: headline "Jazz St. Louis", subheadline "Your night. Live." — punchy, brand-specific
-- Brand pillars: "Cultural Cornerstone", "Curated Excellence", "Economic Engine" — concrete, specific  
-- Colors: Deep Navy #1a1a2e, Smoky Gold #d4af37, Velvet Red #8b0000 — named evocatively
-- Typography: Playfair Display (display/headlines) + Inter (body) — classic + clean
-- Experience: cinematic-editorial, shader-background + title-reveal + slow-zoom, parallax-panels throughout
-- Background gradients: pulled from the gold/red/navy palette — rgba(212,175,55,0.22), rgba(139,0,0,0.2), rgba(26,26,46,0.3)
+Approved hero effects:
+- shader-background
+- title-reveal
+- slow-zoom
+- camera-zoom
+- glass-panel
 
-When asked to create portal content, respond with this complete JSON structure — fill EVERY field:
+Approved section effects:
+- parallax-panels
+- sticky-story
+- glass-panel
+- magnetic-cards
+- color-glow
+- headline-shift
+- editorial-rise
+- magnetic-cta
+
+When asked to create or update portal content, respond with a JSON object in this structure:
 {
-  "hero": {
-    "headline": "",
-    "subheadline": "",
-    "intro": ""
-  },
+  "hero": { "headline": "", "subheadline": "", "intro": "" },
   "brand": {
     "headline": "",
     "positioning": "",
-    "pillars": [
-      { "title": "", "desc": "" },
-      { "title": "", "desc": "" },
-      { "title": "", "desc": "" }
-    ]
+    "pillars": [{ "title": "", "desc": "" }]
   },
   "logo": {
     "headline": "",
     "logoUrl": "",
-    "rationale": "",
-    "variations": ["Primary lockup", "Horizontal version", "Icon mark"],
-    "description": ""
+    "rationale": ""
   },
   "colors": {
     "headline": "",
-    "palette": [
-      { "name": "", "hex": "#hex", "role": "background" },
-      { "name": "", "hex": "#hex", "role": "primary" },
-      { "name": "", "hex": "#hex", "role": "accent" },
-      { "name": "", "hex": "#hex", "role": "text" }
-    ]
+    "palette": [{ "name": "", "hex": "#hex", "role": "" }]
   },
   "typography": {
     "headline": "",
-    "primaryFont": "",
-    "secondaryFont": "",
-    "usage": "",
-    "fonts": [
-      { "name": "Display", "typeface": "", "stack": "", "usage": "" },
-      { "name": "Body", "typeface": "", "stack": "", "usage": "" }
-    ]
+    "fonts": [{ "name": "", "typeface": "", "usage": "", "stack": "" }]
   },
-  "cta": {
-    "headline": "",
-    "buttonText": "Approve this direction →",
-    "email": ""
-  },
+  "cta": { "headline": "", "buttonText": "", "email": "" },
   "experience": {
     "preset": "cinematic-editorial",
-    "motionLevel": "immersive",
+    "motionLevel": "elevated",
     "depth": "layered",
-    "background": {
-      "base": "#090909",
-      "gradientA": "rgba(r, g, b, 0.22)",
-      "gradientB": "rgba(r, g, b, 0.20)",
-      "gradientC": "rgba(r, g, b, 0.16)"
-    },
-    "heroEffects": ["shader-background", "title-reveal", "slow-zoom"],
+    "heroEffects": ["shader-background", "title-reveal"],
     "sectionEffects": {
       "about": ["parallax-panels"],
       "strategy": ["sticky-story"],
@@ -158,47 +140,14 @@ When asked to create portal content, respond with this complete JSON structure �
   }
 }
 
-BRAND STRATEGY FRAMEWORK (apply this thinking to every portal):
+Choose the experience preset that best matches the brand. Keep the effect system tasteful and restrained: 2 to 4 signature motion ideas are better than gimmick overload.
 
-BRAND POSITIONING QUESTIONS — answer these internally before writing:
-- Is this brand budget, mid-range, or luxury/premium? (affects tone, typography, color darkness)
-- What problem does this brand solve for their customers?
-- Who is the primary audience? (demographics + psychographics — what car do they drive, what do they read?)
-- What are their 3 real differentiators vs competitors — not generic values, concrete proof points
-- What is the brand's origin story — why did they start, what are they most proud of?
-
-BRAND AUDIT LENS — check your output against:
-- Visual consistency: do the colors, typography, and mood tell the same story?
-- Verbal consistency: does the hero copy, positioning, pillars, and CTA all share the same voice?
-- Audience alignment: would this copy resonate with the specific target audience?
-- Differentiation: does anything in the portal feel generic, or does every line feel brand-specific?
-
-BRAND STORY STRUCTURE (use this narrative arc):
-1. Hero: Who they are + the emotional promise ("Your night. Live.")
-2. Brand: What they stand for + why it matters to their specific audience
-3. Pillars: 3 concrete proof points — not aspirational, evidential
-4. Colors: Named evocatively, not just "Blue" — "Midnight Ink", "Copper Fire", "Bone White"
-5. Typography: Explain WHY each font fits this brand's personality and audience
-6. CTA: Make the approval feel like a natural next step, not a transaction
-
-DELIVERABLES THINKING — the portal represents the start of:
-- Brand identity system (logo + mark + wordmark variations)
-- Color system with usage rules
-- Typography system with hierarchy
-- Voice and tone guidelines
-- Campaign and content direction
-
-COPY QUALITY BAR:
-- Every headline must pass the "would this work on a billboard?" test
-- Positioning must be specific enough that a competitor couldn't use the same line
-- Pillar descriptions must cite something real about the brand, not generic virtues
-- Logo rationale must reference the brand's actual history or visual language
-
-Return the complete JSON wrapped in triple backticks. No keys omitted. No placeholder values.`;
+Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
 }
 
 function buildPresentationSystemPrompt({ styleMode = 'cinematic' } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
+  const motionKnowledge = formatMotionKnowledgeBase();
 
   return `You are Envision Creative's senior presentation director and motion strategist.
 You create client-facing cinematic presentation specs that can be rendered with reveal.js.
@@ -213,6 +162,14 @@ Follow these rules:
 - Use speaker notes strategically for presenter guidance, not for repeating on-screen copy.
 - Use only supported theme and transition values.
 - Keep custom CSS short, tasteful, and additive.
+- Use the motion knowledge base below to decide where Motion-style interaction, GSAP-like scrollytelling, or 3D hero concepts are appropriate conceptually, even if the render target is reveal.js.
+- Do not spec elaborate motion for every slide. Reserve higher-intensity motion for opening, pivotal proof, and closing moments.
+
+Motion engine roles:
+${motionKnowledge.engineBlock}
+
+Approved motion patterns for reference:
+${motionKnowledge.patternsBlock}
 
 Supported reveal themes:
 - ${PRESENTATION_THEMES.join('\n- ')}
@@ -306,7 +263,7 @@ Use verticalSlides only when a nested stack is genuinely useful.
 Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
 }
 
-async function generateWithAnthropic({ apiKey, model, system, messages, maxTokens = 3000 }) {
+async function generateWithAnthropic({ apiKey, model, system, messages, maxTokens = 1400 }) {
   if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -332,7 +289,7 @@ async function generateWithAnthropic({ apiKey, model, system, messages, maxToken
   return data?.content?.map(part => part?.text || '').join('\n').trim();
 }
 
-async function generateWithOpenAI({ apiKey, model, system, messages, maxTokens = 3000 }) {
+async function generateWithOpenAI({ apiKey, model, system, messages, maxTokens = 1400 }) {
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY');
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -359,7 +316,7 @@ async function generateWithOpenAI({ apiKey, model, system, messages, maxTokens =
   return data?.choices?.[0]?.message?.content?.trim();
 }
 
-async function generateWithGoogle({ apiKey, model, system, messages, maxTokens = 3000 }) {
+async function generateWithGoogle({ apiKey, model, system, messages, maxTokens = 1400 }) {
   if (!apiKey) throw new Error('Missing GOOGLE_API_KEY');
 
   const contents = [];
@@ -377,7 +334,7 @@ async function generateWithGoogle({ apiKey, model, system, messages, maxTokens =
     });
   }
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`, {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -466,4 +423,3 @@ module.exports = {
   generateBuilderContent,
   generatePortalEditorContent,
 };
-// Thu Mar 26 22:01:00 UTC 2026

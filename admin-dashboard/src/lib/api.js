@@ -3,9 +3,21 @@ import { useAuthStore } from './store';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api' });
 
+function isLikelyJwt(token) {
+  if (typeof token !== 'string') return false;
+  if (/[\u0000-\u001F\u007F\s]/.test(token)) return false;
+  return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
+}
+
 api.interceptors.request.use(config => {
   const token = useAuthStore.getState().token;
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    if (!isLikelyJwt(token)) {
+      useAuthStore.getState().logout();
+      return Promise.reject(new Error('Session expired — please sign in again'));
+    }
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -13,6 +25,9 @@ api.interceptors.response.use(
   res => res.data,
   err => {
     if (err.response?.status === 401) useAuthStore.getState().logout();
+    if (!err.response && err.message === 'Network Error' && useAuthStore.getState().token) {
+      return Promise.reject('Network Error — if this keeps happening, sign out and back in to refresh your admin session.');
+    }
     return Promise.reject(err.response?.data?.error || err.message);
   }
 );

@@ -4,6 +4,12 @@ import { useState } from 'react';
 
 const PRIORITY_COLORS = { high: '#EF4444', medium: '#F59E0B', low: '#9CA3AF' };
 const PRIORITY_BG = { high: '#FEE2E2', medium: '#FEF3C7', low: '#F3F4F6' };
+const STATUS_LABELS = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
+const STATUS_COLORS = {
+  todo: { color: '#6B7280', background: '#F3F4F6' },
+  in_progress: { color: '#2563EB', background: '#DBEAFE' },
+  done: { color: '#059669', background: '#D1FAE5' },
+};
 
 export default function TasksPage() {
   const qc = useQueryClient();
@@ -11,7 +17,7 @@ export default function TasksPage() {
   const { data: allClients = [] } = useQuery('clients', () => clients.list());
   const [filter, setFilter] = useState('todo');
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ title: '', priority: 'medium', due_date: '', client_id: '' });
+  const [form, setForm] = useState({ title: '', priority: 'medium', status: 'todo', due_date: '', client_id: '' });
   const [saving, setSaving] = useState(false);
 
   const completeMutation = useMutation(id => tasks.update(id, { status: 'done' }), {
@@ -22,7 +28,7 @@ export default function TasksPage() {
     onSuccess: () => qc.invalidateQueries('tasks'),
   });
 
-  const deleteMutation = useMutation(id => tasks.delete(id), {
+  const updateStatusMutation = useMutation(({ id, status }) => tasks.update(id, { status }), {
     onSuccess: () => qc.invalidateQueries('tasks'),
   });
 
@@ -30,16 +36,29 @@ export default function TasksPage() {
     if (!form.title.trim()) return;
     setSaving(true);
     try {
-      await tasks.create({ ...form, status: 'todo', client_id: form.client_id || null });
+      await tasks.create({ ...form, client_id: form.client_id || null });
       qc.invalidateQueries('tasks');
       setShowAdd(false);
-      setForm({ title: '', priority: 'medium', due_date: '', client_id: '' });
+      setForm({ title: '', priority: 'medium', status: 'todo', due_date: '', client_id: '' });
     } catch (e) { console.error(e); }
     setSaving(false);
   };
 
+  const toggleWorkingStatus = (task) => {
+    if (task.status === 'done') {
+      reopenMutation.mutate(task.id);
+      return;
+    }
+
+    updateStatusMutation.mutate({
+      id: task.id,
+      status: task.status === 'in_progress' ? 'todo' : 'in_progress',
+    });
+  };
+
   const filtered = filter === 'all' ? allTasks : allTasks.filter(t => t.status === filter);
   const getClientName = (id) => allClients.find(c => c.id === id)?.name || null;
+  const openCount = allTasks.filter(t => t.status !== 'done').length;
 
   const counts = {
     todo: allTasks.filter(t => t.status === 'todo').length,
@@ -54,7 +73,7 @@ export default function TasksPage() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#111827', margin: 0 }}>Tasks</h1>
           <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 3 }}>
-            {counts.todo} open · {counts.done} done
+            {openCount} open · {counts.done} done
           </div>
         </div>
         <button onClick={() => setShowAdd(true)} style={{
@@ -114,6 +133,24 @@ export default function TasksPage() {
                 {clientName && <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{clientName}</div>}
               </div>
 
+              <button
+                onClick={() => toggleWorkingStatus(task)}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '3px 8px',
+                  borderRadius: 20,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: STATUS_COLORS[task.status]?.background || '#F3F4F6',
+                  color: STATUS_COLORS[task.status]?.color || '#6B7280',
+                  textTransform: 'uppercase',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {STATUS_LABELS[task.status] || 'To do'}
+              </button>
+
               {/* Priority */}
               {task.priority && (
                 <span style={{
@@ -152,6 +189,14 @@ export default function TasksPage() {
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, background: '#fff', fontFamily: 'Inter, sans-serif' }}>
                 <option value="">No client</option>
                 {allClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom: 13 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Status</div>
+              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, background: '#fff', fontFamily: 'Inter, sans-serif' }}>
+                <option value="todo">To do</option>
+                <option value="in_progress">In progress</option>
               </select>
             </div>
             <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>

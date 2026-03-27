@@ -5,6 +5,32 @@ const jwt = require('jsonwebtoken');
 const { v4: uuid } = require('uuid');
 const db = require('../config/db');
 
+async function verifyPortalPassword(portal, password) {
+  let hashMatched = false;
+
+  if (portal?.password_hash) {
+    try {
+      hashMatched = await bcrypt.compare(password, portal.password_hash);
+    } catch {
+      hashMatched = false;
+    }
+  }
+
+  if (hashMatched) return true;
+
+  if (portal?.plain_password && password === portal.plain_password) {
+    const passwordHash = await bcrypt.hash(password, 10);
+    await db.query(
+      'UPDATE portals SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [passwordHash, portal.id]
+    );
+    portal.password_hash = passwordHash;
+    return true;
+  }
+
+  return false;
+}
+
 // Admin: list portals
 router.get('/', requireAdmin, async (req, res) => {
   try {
@@ -140,7 +166,7 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'This presentation has expired' });
     }
 
-    const valid = await bcrypt.compare(password, portal.password_hash);
+    const valid = await verifyPortalPassword(portal, password);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign(
@@ -160,6 +186,7 @@ router.post('/login', async (req, res) => {
       portal: {
         id: portal.id,
         slug: portal.slug,
+        templateId: portal.template_id,
         clientName: portal.client_name,
         company: portal.company,
         content: portal.content,

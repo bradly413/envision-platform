@@ -1,20 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { portals, clients } from '../lib/api';
+import { portals, clients, agents } from '../lib/api';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || 'https://envision-portal.netlify.app';
-const API_URL = import.meta.env.VITE_API_URL || 'https://envision-platform-production.up.railway.app/api';
 const STATUS_COLOR = { draft: '#9CA3AF', active: '#10B981', expired: '#EF4444', archived: '#6B7280' };
 const STATUS_BG = { draft: '#F3F4F6', active: '#D1FAE5', expired: '#FEE2E2', archived: '#F3F4F6' };
 
 function AnalyticsPanel({ portal, analytics, loading, outreachDraft, outreachLoading, onGenerateEmail, onClose }) {
   if (!portal) return null;
 
-  // Fix: normalize session time from ms to minutes
-  const avgSessionMs = Number(analytics?.avgSessionMs || analytics?.avgSession || 0);
-  const avgSessionMin = avgSessionMs > 1000 ? Math.round(avgSessionMs / 60000) : Math.round(avgSessionMs);
-  const maxScroll = Math.min(100, Number(analytics?.maxScroll || 0));
+  const rawAvgSession = analytics?.avgSessionMinutes ?? analytics?.avgSessionMs ?? analytics?.avgSession ?? 0;
+  const avgSessionMin = analytics?.avgSessionMinutes !== undefined
+    ? Math.round(Number(rawAvgSession) || 0)
+    : Number(rawAvgSession) > 1000
+      ? Math.round(Number(rawAvgSession) / 60000)
+      : Math.round(Number(rawAvgSession) || 0);
+  const maxScroll = Math.min(100, Number(analytics?.maxScrollDepth ?? analytics?.maxScroll ?? 0));
 
   return (
     <div style={{ background: '#0F172A', borderRadius: 12, padding: 22, marginTop: 8 }}>
@@ -163,24 +165,17 @@ export default function PortalsPage() {
     setOutreachLoading(true);
     setOutreachDraft('');
     try {
-      const token = (() => { try { return JSON.parse(localStorage.getItem('envision-auth'))?.state?.token || ''; } catch { return ''; } })();
-      const res = await fetch(`${API_URL}/agents/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          agent: 'client-outreach',
-          context: {
-            agencyName: 'Bradley Robert Creative',
-            client: { name: portal.client_name, company: portal.company },
-            portalUrl: `${PORTAL_URL}/${portal.slug}`,
-            status: analyticsData?.approved ? 'approved' : analyticsData?.revisionRequested ? 'revision' : 'pending',
-          }
-        })
+      const data = await agents.run('client-outreach', {
+        agencyName: 'Bradley Robert Creative',
+        client: { name: portal.client_name, company: portal.company },
+        portalUrl: `${PORTAL_URL}/${portal.slug}`,
+        status: analyticsData?.approved ? 'approved' : analyticsData?.revisionRequested ? 'revision' : 'pending',
+        approvedAt: analyticsData?.approvedAt || null,
+        revisionNotes: analyticsData?.revisionNotes || null,
       });
-      const data = await res.json();
       setOutreachDraft(data.result || 'Could not generate draft.');
-    } catch (err) {
-      setOutreachDraft('Error: ' + err.message);
+    } catch {
+      setOutreachDraft('Could not generate draft.');
     }
     setOutreachLoading(false);
   };

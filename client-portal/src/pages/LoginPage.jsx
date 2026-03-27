@@ -17,10 +17,19 @@ export default function LoginPage() {
     setError(''); setLoading(true);
     try {
       const data = await portalAuth.login(slug, password);
-      const portal = { id: data.portal_id, slug: data.slug, content: data.content };
+      const resolvedPortal = data.portal || {};
+      const resolvedSlug = resolvedPortal.slug || data.slug || slug;
+      const portal = {
+        id: resolvedPortal.id || data.portal_id,
+        slug: resolvedSlug,
+        templateId: resolvedPortal.templateId || '',
+        clientName: resolvedPortal.clientName || '',
+        company: resolvedPortal.company || '',
+        content: resolvedPortal.content ?? data.content ?? {},
+      };
       setPortalAuth(data.token || 'authenticated', portal);
       // Jazz Club gets the cinematic Three.js experience served directly
-      if ((data.slug || slug) === 'jazz-club') {
+      if (resolvedSlug === 'jazz-club') {
         window.location.href = '/jazz-stl';
       } else {
         navigate('/present');

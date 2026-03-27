@@ -14,6 +14,12 @@ const STYLE_DIRECTIVES = {
   minimal: `Art direct the response like a refined minimalist product launch. Keep it precise, confident, and clean, with disciplined hierarchy and no filler.`,
 };
 
+const TEMPLATE_DIRECTIVES = {
+  'brand-reveal-v1': `Use the classic Envision reveal structure: dramatic hero, bold section transitions, and a sense of progressive reveal from strategy to system.`,
+  'brand-reveal-minimal': `Design for a restrained, gallery-like reveal. Keep copy concise, use negative space, and favor fewer, sharper moments over spectacle.`,
+  'full-identity': `Design for a comprehensive identity system presentation. Include a more complete rationale across brand, logo, palette, typography, and how the pieces work together.`,
+};
+
 const PRESENTATION_THEMES = [
   'black',
   'white',
@@ -45,14 +51,16 @@ function getProviderConfig(provider, model) {
   return { provider: normalizedProvider, model: resolvedModel };
 }
 
-function buildPortalEditorSystemPrompt({ styleMode = 'cinematic' } = {}) {
+function buildPortalEditorSystemPrompt({ styleMode = 'cinematic', templateId = 'brand-reveal-v1' } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
+  const templateDirective = TEMPLATE_DIRECTIVES[templateId] || TEMPLATE_DIRECTIVES['brand-reveal-v1'];
   const motionKnowledge = formatMotionKnowledgeBase();
 
   return `You are Envision Creative's senior creative director and portal content editor.
 You create client-facing presentation portal content that feels high-end, art directed, and strategically sharp.
 
 ${styleDirective}
+${templateDirective}
 
 Follow these rules:
 - Write with the taste level of a senior brand strategist and design director, not a generic AI assistant.
@@ -69,6 +77,8 @@ Follow these rules:
 - Use only the approved presets and effects listed below. Do not invent new effect names in the JSON.
 - If the builder context includes parsed creative briefs, treat those structured brief details as the source of truth for campaign theme, launch date, objectives, assets, spec sections, and brand signals.
 - When source material includes campaign deliverables or spec sheets, reflect that structure in the output instead of flattening it into generic brand copy.
+- Respect the selected portal template and make the section framing feel materially different across templates.
+- Do not recycle the same Envision Marketing headline structure unless the user's prompt explicitly asks for it.
 
 Motion engine roles:
 ${motionKnowledge.engineBlock}
@@ -122,6 +132,8 @@ When asked to create or update portal content, respond with a JSON object in thi
     "fonts": [{ "name": "", "typeface": "", "usage": "", "stack": "" }]
   },
   "cta": { "headline": "", "buttonText": "", "email": "" },
+  "portalTemplate": "${templateId}",
+  "artDirection": "${styleMode}",
   "experience": {
     "preset": "cinematic-editorial",
     "motionLevel": "elevated",
@@ -361,6 +373,7 @@ async function generateBuilderContent({
   provider,
   model,
   styleMode,
+  templateId,
   outputMode = 'portal',
   messages,
   maxTokens,
@@ -368,7 +381,7 @@ async function generateBuilderContent({
   const config = getProviderConfig(provider, model);
   const system = outputMode === 'presentation'
     ? buildPresentationSystemPrompt({ styleMode })
-    : buildPortalEditorSystemPrompt({ styleMode });
+    : buildPortalEditorSystemPrompt({ styleMode, templateId });
   const safeMessages = (messages || []).map(message => ({
     role: message.role,
     content: String(message.content || ''),

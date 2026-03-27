@@ -74,6 +74,16 @@ function normalizeBuilderPayload(outputMode, json) {
   return json;
 }
 
+function withPortalMetadata(content, { templateId, styleMode }) {
+  if (!content || typeof content !== 'object') return content;
+
+  return {
+    ...content,
+    portalTemplate: content.portalTemplate || templateId || 'brand-reveal-v1',
+    artDirection: content.artDirection || styleMode || 'cinematic',
+  };
+}
+
 function getFileExtension(name = '') {
   return name.includes('.') ? name.split('.').pop().toLowerCase() : '';
 }
@@ -403,6 +413,7 @@ export default function PortalEditorPage() {
   const filteredPortals = selectedClient
     ? portals.filter((portal) => String(portal.client_id) === String(selectedClient))
     : portals;
+  const activeTemplateId = selectedPortalRecord?.template_id || portalForm.template_id;
   const selectedModeMeta = OUTPUT_MODES.find((mode) => mode.value === outputMode);
   const normalizedPreview = extractedJSON ? normalizeBuilderPayload(outputMode, extractedJSON) : null;
   const motionSummary = summarizeMotionStrategy(outputMode, normalizedPreview);
@@ -462,6 +473,7 @@ export default function PortalEditorPage() {
         provider,
         model,
         styleMode,
+        templateId: activeTemplateId,
         outputMode,
         messages: requestMessages.map((message) => ({
           role: message.role,
@@ -513,7 +525,12 @@ export default function PortalEditorPage() {
         client_id: selectedClient,
         password: portalForm.password || generatePortalPassword(),
         template_id: portalForm.template_id,
-        content: normalizedPreview || {},
+        content: outputMode === 'presentation'
+          ? normalizedPreview || {}
+          : withPortalMetadata(normalizedPreview || {}, {
+              templateId: portalForm.template_id,
+              styleMode,
+            }),
       });
       const nextPortals = [created, ...portals];
       setPortals(nextPortals);
@@ -534,7 +551,13 @@ export default function PortalEditorPage() {
     setSaving(true);
     setSaveMsg('');
     try {
-      const payload = normalizeBuilderPayload(outputMode, extractedJSON);
+      const rawPayload = normalizeBuilderPayload(outputMode, extractedJSON);
+      const payload = outputMode === 'presentation'
+        ? rawPayload
+        : withPortalMetadata(rawPayload, {
+            templateId: activeTemplateId,
+            styleMode,
+          });
       await portalsApi.updateContent(selectedPortal, payload);
       setSaveMsg(`✓ Saved ${outputMode === 'presentation' ? 'presentation' : 'portal'} to portal`);
     } catch (error) {

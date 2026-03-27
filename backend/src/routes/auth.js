@@ -3,6 +3,32 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
+async function verifyPortalPassword(portal, password) {
+  let hashMatched = false;
+
+  if (portal?.password_hash) {
+    try {
+      hashMatched = await bcrypt.compare(password, portal.password_hash);
+    } catch {
+      hashMatched = false;
+    }
+  }
+
+  if (hashMatched) return true;
+
+  if (portal?.plain_password && password === portal.plain_password) {
+    const passwordHash = await bcrypt.hash(password, 10);
+    await db.query(
+      'UPDATE portals SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [passwordHash, portal.id]
+    );
+    portal.password_hash = passwordHash;
+    return true;
+  }
+
+  return false;
+}
+
 // Admin login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -27,14 +53,14 @@ router.post('/portal-login', async (req, res) => {
       [slug, 'active']
     );
     const portal = rows[0];
-    if (!portal || !await bcrypt.compare(password, portal.password_hash))
+    if (!portal || !await verifyPortalPassword(portal, password))
       return res.status(401).json({ error: 'Invalid credentials' });
     if (portal.expires_at && new Date(portal.expires_at) < new Date())
       return res.status(403).json({ error: 'This presentation has expired' });
     const token = jwt.sign({ portalId: portal.id, slug: portal.slug, clientId: portal.client_id }, process.env.JWT_SECRET, { expiresIn: '24h' });
     // Log login event
     await db.query('INSERT INTO portal_events (portal_id, event_type, payload) VALUES ($1, $2, $3)', [portal.id, 'login', JSON.stringify({ timestamp: new Date() })]);
-    res.json({ token, portal: { id: portal.id, slug: portal.slug, clientName: portal.client_name, company: portal.company, content: portal.content } });
+    res.json({ token, portal: { id: portal.id, slug: portal.slug, templateId: portal.template_id, clientName: portal.client_name, company: portal.company, content: portal.content } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

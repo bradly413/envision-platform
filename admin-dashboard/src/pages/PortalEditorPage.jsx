@@ -1,22 +1,17 @@
-import { useState, useRef, useEffect } from 'react';
-import { portals as portalsApi, designSystems as dsApi } from '../lib/api';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { ai, clients as clientsApi, portals as portalsApi } from '../lib/api';
 
 const MODEL_OPTIONS = {
   anthropic: [
     { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-    { value: 'claude-opus-4-5', label: 'Claude Opus 4' },
-    { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4' },
   ],
   openai: [
     { value: 'gpt-4.1', label: 'GPT-4.1' },
     { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-    { value: 'gpt-4o', label: 'GPT-4o' },
   ],
   google: [
-    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-    { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash (exp)' },
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
   ],
 };
 
@@ -33,17 +28,27 @@ const OUTPUT_MODES = [
   { value: 'presentation', label: 'Presentation', hint: 'Reveal.js-style deck with slides, fragments, media, and notes' },
 ];
 
+const CLIENT_STAGE_OPTIONS = [
+  { value: 'lead', label: 'Lead' },
+  { value: 'proposal', label: 'Proposal' },
+  { value: 'active', label: 'Active' },
+  { value: 'revision', label: 'Revision' },
+  { value: 'delivered', label: 'Delivered' },
+];
+
+const PORTAL_TEMPLATES = [
+  { value: 'brand-reveal-v1', label: 'Brand reveal v1' },
+  { value: 'brand-reveal-minimal', label: 'Brand reveal minimal' },
+  { value: 'full-identity', label: 'Full identity system' },
+];
+
+const TEXT_EXTENSIONS = new Set([
+  'txt', 'md', 'markdown', 'json', 'csv', 'html', 'htm', 'xml', 'svg',
+  'js', 'jsx', 'ts', 'tsx', 'css', 'scss', 'less', 'yml', 'yaml',
+]);
+
 const MODE_INTRO = {
-  portal: `Hi! I'm your Envision brand director. To generate a cinematic portal that matches the Jazz Club quality, I need a few things:
-
-**Drop any of these and I'll get started:**
-- Client name + website URL (I'll auto-fetch their brand)
-- A PDF or pasted branding brief
-- A description: industry, audience, brand personality, colors they love/hate
-- Competitors they want to stand apart from
-
-**The more context you give, the more specific the output.** I'll use your brief to extract real positioning, audience psychographics, color palette, typography, and brand differentiators — then generate a full cinematic portal with immersive animations, shader backgrounds, and scroll effects.`,
-
+  portal: `Hi! I'm your Envision builder. Tell me about the client, the brand mood, and the type of reveal you want. I can generate high-end portal JSON using Claude, GPT, or Gemini, complete with art direction and curated motion presets.`,
   presentation: `Hi! I'm your Envision presentation director. Tell me about the client, the audience, and the story you want to tell. I can generate reveal.js-ready presentation JSON with themes, slide transitions, fragments, media backgrounds, notes, and cinematic pacing.`,
 };
 
@@ -52,452 +57,710 @@ function extractJSON(text) {
   if (match) {
     try { return JSON.parse(match[1].trim()); } catch { return null; }
   }
-  try { return JSON.parse(text.trim()); } catch { return null; }
+  return null;
 }
 
 function normalizeBuilderPayload(outputMode, json) {
   if (!json) return null;
+
   if (outputMode === 'presentation') {
     if (json.mode === 'presentation' && json.presentation) return json;
     if (json.presentation) return { mode: 'presentation', presentation: json.presentation };
     return { mode: 'presentation', presentation: json };
   }
+
   if (json.mode === 'portal' && json.portal) return json.portal;
   return json;
 }
 
-// Build a live HTML preview from generated JSON
-function buildPreviewHTML(outputMode, json) {
-  if (!json) return null;
-  const normalized = normalizeBuilderPayload(outputMode, json);
+function getFileExtension(name = '') {
+  return name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+}
 
-  if (outputMode === 'presentation') {
-    const slides = normalized?.presentation?.slides || normalized?.slides || [];
-    const theme = normalized?.presentation?.theme || 'black';
-    return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', 'Helvetica Neue', sans-serif; background: #0a0a0a; color: #fff; height: 100vh; display: flex; flex-direction: column; }
-  .slides { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
-  .slide { min-height: 200px; padding: 32px; border-bottom: 1px solid #222; display: flex; flex-direction: column; justify-content: center; }
-  .slide:nth-child(odd) { background: #111; }
-  .slide:nth-child(even) { background: #0a0a0a; }
-  .slide-num { font-size: 10px; color: #444; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 12px; }
-  h1, h2 { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 8px; line-height: 1.2; }
-  p, .content { font-size: 13px; color: #999; line-height: 1.7; }
-  .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #222; color: #888; margin: 4px 4px 0 0; text-transform: uppercase; }
-  .header { padding: 14px 32px; border-bottom: 1px solid #222; font-size: 11px; color: #444; letter-spacing: .1em; text-transform: uppercase; }
-</style>
-</head>
-<body>
-<div class="header">Presentation Preview · ${slides.length} slides · ${theme} theme</div>
-<div class="slides">
-${slides.map((s, i) => `
-  <div class="slide">
-    <div class="slide-num">Slide ${i + 1}${s.type ? ` · ${s.type}` : ''}</div>
-    ${s.title ? `<h2>${s.title}</h2>` : ''}
-    ${s.subtitle ? `<p style="color:#bbb;margin-bottom:8px">${s.subtitle}</p>` : ''}
-    ${s.content ? `<p class="content">${Array.isArray(s.content) ? s.content.join(' · ') : s.content}</p>` : ''}
-    ${s.notes ? `<p style="font-size:11px;color:#555;margin-top:8px;font-style:italic">Notes: ${s.notes}</p>` : ''}
-    ${s.background?.color ? `<div style="position:absolute;inset:0;background:${s.background.color};opacity:.08;pointer-events:none"></div>` : ''}
-  </div>`).join('')}
-</div>
-</body>
-</html>`;
+function isTextLikeFile(file) {
+  if (file.type.startsWith('text/')) return true;
+  if (file.type === 'application/json') return true;
+  return TEXT_EXTENSIONS.has(getFileExtension(file.name));
+}
+
+function readTextExcerpt(file) {
+  return new Promise((resolve) => {
+    if (!isTextLikeFile(file)) {
+      resolve('');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const raw = typeof reader.result === 'string' ? reader.result : '';
+      resolve(raw.replace(/\s+/g, ' ').trim().slice(0, 1800));
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsText(file);
+  });
+}
+
+function humanizeFileSize(size = 0) {
+  if (!size) return '0 KB';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function generatePortalPassword() {
+  return Math.random().toString(36).slice(-8);
+}
+
+function inferUrlKind(url) {
+  const lower = url.toLowerCase();
+  if (/\.(png|jpg|jpeg|gif|webp|svg)$/.test(lower)) return 'image';
+  if (/\.(mp4|mov|webm|m4v)$/.test(lower)) return 'video';
+  if (/\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/.test(lower)) return 'document';
+  return 'reference';
+}
+
+function describeAsset(asset) {
+  const lines = [
+    `- ${asset.label || asset.name}`,
+    `  kind: ${asset.kind}`,
+  ];
+
+  if (asset.source === 'url') lines.push(`  url: ${asset.url}`);
+  if (asset.mimeType) lines.push(`  mimeType: ${asset.mimeType}`);
+  if (asset.sizeLabel) lines.push(`  size: ${asset.sizeLabel}`);
+  if (asset.excerpt) lines.push(`  excerpt: ${asset.excerpt}`);
+
+  return lines.join('\n');
+}
+
+function buildContextMessage({ client, portal, assets, outputMode }) {
+  const lines = [];
+
+  if (client) {
+    lines.push(`Selected client: ${client.name}${client.company ? ` — ${client.company}` : ''}`);
+    if (client.stage) lines.push(`Pipeline stage: ${client.stage}`);
+    if (client.project_type) lines.push(`Project type: ${client.project_type}`);
+    if (client.notes) lines.push(`Client notes: ${String(client.notes).slice(0, 500)}`);
   }
 
-  // Portal preview
-  const hero = normalized?.hero || {};
-  const brand = normalized?.brand || {};
-  const colors = normalized?.colors || [];
-  const primaryColor = (Array.isArray(colors) ? colors[0]?.hex : colors) || '#d4af37';
+  if (portal) {
+    lines.push(`Target portal slug: ${portal.slug}`);
+    if (portal.template_id) lines.push(`Existing portal template: ${portal.template_id}`);
+    lines.push(`Saving into existing ${outputMode} destination for this client.`);
+  }
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', 'Helvetica Neue', sans-serif; background: #050507; color: #fff; min-height: 100vh; }
-  .hero { min-height: 260px; display: flex; flex-direction: column; justify-content: center; padding: 48px 40px 32px; background: linear-gradient(135deg, #0a0a0e 0%, #111118 100%); border-bottom: 1px solid #1a1a24; }
-  .eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: ${primaryColor}; margin-bottom: 16px; opacity: .9; }
-  h1 { font-size: 36px; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; margin-bottom: 14px; }
-  .tagline { font-size: 14px; color: #888; line-height: 1.7; max-width: 480px; }
-  .section { padding: 32px 40px; border-bottom: 1px solid #111; }
-  .section-label { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #444; margin-bottom: 14px; }
-  .colors { display: flex; gap: 10px; flex-wrap: wrap; }
-  .color-swatch { width: 44px; height: 44px; border-radius: 10px; border: 1px solid #222; position: relative; }
-  .color-label { font-size: 9px; color: #555; margin-top: 4px; text-align: center; }
-  .brand-name { font-size: 28px; font-weight: 800; color: ${primaryColor}; }
-  .brand-desc { font-size: 13px; color: #666; margin-top: 8px; line-height: 1.7; }
-  .meta { font-size: 11px; color: #555; margin-top: 4px; }
-</style>
-</head>
-<body>
-<div class="hero">
-  ${hero.eyebrow || hero.intro ? `<div class="eyebrow">${hero.eyebrow || hero.intro}</div>` : ''}
-  <h1>${hero.headline || hero.title || brand.name || 'Brand Reveal'}</h1>
-  ${hero.subheadline || hero.tagline ? `<div class="tagline">${hero.subheadline || hero.tagline}</div>` : ''}
-</div>
-${brand.name || brand.description ? `
-<div class="section">
-  <div class="section-label">Brand</div>
-  ${brand.name ? `<div class="brand-name">${brand.name}</div>` : ''}
-  ${brand.description || brand.positioning ? `<div class="brand-desc">${brand.description || brand.positioning}</div>` : ''}
-  ${brand.industry ? `<div class="meta">${brand.industry}</div>` : ''}
-</div>` : ''}
-${colors.length ? `
-<div class="section">
-  <div class="section-label">Color palette</div>
-  <div class="colors">
-    ${(Array.isArray(colors) ? colors : []).slice(0, 8).map(c => `
-      <div>
-        <div class="color-swatch" style="background:${c.hex || c}"></div>
-        <div class="color-label">${c.name || c.hex || c}</div>
-      </div>`).join('')}
-  </div>
-</div>` : ''}
-${normalized?.typography ? `
-<div class="section">
-  <div class="section-label">Typography</div>
-  <div style="font-size:13px;color:#666">${normalized.typography.display || normalized.typography.heading || ''} ${normalized.typography.body ? `· ${normalized.typography.body}` : ''}</div>
-</div>` : ''}
-</body>
-</html>`;
+  if (assets.length) {
+    lines.push('Attached source material:');
+    lines.push(assets.map(describeAsset).join('\n'));
+    lines.push('Use the attached material as primary source context when relevant.');
+  }
+
+  if (!lines.length) return null;
+
+  return {
+    role: 'user',
+    content: `Builder context:\n${lines.join('\n')}`,
+  };
+}
+
+function buildAssetRecord(file, excerpt) {
+  const kind = file.type.startsWith('image/')
+    ? 'image'
+    : file.type.startsWith('video/')
+      ? 'video'
+      : 'document';
+
+  return {
+    id: `${file.name}-${file.size}-${file.lastModified}`,
+    source: 'file',
+    name: file.name,
+    label: file.name,
+    kind,
+    mimeType: file.type || 'application/octet-stream',
+    sizeLabel: humanizeFileSize(file.size),
+    excerpt,
+    previewUrl: kind === 'image' || kind === 'video' ? URL.createObjectURL(file) : '',
+  };
+}
+
+function ControlField({ label, children, hint }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>
+        {label}
+      </label>
+      {children}
+      <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 6, minHeight: 28, lineHeight: 1.4 }}>{hint || ' '}</div>
+    </div>
+  );
+}
+
+function AssetCard({ asset, onRemove }) {
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid #E5E7EB',
+      borderRadius: 12,
+      padding: 10,
+      minWidth: 180,
+      maxWidth: 220,
+      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    }}>
+      {asset.kind === 'image' && asset.previewUrl && (
+        <img
+          src={asset.previewUrl}
+          alt={asset.label}
+          style={{ width: '100%', height: 72, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }}
+        />
+      )}
+      {asset.kind === 'video' && asset.previewUrl && (
+        <video
+          src={asset.previewUrl}
+          style={{ width: '100%', height: 72, objectFit: 'cover', borderRadius: 8, marginBottom: 8, background: '#111827' }}
+        />
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{asset.label}</div>
+          <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{asset.kind} · {asset.sizeLabel || 'external link'}</div>
+        </div>
+        <button
+          onClick={() => onRemove(asset.id)}
+          style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
+        >
+          ×
+        </button>
+      </div>
+      {asset.url && (
+        <div style={{ fontSize: 11, color: '#6B7280', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {asset.url}
+        </div>
+      )}
+      {asset.excerpt && (
+        <div style={{ fontSize: 11, color: '#4B5563', marginTop: 8, lineHeight: 1.5, maxHeight: 52, overflow: 'hidden' }}>
+          {asset.excerpt}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function PortalEditorPage() {
-  const navigate = useNavigate();
   const [outputMode, setOutputMode] = useState('portal');
-  const [messages, setMessages] = useState([{ role: 'assistant', content: MODE_INTRO.portal }]);
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: MODE_INTRO.portal }
+  ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [clients, setClients] = useState([]);
   const [portals, setPortals] = useState([]);
-  const [selectedPortal, setSelectedPortal] = useState(null);
+  const [selectedClient, setSelectedClient] = useState('');
+  const [selectedPortal, setSelectedPortal] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [extractedJSON, setExtractedJSON] = useState(null);
   const [provider, setProvider] = useState('anthropic');
   const [model, setModel] = useState(MODEL_OPTIONS.anthropic[0].value);
   const [styleMode, setStyleMode] = useState('cinematic');
-  const [previewMode, setPreviewMode] = useState('preview'); // 'preview' | 'json'
-  const [rightTab, setRightTab] = useState('save'); // 'save' | 'design-systems'
-  const [designSystems, setDesignSystems] = useState([]);
-  const [selectedDS, setSelectedDS] = useState(null);
-  const [savingDS, setSavingDS] = useState(false);
-  const [dsSaveMsg, setDSSaveMsg] = useState('');
-  const [atMention, setAtMention] = useState(null); // { query, position }
-  const [atDropdownOpen, setAtDropdownOpen] = useState(false);
-  const [referencedPortals, setReferencedPortals] = useState([]); // portals @mentioned
-  const textareaRef = useRef(null);
+  const [showCreateClient, setShowCreateClient] = useState(false);
+  const [showCreatePortal, setShowCreatePortal] = useState(false);
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [creatingPortal, setCreatingPortal] = useState(false);
+  const [showLinkForm, setShowLinkForm] = useState(false);
+  const [assets, setAssets] = useState([]);
+  const [clientForm, setClientForm] = useState({
+    name: '',
+    company: '',
+    email: '',
+    stage: 'lead',
+  });
+  const [portalForm, setPortalForm] = useState({
+    password: generatePortalPassword(),
+    template_id: 'brand-reveal-v1',
+  });
+  const [linkForm, setLinkForm] = useState({
+    label: '',
+    url: '',
+  });
   const bottomRef = useRef(null);
+  const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-  useEffect(() => { fetchPortals(); fetchDesignSystems(); }, []);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const fetchPortals = async () => {
+  useEffect(() => {
+    fetchBuilderData();
+  }, []);
+
+
+  const fetchBuilderData = async () => {
     try {
-      const data = await portalsApi.list();
-      setPortals(data.portals || data || []);
-    } catch (e) { console.error('Failed to fetch portals', e); }
+      const [clientsData, portalsData] = await Promise.all([
+        clientsApi.list(),
+        portalsApi.list(),
+      ]);
+      setClients(clientsData || []);
+      setPortals(portalsData?.portals || portalsData || []);
+    } catch (e) {
+      console.error('Failed to fetch builder data', e);
+    }
   };
 
-  const fetchDesignSystems = async () => {
-    try {
-      const data = await dsApi.list();
-      setDesignSystems(Array.isArray(data) ? data : []);
-    } catch (e) { console.error('Failed to fetch design systems', e); }
+  const selectedClientRecord = clients.find((client) => String(client.id) === String(selectedClient));
+  const selectedPortalRecord = portals.find((portal) => String(portal.id) === String(selectedPortal));
+  const filteredPortals = selectedClient
+    ? portals.filter((portal) => String(portal.client_id) === String(selectedClient))
+    : portals;
+  const selectedModeMeta = OUTPUT_MODES.find((mode) => mode.value === outputMode);
+  const normalizedPreview = extractedJSON ? normalizeBuilderPayload(outputMode, extractedJSON) : null;
+
+  const handleProviderChange = (nextProvider) => {
+    setProvider(nextProvider);
+    setModel(MODEL_OPTIONS[nextProvider][0].value);
   };
 
-  const saveAsDesignSystem = async (portal) => {
-    setSavingDS(true); setDSSaveMsg('');
-    try {
-      const name = `${portal.client_name || portal.slug} Design System`;
-      await dsApi.fromPortal(portal.id, { name });
-      await fetchDesignSystems();
-      setDSSaveMsg(`✓ Saved "${name}"`);
-    } catch (e) { setDSSaveMsg('✗ Could not save design system'); }
-    setSavingDS(false);
-    setTimeout(() => setDSSaveMsg(''), 3000);
+  const handleOutputModeChange = (nextMode) => {
+    setOutputMode(nextMode);
+    setExtractedJSON(null);
+    setMessages([{ role: 'assistant', content: MODE_INTRO[nextMode] }]);
+    setSaveMsg('');
   };
 
-  const applyDesignSystem = (ds) => {
-    setSelectedDS(ds);
-    // Inject DS context into the next message
-    const dsContext = `[DESIGN SYSTEM APPLIED: "${ds.name}"]
-Experience preset: ${ds.experience?.preset || 'cinematic-editorial'}
-Background: base ${ds.experience?.background?.base || '#090909'}, gradients from brand colors
-Hero effects: ${(ds.experience?.heroEffects || ['shader-background','title-reveal','slow-zoom']).join(', ')}
-Color palette: ${JSON.stringify(ds.colors?.slice?.(0,4) || ds.colors || [])}
-Typography: ${JSON.stringify(ds.typography?.fonts?.slice?.(0,2) || [])}
-Copy style signals: ${JSON.stringify(ds.copy_style || {})}
-
-IMPORTANT: Keep this exact experience/visual system. Only change the client name, copy, positioning, colors, and typography to match the new client. Maintain the same cinematic quality, motion level, and structural DNA.`;
-    setInput(prev => prev ? prev + '\n\n' + dsContext : dsContext);
-    setRightTab('save');
+  const handleClientChange = (nextClientId) => {
+    setSelectedClient(nextClientId);
+    setSaveMsg('');
+    if (selectedPortal) {
+      const portalStillValid = portals.some(
+        (portal) => String(portal.id) === String(selectedPortal) && String(portal.client_id) === String(nextClientId)
+      );
+      if (!portalStillValid) setSelectedPortal('');
+    }
   };
 
-  const deleteDS = async (id) => {
-    if (!window.confirm('Delete this design system?')) return;
-    try { await dsApi.delete(id); await fetchDesignSystems(); } catch (e) { console.error(e); }
+  const handlePortalChange = (nextPortalId) => {
+    setSelectedPortal(nextPortalId);
+    const portal = portals.find((entry) => String(entry.id) === String(nextPortalId));
+    if (portal) setSelectedClient(String(portal.client_id));
   };
 
-
-
-  // Route to backend for OpenAI / Google (backend holds those keys)
-  const callViaBackend = async (msgs) => {
-    const API_URL = import.meta.env.VITE_API_URL || 'https://envision-platform-production.up.railway.app/api';
-    const token = (() => { try { return JSON.parse(localStorage.getItem('envision-admin-auth'))?.state?.token || ''; } catch { return ''; } })();
-    const res = await fetch(`${API_URL}/ai/builder`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ provider, model, styleMode, outputMode, messages: msgs, maxTokens: 3000 }),
+  const buildRequestMessages = (newMessages) => {
+    const context = buildContextMessage({
+      client: selectedClientRecord,
+      portal: selectedPortalRecord,
+      assets,
+      outputMode,
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
-    return data.reply || '';
-  };
 
-  // Extract URL from message and fetch site content via backend
-  const enrichWithURL = async (text) => {
-    const urlMatch = text.match(/https?:\/\/[^\s]+/);
-    if (!urlMatch) return text;
-    const url = urlMatch[0];
-    try {
-      const API_URL = import.meta.env.VITE_API_URL || 'https://envision-platform-production.up.railway.app/api';
-      const token = (() => { try { return JSON.parse(localStorage.getItem('envision-admin-auth'))?.state?.token || ''; } catch { return ''; } })();
-      const res = await fetch(`${API_URL}/uploads/fetch-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ url })
-      });
-      if (!res.ok) return text;
-      const data = await res.json();
-      if (data.content) {
-        return `${text}\n\n[SITE CONTENT FROM ${url}]\n${data.content.substring(0, 2000)}\n[END SITE CONTENT]\n\nUse the above site content to extract the brand's real name, colors, tone, typography, and positioning for the portal.`;
-      }
-    } catch (e) { /* URL fetch failed, proceed without */ }
-    return text;
-  };
-
-  // Inject @referenced portal content into message
-  const enrichWithPortalRefs = (text) => {
-    if (referencedPortals.length === 0) return text;
-    const refs = referencedPortals.map(p => {
-      const c = p.content || {};
-      return '[PORTAL REFERENCE: @' + (p.client_name || p.slug) + ']\n' +
-        'Client: ' + (p.client_name || p.slug) + '\n' +
-        'Slug: /' + p.slug + '\n' +
-        'Status: ' + p.status + '\n' +
-        'Hero headline: ' + (c.hero?.headline || 'N/A') + '\n' +
-        'Subheadline: ' + (c.hero?.subheadline || 'N/A') + '\n' +
-        'Positioning: ' + (c.brand?.positioning || 'N/A') + '\n' +
-        'Brand pillars: ' + ((c.brand?.pillars || []).map(pl => pl.title).join(', ') || 'N/A') + '\n' +
-        'Colors: ' + JSON.stringify((c.colors?.palette || c.colors || []).slice(0, 5)) + '\n' +
-        'Primary font: ' + (c.typography?.primaryFont || 'N/A') + '\n' +
-        'Secondary font: ' + (c.typography?.secondaryFont || 'N/A') + '\n' +
-        'Experience preset: ' + (c.experience?.preset || 'N/A') + '\n' +
-        'Motion level: ' + (c.experience?.motionLevel || 'N/A') + '\n' +
-        'Hero effects: ' + ((c.experience?.heroEffects || []).join(', ') || 'N/A') + '\n' +
-        'Background: ' + JSON.stringify(c.experience?.background || {}) + '\n' +
-        '[END PORTAL REFERENCE]';
-    }).join('\n\n');
-    return text + '\n\n' + refs;
+    return context ? [context, ...newMessages] : newMessages;
   };
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
+    const userMsg = { role: 'user', content: input.trim() };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput('');
     setLoading(true);
     setExtractedJSON(null);
 
-    // Enrich with URL content if a URL is detected
-    let enrichedInput = await enrichWithURL(input.trim());
-    enrichedInput = enrichWithPortalRefs(enrichedInput);
-    const userMsg = { role: 'user', content: enrichedInput };
-    const displayMsg = { role: 'user', content: input.trim() }; // show clean version in chat
-    const newMessages = [...messages, userMsg];
-    setMessages(prev => [...prev, displayMsg]);
-    setInput('');
-
     try {
-      // Always route through Railway backend — it holds all API keys (Anthropic, OpenAI, Google)
-      const reply = await callViaBackend(newMessages);
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      const requestMessages = buildRequestMessages(newMessages);
+      const data = await ai.generateBuilderContent({
+        provider,
+        model,
+        styleMode,
+        outputMode,
+        messages: requestMessages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
+        maxTokens: outputMode === 'presentation' ? 2000 : 1500,
+      });
+      const reply = data.reply || 'Sorry, something went wrong.';
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
       const json = extractJSON(reply);
-      if (json) {
-        setExtractedJSON(json);
-        setPreviewMode('preview'); // auto-switch to preview when content arrives
-      }
+      if (json) setExtractedJSON(json);
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${String(e.message || e)}` }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Error reaching the AI. ${String(e)}` }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleProviderChange = (p) => { setProvider(p); setModel(MODEL_OPTIONS[p][0].value); };
-  const handleOutputModeChange = (m) => {
-    setOutputMode(m); setExtractedJSON(null);
-    setMessages([{ role: 'assistant', content: MODE_INTRO[m] }]); setSaveMsg('');
-  };
-  const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
-
-  const handleInputChange = (e) => {
-    const val = e.target.value;
-    setInput(val);
-    // Detect @ trigger
-    const caret = e.target.selectionStart;
-    const textBefore = val.slice(0, caret);
-    const atMatch = textBefore.match(/@(\w*)$/);
-    if (atMatch) {
-      setAtMention({ query: atMatch[1], position: caret - atMatch[0].length });
-      setAtDropdownOpen(true);
-    } else {
-      setAtDropdownOpen(false);
-      setAtMention(null);
+  const createClient = async () => {
+    if (!clientForm.name.trim() || creatingClient) return;
+    setCreatingClient(true);
+    try {
+      const created = await clientsApi.create({
+        ...clientForm,
+        name: clientForm.name.trim(),
+        company: clientForm.company.trim() || null,
+        email: clientForm.email.trim() || null,
+      });
+      const nextClients = [created, ...clients];
+      setClients(nextClients);
+      setSelectedClient(String(created.id));
+      setShowCreateClient(false);
+      setClientForm({ name: '', company: '', email: '', stage: 'lead' });
+      setSaveMsg('✓ Client created');
+    } catch (error) {
+      setSaveMsg(`✗ ${String(error || 'Client creation failed')}`);
+    } finally {
+      setCreatingClient(false);
+      setTimeout(() => setSaveMsg(''), 3000);
     }
   };
 
-  const handleAtKeyDown = (e) => {
-    if (e.key === 'Escape') { setAtDropdownOpen(false); setAtMention(null); }
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  };
-
-  const selectAtPortal = (portal) => {
-    // Replace the @query with @PortalName in the input
-    const atStr = '@' + (atMention?.query || '');
-    const before = input.slice(0, atMention?.position || input.length);
-    const after = input.slice((atMention?.position || 0) + atStr.length);
-    const label = portal.client_name || portal.slug;
-    setInput(before + '@' + label + ' ' + after);
-    setAtDropdownOpen(false);
-    setAtMention(null);
-    // Add to referenced portals list (deduped)
-    setReferencedPortals(prev => prev.find(p => p.id === portal.id) ? prev : [...prev, portal]);
-    textareaRef.current?.focus();
-  };
-
-  const removePortalRef = (id) => setReferencedPortals(prev => prev.filter(p => p.id !== id));
-
-  // Filtered portals for @ dropdown
-  const atFilteredPortals = portals.filter(p => {
-    const q = (atMention?.query || '').toLowerCase();
-    if (!q) return true;
-    return (p.client_name || '').toLowerCase().includes(q) || p.slug.toLowerCase().includes(q);
-  }).slice(0, 6);
-
-  const handlePortalSelect = (val) => {
-    if (val === '__new__') { navigate('/portals'); return; }
-    setSelectedPortal(val);
+  const createPortal = async () => {
+    if (!selectedClient || creatingPortal) return;
+    setCreatingPortal(true);
+    setSaveMsg('');
+    try {
+      const created = await portalsApi.create({
+        client_id: selectedClient,
+        password: portalForm.password || generatePortalPassword(),
+        template_id: portalForm.template_id,
+        content: normalizedPreview || {},
+      });
+      const nextPortals = [created, ...portals];
+      setPortals(nextPortals);
+      setSelectedPortal(String(created.id));
+      setShowCreatePortal(false);
+      setPortalForm({ password: generatePortalPassword(), template_id: 'brand-reveal-v1' });
+      setSaveMsg('✓ Portal created and selected');
+    } catch (error) {
+      setSaveMsg(`✗ ${String(error || 'Portal creation failed')}`);
+    } finally {
+      setCreatingPortal(false);
+      setTimeout(() => setSaveMsg(''), 3000);
+    }
   };
 
   const saveToPortal = async () => {
     if (!selectedPortal || !extractedJSON) return;
-    setSaving(true); setSaveMsg('');
+    setSaving(true);
+    setSaveMsg('');
     try {
       const payload = normalizeBuilderPayload(outputMode, extractedJSON);
       await portalsApi.updateContent(selectedPortal, payload);
-      setSaveMsg(`✓ Saved to portal`);
-    } catch (err) {
-      setSaveMsg(`✗ ${String(err || 'Save failed')}`);
+      setSaveMsg(`✓ Saved ${outputMode === 'presentation' ? 'presentation' : 'portal'} to portal`);
+    } catch (error) {
+      setSaveMsg(`✗ ${String(error || 'Save failed — check API')}`);
     } finally {
       setSaving(false);
-      setTimeout(() => setSaveMsg(''), 4000);
+      setTimeout(() => setSaveMsg(''), 3000);
     }
   };
 
-  const previewHTML = extractedJSON ? buildPreviewHTML(outputMode, extractedJSON) : null;
-  const normalizedJSON = extractedJSON ? normalizeBuilderPayload(outputMode, extractedJSON) : null;
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const handleFilesSelected = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const nextAssets = await Promise.all(files.map(async (file) => {
+      const excerpt = await readTextExcerpt(file);
+      return buildAssetRecord(file, excerpt);
+    }));
+
+    setAssets((prev) => [...prev, ...nextAssets]);
+    event.target.value = '';
+  };
+
+  const addLinkAsset = () => {
+    if (!linkForm.url.trim()) return;
+    const asset = {
+      id: `link-${Date.now()}`,
+      source: 'url',
+      url: linkForm.url.trim(),
+      label: linkForm.label.trim() || linkForm.url.trim(),
+      name: linkForm.label.trim() || linkForm.url.trim(),
+      kind: inferUrlKind(linkForm.url.trim()),
+      mimeType: '',
+      sizeLabel: '',
+      excerpt: '',
+      previewUrl: '',
+    };
+    setAssets((prev) => [asset, ...prev]);
+    setLinkForm({ label: '', url: '' });
+    setShowLinkForm(false);
+  };
+
+  const removeAsset = (assetId) => {
+    setAssets((prev) => {
+      const target = prev.find((asset) => asset.id === assetId);
+      if (target?.previewUrl && target.source === 'file') URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((asset) => asset.id !== assetId);
+    });
+  };
+
+  const renderMessage = (message, i) => {
+    const isUser = message.role === 'user';
+    return (
+      <div key={i} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: 16 }}>
+        <div style={{
+          maxWidth: '75%',
+          padding: '12px 16px',
+          borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+          background: isUser ? '#111827' : '#fff',
+          color: isUser ? '#F9FAFB' : '#111827',
+          fontSize: 13,
+          lineHeight: 1.6,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}>
+          {message.content}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'Inter, sans-serif', background: '#F0F2F5' }}>
-      {/* Left: chat panel */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* Header */}
-        <div style={{ padding: '16px 24px', background: '#fff', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '18px 24px', background: '#fff', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>Experience Builder</div>
-            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>Multi-model builder for immersive portals and cinematic presentations</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>Experience Builder</div>
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+              Multi-model builder for immersive portals and cinematic presentations
+            </div>
           </div>
-          <button onClick={() => { setMessages([{ role: 'assistant', content: MODE_INTRO[outputMode] }]); setExtractedJSON(null); }}
-            style={{ fontSize: 12, color: '#6B7280', background: 'none', border: '1px solid #E5E7EB', borderRadius: 8, padding: '6px 12px', cursor: 'pointer' }}>
+          <button
+            onClick={() => {
+              setMessages([{ role: 'assistant', content: MODE_INTRO[outputMode] }]);
+              setExtractedJSON(null);
+            }}
+            style={{ fontSize: 12, color: '#6B7280', background: 'none', border: '1px solid #E5E7EB', borderRadius: 8, padding: '6px 12px', cursor: 'pointer' }}
+          >
             New chat
           </button>
         </div>
 
-        {/* Controls */}
-        <div style={{ padding: '10px 24px', background: '#fff', borderBottom: '1px solid #E5E7EB', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {[
-            { label: 'Output', content: (
-              <select value={outputMode} onChange={e => handleOutputModeChange(e.target.value)}
-                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB', width: '100%' }}>
-                {OUTPUT_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+        <div style={{ padding: '14px 24px 8px', background: '#fff', borderBottom: '1px solid #E5E7EB' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(220px, 1.35fr) repeat(4, minmax(150px, 1fr))',
+            gap: 12,
+            alignItems: 'start',
+          }}>
+            <ControlField
+              label="Client"
+              hint={selectedClientRecord ? `${selectedClientRecord.company || selectedClientRecord.name} · ${selectedClientRecord.stage || 'lead'}` : 'Choose a client from your pipeline or create one inline.'}
+            >
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select
+                  value={selectedClient}
+                  onChange={(e) => handleClientChange(e.target.value)}
+                  style={{ flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}
+                >
+                  <option value="">Select a client...</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}{client.company ? ` — ${client.company}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setShowCreateClient((prev) => !prev)}
+                  style={{ padding: '0 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', color: '#111827', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  + New
+                </button>
+              </div>
+            </ControlField>
+
+            <ControlField label="Output" hint={selectedModeMeta?.hint}>
+              <select
+                value={outputMode}
+                onChange={(e) => handleOutputModeChange(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}
+              >
+                {OUTPUT_MODES.map((mode) => (
+                  <option key={mode.value} value={mode.value}>{mode.label}</option>
+                ))}
               </select>
-            )},
-            { label: 'Provider', content: (
-              <select value={provider} onChange={e => handleProviderChange(e.target.value)}
-                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB', width: '100%' }}>
+            </ControlField>
+
+            <ControlField label="Provider" hint="Choose the model family driving the builder.">
+              <select
+                value={provider}
+                onChange={(e) => handleProviderChange(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}
+              >
                 <option value="anthropic">Anthropic</option>
                 <option value="openai">OpenAI</option>
                 <option value="google">Google</option>
               </select>
-            )},
-            { label: 'Model', content: (
-              <select value={model} onChange={e => setModel(e.target.value)}
-                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB', width: '100%' }}>
-                {MODEL_OPTIONS[provider].map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            )},
-            { label: 'Art Direction', content: (
-              <select value={styleMode} onChange={e => setStyleMode(e.target.value)}
-                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB', width: '100%' }}>
-                {STYLE_MODES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            )},
-          ].map(({ label, content }) => (
-            <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 140 }}>
-              <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#9CA3AF' }}>{label}</label>
-              {content}
-            </div>
-          ))}
+            </ControlField>
 
-          <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', paddingBottom: 1 }}>
-            <div style={{
-              fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20,
-              background: provider === 'anthropic' ? '#FEF3C7' : provider === 'openai' ? '#EFF6FF' : '#F0FDF4',
-              color: provider === 'anthropic' ? '#92400E' : provider === 'openai' ? '#1D4ED8' : '#166534',
-            }}>
-              ⚡ Via Railway
-            </div>
+            <ControlField label="Model" hint="Switch between flagship and lighter variants for speed.">
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}
+              >
+                {MODEL_OPTIONS[provider].map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </ControlField>
+
+            <ControlField label="Art direction" hint="Sets the tone, pacing, and taste level of the output.">
+              <select
+                value={styleMode}
+                onChange={(e) => setStyleMode(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}
+              >
+                {STYLE_MODES.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </ControlField>
           </div>
+
+          {showCreateClient && (
+            <div style={{
+              marginTop: 12,
+              background: '#F9FAFB',
+              border: '1px solid #E5E7EB',
+              borderRadius: 12,
+              padding: 14,
+              display: 'grid',
+              gridTemplateColumns: '1.1fr 1fr 1fr 150px auto',
+              gap: 10,
+              alignItems: 'end',
+            }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>Client name</label>
+                <input
+                  value={clientForm.name}
+                  onChange={(e) => setClientForm((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="Charter Premier"
+                  style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#fff' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>Company</label>
+                <input
+                  value={clientForm.company}
+                  onChange={(e) => setClientForm((prev) => ({ ...prev, company: e.target.value }))}
+                  placeholder="Client company"
+                  style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#fff' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>Email</label>
+                <input
+                  value={clientForm.email}
+                  onChange={(e) => setClientForm((prev) => ({ ...prev, email: e.target.value }))}
+                  placeholder="client@company.com"
+                  style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#fff' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>Pipeline stage</label>
+                <select
+                  value={clientForm.stage}
+                  onChange={(e) => setClientForm((prev) => ({ ...prev, stage: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#fff' }}
+                >
+                  {CLIENT_STAGE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={createClient}
+                disabled={!clientForm.name.trim() || creatingClient}
+                style={{ height: 38, padding: '0 14px', borderRadius: 8, border: 'none', background: !clientForm.name.trim() ? '#E5E7EB' : '#111827', color: !clientForm.name.trim() ? '#9CA3AF' : '#fff', fontSize: 12, fontWeight: 700, cursor: !clientForm.name.trim() ? 'default' : 'pointer' }}
+              >
+                {creatingClient ? 'Creating...' : 'Create client'}
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Messages */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 8px' }}>
-          {messages.map((msg, i) => {
-            const isUser = msg.role === 'user';
-            return (
-              <div key={i} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: 14 }}>
-                <div style={{
-                  maxWidth: '75%', padding: '11px 15px',
-                  borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                  background: isUser ? '#111827' : '#fff',
-                  color: isUser ? '#F9FAFB' : '#111827',
-                  fontSize: 13, lineHeight: 1.6,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
-                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                }}>{msg.content}</div>
+        <div style={{ padding: '14px 24px', background: '#F7F8FA', borderBottom: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: assets.length || showLinkForm ? 12 : 0 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>Source material</div>
+              <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                Add documents, image/video references, or URLs so the builder can work from real inputs.
               </div>
-            );
-          })}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFilesSelected}
+                style={{ display: 'none' }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', color: '#111827', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Add files
+              </button>
+              <button
+                onClick={() => setShowLinkForm((prev) => !prev)}
+                style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', color: '#111827', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Add link
+              </button>
+            </div>
+          </div>
+
+          {showLinkForm && (
+            <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr auto', gap: 10, marginBottom: 12 }}>
+              <input
+                value={linkForm.label}
+                onChange={(e) => setLinkForm((prev) => ({ ...prev, label: e.target.value }))}
+                placeholder="Reference label"
+                style={{ padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#fff' }}
+              />
+              <input
+                value={linkForm.url}
+                onChange={(e) => setLinkForm((prev) => ({ ...prev, url: e.target.value }))}
+                placeholder="https://..."
+                style={{ padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#fff' }}
+              />
+              <button
+                onClick={addLinkAsset}
+                disabled={!linkForm.url.trim()}
+                style={{ padding: '0 14px', borderRadius: 8, border: 'none', background: !linkForm.url.trim() ? '#E5E7EB' : '#111827', color: !linkForm.url.trim() ? '#9CA3AF' : '#fff', fontSize: 12, fontWeight: 700, cursor: !linkForm.url.trim() ? 'default' : 'pointer' }}
+              >
+                Attach
+              </button>
+            </div>
+          )}
+
+          {assets.length > 0 && (
+            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2 }}>
+              {assets.map((asset) => (
+                <AssetCard key={asset.id} asset={asset} onRemove={removeAsset} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 8px' }}>
+          {messages.map(renderMessage)}
           {loading && (
-            <div style={{ display: 'flex', marginBottom: 14 }}>
-              <div style={{ padding: '11px 15px', borderRadius: '16px 16px 16px 4px', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 16 }}>
+              <div style={{ padding: '12px 16px', borderRadius: '16px 16px 16px 4px', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  {[0,1,2].map(d => <div key={d} style={{ width: 6, height: 6, borderRadius: '50%', background: '#D1D5DB', animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${d * 0.2}s` }} />)}
+                  {[0, 1, 2].map((delay) => (
+                    <div key={delay} style={{ width: 6, height: 6, borderRadius: '50%', background: '#D1D5DB', animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${delay * 0.2}s` }} />
+                  ))}
                 </div>
               </div>
             </div>
@@ -505,295 +768,155 @@ IMPORTANT: Keep this exact experience/visual system. Only change the client name
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
-        <div style={{ padding: '12px 16px', background: '#fff', borderTop: '1px solid #E5E7EB' }}>
-          {/* Quick context chips */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-            {[
-              { label: '📋 Brand brief', text: 'Create a cinematic portal using this branding brief:\n\n' },
-              { label: '🔗 From URL', text: 'Analyze this website and create a cinematic portal: ' },
-              { label: '🎨 Luxury brand', text: 'Create a luxury cinematic portal for ' },
-              { label: '⚡ Bold campaign', text: 'Create a bold campaign-style portal for ' },
-              { label: '🏙 Culture/venue', text: 'Create an immersive culture portal for ' },
-            ].map(chip => (
-              <button key={chip.label} onClick={() => setInput(prev => prev ? prev : chip.text)}
-                style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', cursor: 'pointer', color: '#6B7280', whiteSpace: 'nowrap' }}
-                onMouseOver={e => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = '#111827'; }}
-                onMouseOut={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#6B7280'; }}>
-                {chip.label}
-              </button>
-            ))}
-          </div>
-          {/* @ referenced portals badges */}
-          {referencedPortals.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-              {referencedPortals.map(p => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 20, background: '#EFF6FF', border: '1px solid #BFDBFE', fontSize: 11, fontWeight: 600, color: '#1D4ED8' }}>
-                  <span>@{p.client_name || p.slug}</span>
-                  <button onClick={() => removePortalRef(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93C5FD', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* @ dropdown */}
-          {atDropdownOpen && atFilteredPortals.length > 0 && (
-            <div style={{ marginBottom: 6, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.12)', overflow: 'hidden' }}>
-              <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em' }}>Reference portal</div>
-              {atFilteredPortals.map(p => (
-                <div key={p.id} onClick={() => selectAtPortal(p)}
-                  style={{ padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, borderTop: '1px solid #F3F4F6' }}
-                  onMouseOver={e => e.currentTarget.style.background = '#F9FAFB'}
-                  onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
-                  <div style={{ width: 28, height: 28, borderRadius: 8, background: '#111827', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{(p.client_name || p.slug)[0].toUpperCase()}</span>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{p.client_name || p.slug}</div>
-                    <div style={{ fontSize: 10, color: '#9CA3AF' }}>/{p.slug} · {p.status}</div>
-                  </div>
-                  <div style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 6px', borderRadius: 4, background: p.status === 'active' ? '#D1FAE5' : '#F3F4F6', color: p.status === 'active' ? '#065F46' : '#6B7280', fontWeight: 600 }}>{p.status}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
+        <div style={{ padding: 16, background: '#fff', borderTop: '1px solid #E5E7EB' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-            <textarea ref={textareaRef} value={input} onChange={handleInputChange} onKeyDown={handleAtKeyDown}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder={outputMode === 'presentation'
-                ? 'Describe the client... type @ to reference a portal (Enter to send)'
-                : 'Describe the client, paste a brief, drop a URL, or type @ to reference a portal... (Enter to send)'}
+                ? 'Describe the audience, pacing, slide mood, and story arc... (Enter to send)'
+                : 'Describe the client, paste existing content, or ask for revisions... (Enter to send)'}
               rows={3}
-              style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 13, fontFamily: 'Inter, sans-serif', resize: 'none', outline: 'none', lineHeight: 1.5 }} />
-            <button onClick={sendMessage} disabled={loading || !input.trim()}
-              style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: loading || !input.trim() ? '#E5E7EB' : '#111827', color: loading || !input.trim() ? '#9CA3AF' : '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+              style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 13, fontFamily: 'Inter, sans-serif', resize: 'none', outline: 'none', lineHeight: 1.5, color: '#111827' }}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: loading || !input.trim() ? '#E5E7EB' : '#111827', color: loading || !input.trim() ? '#9CA3AF' : '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'default' : 'pointer', whiteSpace: 'nowrap' }}
+            >
               Send
             </button>
           </div>
         </div>
       </div>
 
-      {/* Right: tabbed panel */}
-      <div style={{ width: 420, background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column' }}>
-
-        {/* Tab bar */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB', background: '#FAFAFA' }}>
-          {[
-            { id: 'save', label: 'Save to Portal' },
-            { id: 'design-systems', label: '✦ Design Systems' },
-          ].map(tab => (
-            <button key={tab.id} onClick={() => setRightTab(tab.id)} style={{
-              flex: 1, padding: '12px 8px', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              background: rightTab === tab.id ? '#fff' : 'transparent',
-              color: rightTab === tab.id ? '#111827' : '#9CA3AF',
-              borderBottom: rightTab === tab.id ? '2px solid #111827' : '2px solid transparent',
-              transition: 'all .1s',
-            }}>{tab.label}</button>
-          ))}
+      <div style={{ width: 380, background: '#fff', borderLeft: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '18px 20px', borderBottom: '1px solid #E5E7EB' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Save to Portal</div>
+          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+            Push generated {outputMode === 'presentation' ? 'deck JSON' : 'portal JSON'} to a live client experience
+          </div>
         </div>
 
-        {/* ====== SAVE TAB ====== */}
-        {rightTab === 'save' && (<>
-          {selectedDS && (
-            <div style={{ padding: '10px 16px', background: '#F0FDF4', borderBottom: '1px solid #BBF7D0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 11, color: '#166534' }}>
-                <span style={{ fontWeight: 700 }}>✦ DS:</span> {selectedDS.name}
-              </div>
-              <button onClick={() => setSelectedDS(null)}
-                style={{ fontSize: 11, color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
-            </div>
-          )}
-          <div style={{ padding: '14px 16px', borderBottom: '1px solid #E5E7EB' }}>
-            <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#9CA3AF', display: 'block', marginBottom: 6 }}>Target portal</label>
-            <select value={selectedPortal || ''} onChange={e => handlePortalSelect(e.target.value)}
-              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, color: '#111827', background: '#F9FAFB', outline: 'none' }}>
-              <option value="">Select a portal...</option>
-              {portals.map(p => (
-                <option key={p.id} value={p.id}>{p.client_name || p.slug} ({p.status || 'draft'})</option>
-              ))}
-              <option value="__new__" style={{ color: '#3B82F6', fontWeight: 600 }}>+ Create new portal →</option>
-            </select>
-          </div>
-          {extractedJSON && (
-            <div style={{ padding: '10px 16px', borderBottom: '1px solid #E5E7EB', display: 'flex', gap: 4 }}>
-              <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 3, gap: 2 }}>
-                {['preview', 'json'].map(mode => (
-                  <button key={mode} onClick={() => setPreviewMode(mode)} style={{
-                    padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                    background: previewMode === mode ? '#fff' : 'transparent',
-                    color: previewMode === mode ? '#111827' : '#9CA3AF',
-                    boxShadow: previewMode === mode ? '0 1px 3px rgba(0,0,0,.1)' : 'none',
-                  }}>
-                    {mode === 'preview' ? '👁 Preview' : '</> JSON'}
-                  </button>
-                ))}
-              </div>
-              <div style={{ marginLeft: 'auto', fontSize: 11, color: '#10B981', fontWeight: 700, alignSelf: 'center' }}>✓ Content ready</div>
-            </div>
-          )}
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {extractedJSON ? (
-              previewMode === 'preview' && previewHTML ? (
-                <iframe srcDoc={previewHTML} style={{ flex: 1, border: 'none', width: '100%' }} sandbox="allow-scripts" title="Portal Preview" />
-              ) : (
-                <pre style={{ flex: 1, overflow: 'auto', fontSize: 10, color: '#6B7280', background: '#F9FAFB', padding: 14, lineHeight: 1.5, margin: 0 }}>
-                  {JSON.stringify(normalizedJSON, null, 2)}
-                </pre>
-              )
+        <div style={{ padding: 16, borderBottom: '1px solid #E5E7EB', display: 'grid', gap: 14 }}>
+          <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 12, padding: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 8 }}>Client</div>
+            {selectedClientRecord ? (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{selectedClientRecord.name}</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{selectedClientRecord.company || 'No company added'}</div>
+                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>Stage: {selectedClientRecord.stage || 'lead'} · {filteredPortals.length} portal{filteredPortals.length === 1 ? '' : 's'}</div>
+              </>
             ) : (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-                <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 12, lineHeight: 1.7 }}>
-                  <div style={{ fontSize: 28, marginBottom: 12 }}>✦</div>
-                  Ask the AI to generate portal content and a live preview will appear here.
+              <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 }}>Choose a client first so the builder knows which pipeline record and portal destination to work against.</div>
+            )}
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280' }}>Target portal</label>
+              <button
+                onClick={() => setShowCreatePortal((prev) => !prev)}
+                disabled={!selectedClient}
+                style={{ background: 'none', border: 'none', color: selectedClient ? '#111827' : '#9CA3AF', fontSize: 12, fontWeight: 600, cursor: selectedClient ? 'pointer' : 'default', padding: 0 }}
+              >
+                + Create portal
+              </button>
+            </div>
+            <select
+              value={selectedPortal}
+              onChange={(e) => handlePortalChange(e.target.value)}
+              disabled={!selectedClient}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, color: '#111827', background: selectedClient ? '#F9FAFB' : '#F3F4F6', outline: 'none' }}
+            >
+              <option value="">{selectedClient ? 'Select a portal...' : 'Choose a client first...'}</option>
+              {filteredPortals.map((portal) => (
+                <option key={portal.id} value={portal.id}>
+                  {(portal.client_name || portal.slug)} ({portal.slug})
+                </option>
+              ))}
+            </select>
+            {selectedClient && filteredPortals.length === 0 && (
+              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>No portals for this client yet. Create one inline.</div>
+            )}
+          </div>
+
+          {showCreatePortal && (
+            <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 12, padding: 12, display: 'grid', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>Portal password</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={portalForm.password}
+                    onChange={(e) => setPortalForm((prev) => ({ ...prev, password: e.target.value }))}
+                    style={{ flex: 1, padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#fff' }}
+                  />
+                  <button
+                    onClick={() => setPortalForm((prev) => ({ ...prev, password: generatePortalPassword() }))}
+                    style={{ padding: '0 10px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', color: '#111827', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Regenerate
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-          <div style={{ padding: '14px 16px', borderTop: '1px solid #E5E7EB' }}>
-            {extractedJSON && !selectedPortal && (
-              <div style={{ marginBottom: 8, fontSize: 12, color: '#F59E0B', fontWeight: 600, textAlign: 'center' }}>
-                ↑ Select a target portal above to push
-              </div>
-            )}
-            <button onClick={saveToPortal} disabled={!extractedJSON || !selectedPortal || saving}
-              style={{ width: '100%', padding: 13, borderRadius: 10, border: 'none',
-                background: extractedJSON && selectedPortal ? '#111827' : '#E5E7EB',
-                color: extractedJSON && selectedPortal ? '#fff' : '#9CA3AF',
-                fontSize: 13, fontWeight: 700,
-                cursor: extractedJSON && selectedPortal ? 'pointer' : 'default',
-                animation: extractedJSON && selectedPortal && !saving ? 'readyPulse 2s ease-in-out 3' : 'none',
-                transition: 'background .2s' }}>
-              {saving ? 'Pushing to portal...' : 'Push portal →'}
-            </button>
-            {saveMsg && (
-              <div style={{ marginTop: 8, fontSize: 12, textAlign: 'center', fontWeight: 600, color: saveMsg.startsWith('✓') ? '#10B981' : '#EF4444' }}>
-                {saveMsg}
-              </div>
-            )}
-          </div>
-        </>)}
 
-        {/* ====== DESIGN SYSTEMS TAB ====== */}
-        {rightTab === 'design-systems' && (
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid #E5E7EB' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>✦ Design Systems</div>
-              <div style={{ fontSize: 11, color: '#9CA3AF' }}>Save a portal's visual DNA. Apply it to any new client — same cinematic quality, different brand.</div>
-            </div>
-
-            {/* Save active portals as DS */}
-            {portals.filter(p => p.status === 'active').length > 0 && (
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Save as design system</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {portals.filter(p => p.status === 'active').map(p => (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#fff', borderRadius: 8, border: '1px solid #E5E7EB' }}>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{p.client_name || p.slug}</div>
-                        <div style={{ fontSize: 10, color: '#9CA3AF' }}>/{p.slug} • {p.status}</div>
-                      </div>
-                      <button onClick={() => saveAsDesignSystem(p)} disabled={savingDS}
-                        style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 6, border: 'none', background: '#111827', color: '#fff', cursor: savingDS ? 'default' : 'pointer' }}>
-                        {savingDS ? '...' : 'Save DS'}
-                      </button>
-                    </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>Template</label>
+                <select
+                  value={portalForm.template_id}
+                  onChange={(e) => setPortalForm((prev) => ({ ...prev, template_id: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#fff' }}
+                >
+                  {PORTAL_TEMPLATES.map((template) => (
+                    <option key={template.value} value={template.value}>{template.label}</option>
                   ))}
-                </div>
-                {dsSaveMsg && <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: dsSaveMsg.startsWith('✓') ? '#10B981' : '#EF4444' }}>{dsSaveMsg}</div>}
+                </select>
               </div>
-            )}
 
-            {/* DS List */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-              {designSystems.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>✦</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>No design systems yet</div>
-                  <div style={{ fontSize: 11, color: '#9CA3AF', lineHeight: 1.6 }}>Save the Jazz Club portal (or any active portal) as a design system. Its colors, typography, motion language, and cinematic experience will be saved and can be applied to any new client.</div>
-                </div>
-              ) : designSystems.map(ds => {
-                const isActive = selectedDS && selectedDS.id === ds.id;
-                const colors = Array.isArray(ds.colors) ? ds.colors : [];
-                const fonts = ds.typography && ds.typography.fonts ? ds.typography.fonts : [];
-                return (
-                  <div key={ds.id} style={{ marginBottom: 12, borderRadius: 12, border: isActive ? '2px solid #111827' : '1px solid #E5E7EB', overflow: 'visible', transition: 'border .15s', position: 'relative' }}>
-                    {/* Color strip */}
-                    <div style={{ height: 5, borderRadius: '10px 10px 0 0', background: colors.length > 1
-                      ? 'linear-gradient(to right, ' + colors.slice(0,5).map(c => c.hex || c).join(', ') + ')'
-                      : (ds.thumbnail_color || '#d4af37') }} />
-
-                    <div style={{ padding: '12px 14px 14px' }}>
-                      {/* Header */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{ds.name}</div>
-                          {ds.description && <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{ds.description}</div>}
-                        </div>
-                        <button onClick={() => deleteDS(ds.id)} title="Delete"
-                          style={{ fontSize: 14, color: '#D1D5DB', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}
-                          onMouseOver={e => e.currentTarget.style.color = '#EF4444'}
-                          onMouseOut={e => e.currentTarget.style.color = '#D1D5DB'}>
-                          ×
-                        </button>
-                      </div>
-
-                      {/* Color swatches */}
-                      {colors.length > 0 && (
-                        <div style={{ display: 'flex', gap: 4, marginBottom: 8, alignItems: 'center' }}>
-                          {colors.slice(0, 7).map((c, i) => (
-                            <div key={i} title={c.name || c.hex || ''} style={{ width: 16, height: 16, borderRadius: 3, background: c.hex || c, border: '1px solid rgba(0,0,0,.1)', flexShrink: 0 }} />
-                          ))}
-                          {colors.length > 7 && <span style={{ fontSize: 10, color: '#9CA3AF' }}>+{colors.length - 7}</span>}
-                        </div>
-                      )}
-
-                      {/* Tags */}
-                      <div style={{ display: 'flex', gap: 5, marginBottom: 10, flexWrap: 'wrap' }}>
-                        {ds.experience && ds.experience.preset && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#F3F4F6', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                            {ds.experience.preset}
-                          </span>
-                        )}
-                        {ds.experience && ds.experience.motionLevel && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#FEF3C7', color: '#92400E' }}>
-                            {ds.experience.motionLevel}
-                          </span>
-                        )}
-                        {fonts[0] && fonts[0].typeface && (
-                          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: '#F3F4F6', color: '#6B7280' }}>
-                            {fonts[0].typeface}
-                          </span>
-                        )}
-                        {fonts[1] && fonts[1].typeface && (
-                          <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: '#F3F4F6', color: '#9CA3AF' }}>
-                            {fonts[1].typeface}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Hero effects preview */}
-                      {ds.experience && ds.experience.heroEffects && ds.experience.heroEffects.length > 0 && (
-                        <div style={{ fontSize: 10, color: '#9CA3AF', marginBottom: 10 }}>
-                          ☄ {ds.experience.heroEffects.join(' · ')}
-                        </div>
-                      )}
-
-                      {/* Apply button */}
-                      <button onClick={() => applyDesignSystem(ds)}
-                        style={{ width: '100%', padding: '9px 0', borderRadius: 8, border: 'none',
-                          background: isActive ? '#10B981' : '#111827',
-                          color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                          transition: 'background .15s' }}>
-                        {isActive ? '✓ Applied — go to chat →' : 'Apply to next portal'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+              <button
+                onClick={createPortal}
+                disabled={!selectedClient || creatingPortal}
+                style={{ padding: '10px 14px', borderRadius: 8, border: 'none', background: !selectedClient ? '#E5E7EB' : '#111827', color: !selectedClient ? '#9CA3AF' : '#fff', fontSize: 12, fontWeight: 700, cursor: !selectedClient ? 'default' : 'pointer' }}
+              >
+                {creatingPortal ? 'Creating...' : 'Create portal for selected client'}
+              </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+          {normalizedPreview ? (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#10B981', marginBottom: 8 }}>✓ Content ready</div>
+              <pre style={{ fontSize: 10, color: '#6B7280', background: '#F9FAFB', borderRadius: 8, padding: 12, overflow: 'auto', maxHeight: 460, lineHeight: 1.5 }}>
+                {JSON.stringify(normalizedPreview, null, 2)}
+              </pre>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px 16px', color: '#9CA3AF', fontSize: 12, lineHeight: 1.6 }}>
+              Ask the AI to generate {outputMode === 'presentation' ? 'a presentation deck' : 'portal content'} and the JSON will appear here, ready to save.
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: 16, borderTop: '1px solid #E5E7EB' }}>
+          <button
+            onClick={saveToPortal}
+            disabled={!extractedJSON || !selectedPortal || saving}
+            style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: !extractedJSON || !selectedPortal ? '#E5E7EB' : '#111827', color: !extractedJSON || !selectedPortal ? '#9CA3AF' : '#fff', fontSize: 13, fontWeight: 700, cursor: !extractedJSON || !selectedPortal ? 'default' : 'pointer' }}
+          >
+            {saving ? 'Saving...' : `Push ${outputMode === 'presentation' ? 'presentation' : 'portal'} →`}
+          </button>
+          {saveMsg && (
+            <div style={{ marginTop: 8, fontSize: 12, textAlign: 'center', color: saveMsg.startsWith('✓') ? '#10B981' : '#EF4444' }}>
+              {saveMsg}
+            </div>
+          )}
+        </div>
       </div>
+
       <style>{`@keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }`}</style>
     </div>
   );

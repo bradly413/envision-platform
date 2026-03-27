@@ -1,0 +1,5 @@
+# Jazz STL cinematic presentation — serve directly, no React wrapper
+/jazz-stl   /jazz-stl.html   200
+
+# SPA fallback for all other routes (must be last)
+/*   /index.html   200

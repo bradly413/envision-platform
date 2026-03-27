@@ -91,6 +91,7 @@ Follow these rules:
 - Do not recycle the same Envision Marketing headline structure unless the user's prompt explicitly asks for it.
 - Write fresh section eyebrows that fit the chosen strategy. Avoid generic defaults when a more specific framing is available.
 - If the brief reads like a campaign, sales narrative, or editorial story, let the section language follow that category even though the JSON keys stay consistent.
+- If the builder context includes an approved presentation direction, treat that deck as the source of truth for sequence, tone, emphasis, and must-keep language. Adapt it into a portal instead of inventing a new story from scratch.
 
 Motion engine roles:
 ${motionKnowledge.engineBlock}

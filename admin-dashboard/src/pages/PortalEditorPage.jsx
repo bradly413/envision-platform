@@ -92,6 +92,77 @@ function withPortalMetadata(content, { templateId, styleMode, portalIntent }) {
   };
 }
 
+function cleanText(value = '') {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function truncateText(value = '', maxLength = 120) {
+  const normalized = cleanText(value);
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function inferPortalIntentFromPresentation(presentation = {}) {
+  const slides = Array.isArray(presentation.slides) ? presentation.slides : [];
+  const text = [
+    presentation.title,
+    ...slides.flatMap((slide) => [
+      slide?.eyebrow,
+      slide?.title,
+      slide?.subtitle,
+      slide?.body,
+      ...(Array.isArray(slide?.bullets) ? slide.bullets : []),
+    ]),
+  ].map(cleanText).join(' ').toLowerCase();
+
+  if (/(campaign|launch|rollout|audience|activation|channel|promo|momentum)/.test(text)) return 'campaign-launch';
+  if (/(proposal|offer|sales|revenue|roi|scope|investment|package|timeline|decision)/.test(text)) return 'sales-proposal';
+  if (/(editorial|story|narrative|culture|worldview|journal|essay|feature)/.test(text)) return 'editorial-story';
+  return 'brand-identity';
+}
+
+function buildPortalBriefFromPresentation(presentation = {}, client) {
+  const slides = Array.isArray(presentation.slides) ? presentation.slides : [];
+  const narrativeBeats = slides.slice(0, 7).map((slide, index) => {
+    const headline = cleanText(slide?.title || slide?.eyebrow || slide?.subtitle || slide?.layout || `Slide ${index + 1}`);
+    return `${index + 1}. ${truncateText(headline, 70)}`;
+  });
+  const heroSlide = slides.find((slide) => cleanText(slide?.title || slide?.subtitle || slide?.body)) || {};
+  const mustKeepPhrases = [
+    presentation.title,
+    heroSlide.title,
+    heroSlide.subtitle,
+    ...slides.slice(0, 5).flatMap((slide) => [slide?.eyebrow, slide?.title]),
+  ]
+    .map((value) => truncateText(value, 72))
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index)
+    .slice(0, 5);
+  const mediaSignals = [...new Set(slides.map((slide) => slide?.background?.type).filter(Boolean))];
+  const layouts = [...new Set(slides.map((slide) => slide?.layout).filter(Boolean))];
+  const recommendedIntent = inferPortalIntentFromPresentation(presentation);
+  const sourceTitle = cleanText(presentation.title) || `${client?.name || 'Client'} presentation`;
+
+  return {
+    sourceTitle,
+    recommendedIntent,
+    summary: truncateText(
+      cleanText(heroSlide.body || heroSlide.subtitle || heroSlide.title || presentation.title) || 'Approved presentation direction ready for portal translation.',
+      180
+    ),
+    narrativeBeats,
+    mustKeepPhrases,
+    visualSignals: [
+      presentation.theme ? `theme:${presentation.theme}` : '',
+      presentation.transition ? `transition:${presentation.transition}` : '',
+      presentation.backgroundTransition ? `background:${presentation.backgroundTransition}` : '',
+      ...mediaSignals.map((value) => `media:${value}`),
+      ...layouts.slice(0, 4).map((value) => `layout:${value}`),
+    ].filter(Boolean),
+    promptSeed: `Build the portal from the approved presentation direction. Preserve the deck's narrative spine, strongest language, and visual cues. Do not fall back to the generic Envision reveal structure.`,
+  };
+}
+
 function getFileExtension(name = '') {
   return name.includes('.') ? name.split('.').pop().toLowerCase() : '';
 }
@@ -165,7 +236,7 @@ function describeAsset(asset) {
   return lines.join('\n');
 }
 
-function buildContextMessage({ client, portal, assets, outputMode, portalIntent }) {
+function buildContextMessage({ client, portal, assets, outputMode, portalIntent, portalBriefSource }) {
   const lines = [];
 
   if (client) {
@@ -183,6 +254,24 @@ function buildContextMessage({ client, portal, assets, outputMode, portalIntent 
 
   if (outputMode === 'portal' && portalIntent) {
     lines.push(`Portal strategy: ${portalIntent}`);
+  }
+
+  if (outputMode === 'portal' && portalBriefSource) {
+    lines.push('Approved presentation direction (source of truth for this portal adaptation):');
+    lines.push(`Presentation title: ${portalBriefSource.sourceTitle}`);
+    lines.push(`Recommended strategy from deck: ${portalBriefSource.recommendedIntent}`);
+    if (portalBriefSource.summary) lines.push(`Deck summary: ${portalBriefSource.summary}`);
+    if (portalBriefSource.narrativeBeats?.length) {
+      lines.push('Narrative beats to preserve:');
+      portalBriefSource.narrativeBeats.forEach((beat) => lines.push(`- ${beat}`));
+    }
+    if (portalBriefSource.mustKeepPhrases?.length) {
+      lines.push(`Must-keep phrases: ${portalBriefSource.mustKeepPhrases.join(' | ')}`);
+    }
+    if (portalBriefSource.visualSignals?.length) {
+      lines.push(`Visual cues from deck: ${portalBriefSource.visualSignals.join(', ')}`);
+    }
+    lines.push('Translate this approved deck into a portal. Preserve the narrative and strongest language where appropriate.');
   }
 
   if (assets.length) {
@@ -375,6 +464,7 @@ export default function PortalEditorPage() {
   const [model, setModel] = useState(MODEL_OPTIONS.anthropic[0].value);
   const [styleMode, setStyleMode] = useState('cinematic');
   const [portalIntent, setPortalIntent] = useState('brand-identity');
+  const [portalBriefSource, setPortalBriefSource] = useState(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showCreatePortal, setShowCreatePortal] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
@@ -467,6 +557,7 @@ export default function PortalEditorPage() {
       assets,
       outputMode,
       portalIntent,
+      portalBriefSource,
     });
 
     return context ? [context, ...newMessages] : newMessages;
@@ -632,6 +723,26 @@ export default function PortalEditorPage() {
       if (target?.previewUrl && target.source === 'file') URL.revokeObjectURL(target.previewUrl);
       return prev.filter((asset) => asset.id !== assetId);
     });
+  };
+
+  const usePresentationAsPortalBrief = () => {
+    if (!normalizedPreview?.presentation) return;
+
+    const brief = buildPortalBriefFromPresentation(normalizedPreview.presentation, selectedClientRecord);
+    setPortalBriefSource(brief);
+    setPortalIntent(brief.recommendedIntent || 'brand-identity');
+    setOutputMode('portal');
+    setExtractedJSON(null);
+    setMessages([
+      { role: 'assistant', content: MODE_INTRO.portal },
+      {
+        role: 'assistant',
+        content: `Presentation direction locked in as the portal brief.\n\nUsing "${brief.sourceTitle}" as the source of truth.\nRecommended strategy: ${brief.recommendedIntent}\n\nPress send as-is, or add what you want the portal to emphasize.`,
+      },
+    ]);
+    setInput(brief.promptSeed);
+    setSaveMsg('✓ Presentation loaded as portal brief');
+    setTimeout(() => setSaveMsg(''), 3000);
   };
 
   const renderMessage = (message, i) => {
@@ -899,6 +1010,33 @@ export default function PortalEditorPage() {
               ))}
             </div>
           )}
+
+          {portalBriefSource && (
+            <div style={{ marginTop: 12, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>
+                    Portal Brief Source
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{portalBriefSource.sourceTitle}</div>
+                  <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
+                    Approved deck guiding this portal. Strategy: {portalBriefSource.recommendedIntent}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPortalBriefSource(null)}
+                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', color: '#111827', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  Clear
+                </button>
+              </div>
+              {portalBriefSource.narrativeBeats?.length > 0 && (
+                <div style={{ marginTop: 10, fontSize: 11, color: '#4B5563', lineHeight: 1.6 }}>
+                  {portalBriefSource.narrativeBeats.slice(0, 4).join('  •  ')}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 8px' }}>
@@ -1060,6 +1198,14 @@ export default function PortalEditorPage() {
                     </div>
                   )}
                 </div>
+              )}
+              {outputMode === 'presentation' && normalizedPreview?.presentation && (
+                <button
+                  onClick={usePresentationAsPortalBrief}
+                  style={{ width: '100%', marginBottom: 12, padding: '11px 14px', borderRadius: 10, border: '1px solid #D1D5DB', background: '#111827', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Use This Presentation As Portal Brief →
+                </button>
               )}
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#10B981', marginBottom: 8 }}>✓ Content ready</div>
               <pre style={{ fontSize: 10, color: '#6B7280', background: '#F9FAFB', borderRadius: 8, padding: 12, overflow: 'auto', maxHeight: 460, lineHeight: 1.5 }}>

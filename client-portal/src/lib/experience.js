@@ -99,6 +99,26 @@ export const EXPERIENCE_PRESETS = {
       cta: ['magnetic-cta'],
     },
   },
+  'institutional-academic': {
+    label: 'Institutional Academic',
+    motionLevel: 'refined',
+    depth: 'subtle',
+    background: {
+      base: '#F3F0E8',
+      gradientA: 'rgba(47, 58, 77, 0.06)',
+      gradientB: 'rgba(140, 124, 91, 0.08)',
+      gradientC: 'rgba(255, 255, 255, 0.28)',
+    },
+    heroEffects: ['title-reveal'],
+    sectionEffects: {
+      about: ['editorial-rise'],
+      strategy: ['glass-panel'],
+      deliverables: ['glass-panel'],
+      palette: ['editorial-rise'],
+      typography: ['headline-shift'],
+      cta: ['magnetic-cta'],
+    },
+  },
 };
 
 export const EXPERIENCE_SECTIONS = ['about', 'strategy', 'deliverables', 'palette', 'typography', 'cta'];

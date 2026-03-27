@@ -11,6 +11,32 @@ import AmbientBackground from '../components/Experience/AmbientBackground';
 import MotionSection from '../components/Experience/MotionSection';
 import RevealPresentation from '../components/Presentation/RevealPresentation';
 import { resolveExperience } from '../lib/experience';
+import {
+  InstitutionalHero,
+  InstitutionalStrategySection,
+  InstitutionalLogoSection,
+  InstitutionalSystemSection,
+} from '../components/Institutional/InstitutionalPortalSections';
+
+function inferInstitutionalPortal(portal, content = {}) {
+  const text = [
+    portal?.clientName,
+    portal?.company,
+    content?.hero?.headline,
+    content?.hero?.subheadline,
+    content?.hero?.intro,
+    content?.brand?.headline,
+    content?.brand?.positioning,
+    ...(Array.isArray(content?.brand?.pillars) ? content.brand.pillars.flatMap((pillar) => [pillar?.title, pillar?.desc]) : []),
+    content?.cta?.headline,
+    content?.cta?.body,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return /(school|academy|charter|student|students|learner|learners|campus|admissions|faculty|education|pre-k|prek|elementary|middle school)/.test(text);
+}
 
 function MinimalOverviewSection({ content = {}, company = '' }) {
   const pillars = Array.isArray(content.brand?.pillars) ? content.brand.pillars.slice(0, 3) : [];
@@ -114,7 +140,13 @@ export default function PresentationPage() {
   const isWrappedPortal = rawContent?.mode === 'portal' && rawContent?.portal;
   const isPresentationMode = rawContent?.mode === 'presentation' && rawContent?.presentation;
   const content = isWrappedPortal ? rawContent.portal : rawContent;
-  const experience = resolveExperience(content.experience || {});
+  const isInstitutionalPortal = inferInstitutionalPortal(portal, content);
+  const normalizedExperience = content.experience || {};
+  const experience = resolveExperience(
+    isInstitutionalPortal && !normalizedExperience.preset
+      ? { ...normalizedExperience, preset: 'institutional-academic' }
+      : normalizedExperience
+  );
   const templateId = content.portalTemplate || portal?.templateId || 'brand-reveal-v1';
 
   useEffect(() => {
@@ -153,6 +185,32 @@ export default function PresentationPage() {
   if (!portal) return null;
   if (isPresentationMode) {
     return <RevealPresentation portalId={portal.id} presentation={rawContent.presentation} />;
+  }
+
+  if (isInstitutionalPortal) {
+    return (
+      <div style={{ fontFamily: 'Inter, sans-serif', background: '#F3F0E8', color: '#1F2A3A', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <InstitutionalHero
+            clientName={portal.clientName}
+            company={portal.company}
+            content={content.hero}
+          />
+          <MotionSection effectName={experience.sectionEffects.about?.[0]} index={0}>
+            <InstitutionalStrategySection content={content.brand} />
+          </MotionSection>
+          <MotionSection effectName={experience.sectionEffects.deliverables?.[0]} index={1}>
+            <InstitutionalLogoSection content={content.logo} />
+          </MotionSection>
+          <MotionSection effectName={experience.sectionEffects.palette?.[0]} index={2}>
+            <InstitutionalSystemSection colors={content.colors} typography={content.typography} cta={content.cta} />
+          </MotionSection>
+          <MotionSection effectName={experience.sectionEffects.cta?.[0]} index={3}>
+            <ApprovalSection portalId={portal.id} clientName={portal.clientName} content={content.cta} />
+          </MotionSection>
+        </div>
+      </div>
+    );
   }
 
   const heroVariant = templateId === 'brand-reveal-minimal'

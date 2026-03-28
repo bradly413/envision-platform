@@ -27,13 +27,7 @@ const STYLE_MODES = [
 const OUTPUT_MODES = [
   { value: 'portal', label: 'Portal', hint: 'Immersive scroll reveal with Envision motion presets' },
   { value: 'presentation', label: 'Presentation', hint: 'Reveal.js-style deck with slides, fragments, media, and notes' },
-];
-
-const PORTAL_STRATEGIES = [
-  { value: 'brand-identity', label: 'Brand Identity', hint: 'Positioning, mark, palette, typography, and a polished approval flow.' },
-  { value: 'campaign-launch', label: 'Campaign Launch', hint: 'Big idea, audience momentum, rollout, and channel-specific framing.' },
-  { value: 'sales-proposal', label: 'Sales Proposal', hint: 'Problem, offer framing, proof, confidence, and clear next steps.' },
-  { value: 'editorial-story', label: 'Editorial Story', hint: 'Narrative, worldview, mood, and a more culture-led portal tone.' },
+  { value: 'cinematic-flow', label: 'Cinematic Flow', hint: 'Scene-based narrative experience with shell, atmosphere, and directed modules' },
 ];
 
 const CLIENT_STAGE_OPTIONS = [
@@ -56,8 +50,9 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 const MODE_INTRO = {
-  portal: `Hi! I'm your Envision builder. Tell me about the client, the portal strategy you want, and the visual territory it should live in. I can generate portal JSON that behaves differently for a brand identity reveal, campaign launch, sales proposal, or editorial story.`,
+  portal: `Hi! I'm your Envision builder. Tell me about the client, the brand mood, and the type of reveal you want. I can generate high-end portal JSON using Claude, GPT, or Gemini, complete with art direction and curated motion presets.`,
   presentation: `Hi! I'm your Envision presentation director. Tell me about the client, the audience, and the story you want to tell. I can generate reveal.js-ready presentation JSON with themes, slide transitions, fragments, media backgrounds, notes, and cinematic pacing.`,
+  'cinematic-flow': `Hi! I'm your Envision cinematic director. Tell me about the client, the emotional arc, and the kind of scene-by-scene brand experience you want to create. I can generate a narrative cinematic-flow JSON with shell settings, atmosphere, motion strategy, and directed scenes.`,
 };
 
 function extractJSON(text) {
@@ -77,90 +72,14 @@ function normalizeBuilderPayload(outputMode, json) {
     return { mode: 'presentation', presentation: json };
   }
 
+  if (outputMode === 'cinematic-flow') {
+    if (json.mode === 'cinematic-flow' && json.cinematicFlow) return json;
+    if (json.cinematicFlow) return { mode: 'cinematic-flow', cinematicFlow: json.cinematicFlow };
+    return { mode: 'cinematic-flow', cinematicFlow: json };
+  }
+
   if (json.mode === 'portal' && json.portal) return json.portal;
   return json;
-}
-
-function withPortalMetadata(content, { templateId, styleMode, portalIntent }) {
-  if (!content || typeof content !== 'object') return content;
-
-  return {
-    ...content,
-    portalTemplate: content.portalTemplate || templateId || 'brand-reveal-v1',
-    artDirection: content.artDirection || styleMode || 'cinematic',
-    portalIntent: content.portalIntent || portalIntent || 'brand-identity',
-  };
-}
-
-function cleanText(value = '') {
-  return String(value || '').replace(/\s+/g, ' ').trim();
-}
-
-function truncateText(value = '', maxLength = 120) {
-  const normalized = cleanText(value);
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
-}
-
-function inferPortalIntentFromPresentation(presentation = {}) {
-  const slides = Array.isArray(presentation.slides) ? presentation.slides : [];
-  const text = [
-    presentation.title,
-    ...slides.flatMap((slide) => [
-      slide?.eyebrow,
-      slide?.title,
-      slide?.subtitle,
-      slide?.body,
-      ...(Array.isArray(slide?.bullets) ? slide.bullets : []),
-    ]),
-  ].map(cleanText).join(' ').toLowerCase();
-
-  if (/(campaign|launch|rollout|audience|activation|channel|promo|momentum)/.test(text)) return 'campaign-launch';
-  if (/(proposal|offer|sales|revenue|roi|scope|investment|package|timeline|decision)/.test(text)) return 'sales-proposal';
-  if (/(editorial|story|narrative|culture|worldview|journal|essay|feature)/.test(text)) return 'editorial-story';
-  return 'brand-identity';
-}
-
-function buildPortalBriefFromPresentation(presentation = {}, client) {
-  const slides = Array.isArray(presentation.slides) ? presentation.slides : [];
-  const narrativeBeats = slides.slice(0, 7).map((slide, index) => {
-    const headline = cleanText(slide?.title || slide?.eyebrow || slide?.subtitle || slide?.layout || `Slide ${index + 1}`);
-    return `${index + 1}. ${truncateText(headline, 70)}`;
-  });
-  const heroSlide = slides.find((slide) => cleanText(slide?.title || slide?.subtitle || slide?.body)) || {};
-  const mustKeepPhrases = [
-    presentation.title,
-    heroSlide.title,
-    heroSlide.subtitle,
-    ...slides.slice(0, 5).flatMap((slide) => [slide?.eyebrow, slide?.title]),
-  ]
-    .map((value) => truncateText(value, 72))
-    .filter(Boolean)
-    .filter((value, index, array) => array.indexOf(value) === index)
-    .slice(0, 5);
-  const mediaSignals = [...new Set(slides.map((slide) => slide?.background?.type).filter(Boolean))];
-  const layouts = [...new Set(slides.map((slide) => slide?.layout).filter(Boolean))];
-  const recommendedIntent = inferPortalIntentFromPresentation(presentation);
-  const sourceTitle = cleanText(presentation.title) || `${client?.name || 'Client'} presentation`;
-
-  return {
-    sourceTitle,
-    recommendedIntent,
-    summary: truncateText(
-      cleanText(heroSlide.body || heroSlide.subtitle || heroSlide.title || presentation.title) || 'Approved presentation direction ready for portal translation.',
-      180
-    ),
-    narrativeBeats,
-    mustKeepPhrases,
-    visualSignals: [
-      presentation.theme ? `theme:${presentation.theme}` : '',
-      presentation.transition ? `transition:${presentation.transition}` : '',
-      presentation.backgroundTransition ? `background:${presentation.backgroundTransition}` : '',
-      ...mediaSignals.map((value) => `media:${value}`),
-      ...layouts.slice(0, 4).map((value) => `layout:${value}`),
-    ].filter(Boolean),
-    promptSeed: `Build the portal from the approved presentation direction. Preserve the deck's narrative spine, strongest language, and visual cues. Do not fall back to the generic Envision reveal structure.`,
-  };
 }
 
 function getFileExtension(name = '') {
@@ -236,7 +155,7 @@ function describeAsset(asset) {
   return lines.join('\n');
 }
 
-function buildContextMessage({ client, portal, assets, outputMode, portalIntent, portalBriefSource }) {
+function buildContextMessage({ client, portal, assets, outputMode }) {
   const lines = [];
 
   if (client) {
@@ -250,28 +169,6 @@ function buildContextMessage({ client, portal, assets, outputMode, portalIntent,
     lines.push(`Target portal slug: ${portal.slug}`);
     if (portal.template_id) lines.push(`Existing portal template: ${portal.template_id}`);
     lines.push(`Saving into existing ${outputMode} destination for this client.`);
-  }
-
-  if (outputMode === 'portal' && portalIntent) {
-    lines.push(`Portal strategy: ${portalIntent}`);
-  }
-
-  if (outputMode === 'portal' && portalBriefSource) {
-    lines.push('Approved presentation direction (source of truth for this portal adaptation):');
-    lines.push(`Presentation title: ${portalBriefSource.sourceTitle}`);
-    lines.push(`Recommended strategy from deck: ${portalBriefSource.recommendedIntent}`);
-    if (portalBriefSource.summary) lines.push(`Deck summary: ${portalBriefSource.summary}`);
-    if (portalBriefSource.narrativeBeats?.length) {
-      lines.push('Narrative beats to preserve:');
-      portalBriefSource.narrativeBeats.forEach((beat) => lines.push(`- ${beat}`));
-    }
-    if (portalBriefSource.mustKeepPhrases?.length) {
-      lines.push(`Must-keep phrases: ${portalBriefSource.mustKeepPhrases.join(' | ')}`);
-    }
-    if (portalBriefSource.visualSignals?.length) {
-      lines.push(`Visual cues from deck: ${portalBriefSource.visualSignals.join(', ')}`);
-    }
-    lines.push('Translate this approved deck into a portal. Preserve the narrative and strongest language where appropriate.');
   }
 
   if (assets.length) {
@@ -338,6 +235,41 @@ function summarizeMotionStrategy(outputMode, preview) {
         ...(transitions.length ? transitions.map((transition) => `transition:${transition}`) : []),
         ...(presentation.scrollView ? ['scroll-view'] : []),
         ...(presentation.autoSlide ? [`auto-slide:${presentation.autoSlide}`] : []),
+      ],
+    };
+  }
+
+  if (outputMode === 'cinematic-flow' && preview.cinematicFlow) {
+    const flow = preview.cinematicFlow;
+    const scenes = Array.isArray(flow.scenes) ? flow.scenes : [];
+    const sceneTypes = [...new Set(scenes.map((scene) => scene?.type).filter(Boolean))];
+    const identityScenes = scenes.filter((scene) =>
+      ['wordmark-reveal', 'logo-evolution', 'icon-deconstruction', 'logo-system', 'typography-system', 'color-direction'].includes(scene?.type)
+    ).length;
+    const proofScenes = scenes.filter((scene) =>
+      ['applications-showcase', 'collateral-showcase', 'stats-scene', 'gallery-scene', 'full-bleed-media'].includes(scene?.type)
+    ).length;
+
+    return {
+      title: 'Motion strategy',
+      eyebrow: 'Cinematic direction',
+      items: [
+        { label: 'Atmosphere', value: flow.atmosphere?.preset || 'custom' },
+        { label: 'Motion engine', value: flow.motion?.engine || 'motion' },
+        { label: 'Scene count', value: String(scenes.length || 0) },
+        { label: 'Identity scenes', value: String(identityScenes) },
+        { label: 'Proof scenes', value: String(proofScenes) },
+        { label: 'Scroll behavior', value: flow.shell?.scrollBehavior || 'snap' },
+        { label: 'Mobile fallback', value: flow.motion?.mobileFallback || 'simplified' },
+      ],
+      chips: [
+        ...(flow.shell?.progressBar ? ['progress-bar'] : []),
+        ...(flow.shell?.sectionIndicator ? ['section-indicator'] : []),
+        ...(flow.shell?.grainOverlay ? ['grain-overlay'] : []),
+        ...(flow.atmosphere?.floatingAtmosphere ? ['floating-atmosphere'] : []),
+        ...(flow.atmosphere?.particles ? ['particles'] : []),
+        ...(flow.atmosphere?.orbitalRings ? ['orbital-rings'] : []),
+        ...sceneTypes.map((type) => `scene:${type}`),
       ],
     };
   }
@@ -463,8 +395,6 @@ export default function PortalEditorPage() {
   const [provider, setProvider] = useState('anthropic');
   const [model, setModel] = useState(MODEL_OPTIONS.anthropic[0].value);
   const [styleMode, setStyleMode] = useState('cinematic');
-  const [portalIntent, setPortalIntent] = useState('brand-identity');
-  const [portalBriefSource, setPortalBriefSource] = useState(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showCreatePortal, setShowCreatePortal] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
@@ -516,7 +446,6 @@ export default function PortalEditorPage() {
   const filteredPortals = selectedClient
     ? portals.filter((portal) => String(portal.client_id) === String(selectedClient))
     : portals;
-  const activeTemplateId = selectedPortalRecord?.template_id || portalForm.template_id;
   const selectedModeMeta = OUTPUT_MODES.find((mode) => mode.value === outputMode);
   const normalizedPreview = extractedJSON ? normalizeBuilderPayload(outputMode, extractedJSON) : null;
   const motionSummary = summarizeMotionStrategy(outputMode, normalizedPreview);
@@ -556,8 +485,6 @@ export default function PortalEditorPage() {
       portal: selectedPortalRecord,
       assets,
       outputMode,
-      portalIntent,
-      portalBriefSource,
     });
 
     return context ? [context, ...newMessages] : newMessages;
@@ -578,14 +505,12 @@ export default function PortalEditorPage() {
         provider,
         model,
         styleMode,
-        templateId: activeTemplateId,
-        portalIntent,
         outputMode,
         messages: requestMessages.map((message) => ({
           role: message.role,
           content: message.content,
         })),
-        maxTokens: outputMode === 'presentation' ? 2000 : 1500,
+        maxTokens: outputMode === 'cinematic-flow' ? 2600 : outputMode === 'presentation' ? 2000 : 1500,
       });
       const reply = data.reply || 'Sorry, something went wrong.';
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
@@ -631,13 +556,7 @@ export default function PortalEditorPage() {
         client_id: selectedClient,
         password: portalForm.password || generatePortalPassword(),
         template_id: portalForm.template_id,
-        content: outputMode === 'presentation'
-          ? normalizedPreview || {}
-          : withPortalMetadata(normalizedPreview || {}, {
-              templateId: portalForm.template_id,
-              styleMode,
-              portalIntent,
-            }),
+        content: normalizedPreview || {},
       });
       const nextPortals = [created, ...portals];
       setPortals(nextPortals);
@@ -658,16 +577,9 @@ export default function PortalEditorPage() {
     setSaving(true);
     setSaveMsg('');
     try {
-      const rawPayload = normalizeBuilderPayload(outputMode, extractedJSON);
-      const payload = outputMode === 'presentation'
-        ? rawPayload
-        : withPortalMetadata(rawPayload, {
-            templateId: activeTemplateId,
-            styleMode,
-            portalIntent,
-          });
+      const payload = normalizeBuilderPayload(outputMode, extractedJSON);
       await portalsApi.updateContent(selectedPortal, payload);
-      setSaveMsg(`✓ Saved ${outputMode === 'presentation' ? 'presentation' : 'portal'} to portal`);
+      setSaveMsg(`✓ Saved ${outputMode === 'presentation' ? 'presentation' : outputMode === 'cinematic-flow' ? 'cinematic flow' : 'portal'} to portal`);
     } catch (error) {
       setSaveMsg(`✗ ${String(error || 'Save failed — check API')}`);
     } finally {
@@ -725,26 +637,6 @@ export default function PortalEditorPage() {
     });
   };
 
-  const usePresentationAsPortalBrief = () => {
-    if (!normalizedPreview?.presentation) return;
-
-    const brief = buildPortalBriefFromPresentation(normalizedPreview.presentation, selectedClientRecord);
-    setPortalBriefSource(brief);
-    setPortalIntent(brief.recommendedIntent || 'brand-identity');
-    setOutputMode('portal');
-    setExtractedJSON(null);
-    setMessages([
-      { role: 'assistant', content: MODE_INTRO.portal },
-      {
-        role: 'assistant',
-        content: `Presentation direction locked in as the portal brief.\n\nUsing "${brief.sourceTitle}" as the source of truth.\nRecommended strategy: ${brief.recommendedIntent}\n\nPress send as-is, or add what you want the portal to emphasize.`,
-      },
-    ]);
-    setInput(brief.promptSeed);
-    setSaveMsg('✓ Presentation loaded as portal brief');
-    setTimeout(() => setSaveMsg(''), 3000);
-  };
-
   const renderMessage = (message, i) => {
     const isUser = message.role === 'user';
     return (
@@ -791,9 +683,7 @@ export default function PortalEditorPage() {
         <div style={{ padding: '14px 24px 8px', background: '#fff', borderBottom: '1px solid #E5E7EB' }}>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: outputMode === 'portal'
-              ? 'minmax(220px, 1.35fr) repeat(5, minmax(150px, 1fr))'
-              : 'minmax(220px, 1.35fr) repeat(4, minmax(150px, 1fr))',
+            gridTemplateColumns: 'minmax(220px, 1.35fr) repeat(4, minmax(150px, 1fr))',
             gap: 12,
             alignItems: 'start',
           }}>
@@ -834,20 +724,6 @@ export default function PortalEditorPage() {
                 ))}
               </select>
             </ControlField>
-
-            {outputMode === 'portal' && (
-              <ControlField label="Portal Strategy" hint={PORTAL_STRATEGIES.find((option) => option.value === portalIntent)?.hint}>
-                <select
-                  value={portalIntent}
-                  onChange={(e) => setPortalIntent(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12, background: '#F9FAFB' }}
-                >
-                  {PORTAL_STRATEGIES.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </ControlField>
-            )}
 
             <ControlField label="Provider" hint="Choose the model family driving the builder.">
               <select
@@ -1010,33 +886,6 @@ export default function PortalEditorPage() {
               ))}
             </div>
           )}
-
-          {portalBriefSource && (
-            <div style={{ marginTop: 12, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6B7280', marginBottom: 6 }}>
-                    Portal Brief Source
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{portalBriefSource.sourceTitle}</div>
-                  <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                    Approved deck guiding this portal. Strategy: {portalBriefSource.recommendedIntent}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setPortalBriefSource(null)}
-                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', color: '#111827', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                >
-                  Clear
-                </button>
-              </div>
-              {portalBriefSource.narrativeBeats?.length > 0 && (
-                <div style={{ marginTop: 10, fontSize: 11, color: '#4B5563', lineHeight: 1.6 }}>
-                  {portalBriefSource.narrativeBeats.slice(0, 4).join('  •  ')}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 8px' }}>
@@ -1064,7 +913,9 @@ export default function PortalEditorPage() {
               onKeyDown={handleKeyDown}
               placeholder={outputMode === 'presentation'
                 ? 'Describe the audience, pacing, slide mood, and story arc... (Enter to send)'
-                : 'Describe the client, paste existing content, or ask for revisions... (Enter to send)'}
+                : outputMode === 'cinematic-flow'
+                  ? 'Describe the emotional arc, scene sequence, atmosphere, and signature moments... (Enter to send)'
+                  : 'Describe the client, paste existing content, or ask for revisions... (Enter to send)'}
               rows={3}
               style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 13, fontFamily: 'Inter, sans-serif', resize: 'none', outline: 'none', lineHeight: 1.5, color: '#111827' }}
             />
@@ -1083,7 +934,7 @@ export default function PortalEditorPage() {
         <div style={{ padding: '18px 20px', borderBottom: '1px solid #E5E7EB' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Save to Portal</div>
           <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
-            Push generated {outputMode === 'presentation' ? 'deck JSON' : 'portal JSON'} to a live client experience
+            Push generated {outputMode === 'presentation' ? 'deck JSON' : outputMode === 'cinematic-flow' ? 'cinematic flow JSON' : 'portal JSON'} to a live client experience
           </div>
         </div>
 
@@ -1199,14 +1050,6 @@ export default function PortalEditorPage() {
                   )}
                 </div>
               )}
-              {outputMode === 'presentation' && normalizedPreview?.presentation && (
-                <button
-                  onClick={usePresentationAsPortalBrief}
-                  style={{ width: '100%', marginBottom: 12, padding: '11px 14px', borderRadius: 10, border: '1px solid #D1D5DB', background: '#111827', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Use This Presentation As Portal Brief →
-                </button>
-              )}
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#10B981', marginBottom: 8 }}>✓ Content ready</div>
               <pre style={{ fontSize: 10, color: '#6B7280', background: '#F9FAFB', borderRadius: 8, padding: 12, overflow: 'auto', maxHeight: 460, lineHeight: 1.5 }}>
                 {JSON.stringify(normalizedPreview, null, 2)}
@@ -1214,7 +1057,7 @@ export default function PortalEditorPage() {
             </div>
           ) : (
             <div style={{ textAlign: 'center', padding: '40px 16px', color: '#9CA3AF', fontSize: 12, lineHeight: 1.6 }}>
-              Ask the AI to generate {outputMode === 'presentation' ? 'a presentation deck' : 'portal content'} and the JSON will appear here, ready to save.
+              Ask the AI to generate {outputMode === 'presentation' ? 'a presentation deck' : outputMode === 'cinematic-flow' ? 'a cinematic scene flow' : 'portal content'} and the JSON will appear here, ready to save.
             </div>
           )}
         </div>
@@ -1225,7 +1068,7 @@ export default function PortalEditorPage() {
             disabled={!extractedJSON || !selectedPortal || saving}
             style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: !extractedJSON || !selectedPortal ? '#E5E7EB' : '#111827', color: !extractedJSON || !selectedPortal ? '#9CA3AF' : '#fff', fontSize: 13, fontWeight: 700, cursor: !extractedJSON || !selectedPortal ? 'default' : 'pointer' }}
           >
-            {saving ? 'Saving...' : `Push ${outputMode === 'presentation' ? 'presentation' : 'portal'} →`}
+            {saving ? 'Saving...' : `Push ${outputMode === 'presentation' ? 'presentation' : outputMode === 'cinematic-flow' ? 'cinematic flow' : 'portal'} →`}
           </button>
           {saveMsg && (
             <div style={{ marginTop: 8, fontSize: 12, textAlign: 'center', color: saveMsg.startsWith('✓') ? '#10B981' : '#EF4444' }}>

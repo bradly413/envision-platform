@@ -14,19 +14,6 @@ const STYLE_DIRECTIVES = {
   minimal: `Art direct the response like a refined minimalist product launch. Keep it precise, confident, and clean, with disciplined hierarchy and no filler.`,
 };
 
-const TEMPLATE_DIRECTIVES = {
-  'brand-reveal-v1': `Use the classic Envision reveal structure: dramatic hero, bold section transitions, and a sense of progressive reveal from strategy to system.`,
-  'brand-reveal-minimal': `Design for a restrained, gallery-like reveal. Keep copy concise, use negative space, and favor fewer, sharper moments over spectacle.`,
-  'full-identity': `Design for a comprehensive identity system presentation. Include a more complete rationale across brand, logo, palette, typography, and how the pieces work together.`,
-};
-
-const PORTAL_INTENT_DIRECTIVES = {
-  'brand-identity': `The portal is a brand identity reveal. Focus on strategic position, mark logic, visual system, and why the identity feels right for the client.`,
-  'campaign-launch': `The portal is a campaign launch. Focus on the big idea, audience energy, key assets, rollout framing, and momentum.`,
-  'sales-proposal': `The portal is a sales proposal. Focus on business pressure, recommended solution, value framing, proof, and a decisive call to action.`,
-  'editorial-story': `The portal is an editorial story. Focus on narrative, mood, worldview, and cultural resonance more than a standard agency pitch structure.`,
-};
-
 const PRESENTATION_THEMES = [
   'black',
   'white',
@@ -47,6 +34,27 @@ const PRESENTATION_TRANSITIONS = [
   'zoom',
 ];
 
+const CINEMATIC_SCENE_TYPES = [
+  'opening-title',
+  'wordmark-reveal',
+  'brand-context',
+  'brand-philosophy',
+  'logo-evolution',
+  'icon-deconstruction',
+  'logo-system',
+  'typography-system',
+  'color-direction',
+  'applications-showcase',
+  'collateral-showcase',
+  'quote-scene',
+  'stats-scene',
+  'full-bleed-media',
+  'gallery-scene',
+  'embed-scene',
+  'cta-scene',
+  'closing-statement',
+];
+
 function getProviderConfig(provider, model) {
   const normalizedProvider = (provider || 'anthropic').toLowerCase();
   const resolvedModel = model || PROVIDER_DEFAULTS[normalizedProvider];
@@ -58,23 +66,22 @@ function getProviderConfig(provider, model) {
   return { provider: normalizedProvider, model: resolvedModel };
 }
 
-function buildPortalEditorSystemPrompt({ styleMode = 'cinematic', templateId = 'brand-reveal-v1', portalIntent = 'brand-identity' } = {}) {
+function buildPortalEditorSystemPrompt({ styleMode = 'cinematic' } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
-  const templateDirective = TEMPLATE_DIRECTIVES[templateId] || TEMPLATE_DIRECTIVES['brand-reveal-v1'];
-  const intentDirective = PORTAL_INTENT_DIRECTIVES[portalIntent] || PORTAL_INTENT_DIRECTIVES['brand-identity'];
   const motionKnowledge = formatMotionKnowledgeBase();
 
   return `You are Envision Creative's senior creative director and portal content editor.
 You create client-facing presentation portal content that feels high-end, art directed, and strategically sharp.
 
 ${styleDirective}
-${templateDirective}
-${intentDirective}
 
 Follow these rules:
 - Write with the taste level of a senior brand strategist and design director, not a generic AI assistant.
 - Avoid boilerplate agency language, startup cliches, empty adjectives, and vague claims.
 - Make every section feel specific to the client, their industry, and their brand position.
+- Never use "Envision", "Envision Creative", or agency self-branding inside the generated on-screen client content unless the actual client/source material is Envision.
+- The hero headline, subheadline, and intro must contain client-specific nouns, category cues, or campaign language. They must not read like interchangeable agency demo copy.
+- Different clients should produce materially different narrative framing, palette direction, typography direction, and motion choices.
 - Favor clear hierarchy, memorable phrasing, and premium restraint over hype.
 - When choosing palette or typography, ensure they reinforce the brand story and mood.
 - Ensure the output feels presentation-ready, not like internal notes.
@@ -86,12 +93,6 @@ Follow these rules:
 - Use only the approved presets and effects listed below. Do not invent new effect names in the JSON.
 - If the builder context includes parsed creative briefs, treat those structured brief details as the source of truth for campaign theme, launch date, objectives, assets, spec sections, and brand signals.
 - When source material includes campaign deliverables or spec sheets, reflect that structure in the output instead of flattening it into generic brand copy.
-- Respect the selected portal template and make the section framing feel materially different across templates.
-- Respect the selected portal strategy and change the narrative structure, not just the adjectives.
-- Do not recycle the same Envision Marketing headline structure unless the user's prompt explicitly asks for it.
-- Write fresh section eyebrows that fit the chosen strategy. Avoid generic defaults when a more specific framing is available.
-- If the brief reads like a campaign, sales narrative, or editorial story, let the section language follow that category even though the JSON keys stay consistent.
-- If the builder context includes an approved presentation direction, treat that deck as the source of truth for sequence, tone, emphasis, and must-keep language. Adapt it into a portal instead of inventing a new story from scratch.
 
 Motion engine roles:
 ${motionKnowledge.engineBlock}
@@ -125,33 +126,26 @@ Approved section effects:
 
 When asked to create or update portal content, respond with a JSON object in this structure:
 {
-  "hero": { "eyebrow": "", "headline": "", "subheadline": "", "intro": "" },
+  "hero": { "headline": "", "subheadline": "", "intro": "" },
   "brand": {
-    "eyebrow": "",
     "headline": "",
     "positioning": "",
     "pillars": [{ "title": "", "desc": "" }]
   },
   "logo": {
-    "eyebrow": "",
     "headline": "",
     "logoUrl": "",
     "rationale": ""
   },
   "colors": {
-    "eyebrow": "",
     "headline": "",
     "palette": [{ "name": "", "hex": "#hex", "role": "" }]
   },
   "typography": {
-    "eyebrow": "",
     "headline": "",
     "fonts": [{ "name": "", "typeface": "", "usage": "", "stack": "" }]
   },
-  "cta": { "eyebrow": "", "headline": "", "body": "", "buttonText": "", "email": "" },
-  "portalTemplate": "${templateId}",
-  "artDirection": "${styleMode}",
-  "portalIntent": "${portalIntent}",
+  "cta": { "headline": "", "buttonText": "", "email": "" },
   "experience": {
     "preset": "cinematic-editorial",
     "motionLevel": "elevated",
@@ -173,6 +167,7 @@ When asked to create or update portal content, respond with a JSON object in thi
 }
 
 Choose the experience preset that best matches the brand. Keep the effect system tasteful and restrained: 2 to 4 signature motion ideas are better than gimmick overload.
+If the brief is for a cultural organization, school, real estate brand, aviation company, restaurant, law firm, or another distinct category, reflect that category directly in the language and creative system. Do not collapse everything into the same "modern marketing evolution" story.
 
 Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
 }
@@ -297,6 +292,104 @@ Use verticalSlides only when a nested stack is genuinely useful.
 Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
 }
 
+function buildCinematicFlowSystemPrompt({ styleMode = 'cinematic' } = {}) {
+  const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
+  const motionKnowledge = formatMotionKnowledgeBase();
+
+  return `You are Envision Creative's senior cinematic experience director.
+You create scene-based brand presentation experiences for client reveals.
+
+${styleDirective}
+
+Follow these rules:
+- Think in scenes, pacing, and narrative transitions, not just sections on a web page.
+- Never use "Envision", "Envision Creative", or agency self-branding in the client-facing scene content unless the actual client/source material is Envision.
+- The experience should feel like a directed walkthrough: opening, context, philosophy, identity, applications, closing.
+- Different clients must produce materially different scene sequences, palette direction, tone, and motion choices.
+- Use parsed creative briefs as source of truth when they are present.
+- Use Motion-style interaction as the default runtime mental model, and reserve bigger cinematic moments for opening, evolution, applications, and closing scenes.
+- Keep the shell elegant and consistent, but make the scenes themselves brand-specific.
+- Prefer 6 to 10 scenes by default.
+- Opening scenes should establish the emotional frame fast. Closing scenes should land with clarity.
+
+Motion engine roles:
+${motionKnowledge.engineBlock}
+
+Approved motion patterns for reference:
+${motionKnowledge.patternsBlock}
+
+Approved scene types:
+- ${CINEMATIC_SCENE_TYPES.join('\n- ')}
+
+When asked to create or update cinematic flow content, respond with a JSON object in this structure:
+{
+  "mode": "cinematic-flow",
+  "cinematicFlow": {
+    "title": "",
+    "theme": {
+      "base": "#1A1720",
+      "text": "#F2F2F2",
+      "accent": "#1B70A6",
+      "accentAlt": "#1C7FA6",
+      "surface": "#373440"
+    },
+    "shell": {
+      "progressBar": true,
+      "sectionIndicator": true,
+      "keyboardNav": true,
+      "grainOverlay": true,
+      "scrollBehavior": "snap"
+    },
+    "atmosphere": {
+      "preset": "deep-tech",
+      "floatingAtmosphere": true,
+      "particles": true,
+      "orbitalRings": true,
+      "cursorParallax": true,
+      "intensity": "medium"
+    },
+    "motion": {
+      "engine": "motion",
+      "style": "cinematic-editorial",
+      "reducedMotion": true,
+      "mobileFallback": "simplified"
+    },
+    "scenes": [
+      {
+        "id": "opening",
+        "type": "opening-title",
+        "headline": "",
+        "subheadline": "",
+        "eyebrow": "",
+        "layout": "center-monument"
+      },
+      {
+        "id": "context",
+        "type": "brand-context",
+        "headline": "",
+        "body": "",
+        "bullets": ["", ""]
+      },
+      {
+        "id": "closing",
+        "type": "closing-statement",
+        "headline": "",
+        "body": ""
+      }
+    ]
+  }
+}
+
+Scene guidance:
+- Use opening-title or wordmark-reveal first.
+- Use closing-statement last.
+- Use logo-evolution only when there is a before/after identity story.
+- Use icon-deconstruction only if the symbol has real symbolic logic.
+- Use applications-showcase or collateral-showcase only when the brief includes real deliverables or asset references.
+
+Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
+}
+
 async function generateWithAnthropic({ apiKey, model, system, messages, maxTokens = 1400 }) {
   if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
 
@@ -391,8 +484,6 @@ async function generateBuilderContent({
   provider,
   model,
   styleMode,
-  templateId,
-  portalIntent,
   outputMode = 'portal',
   messages,
   maxTokens,
@@ -400,7 +491,9 @@ async function generateBuilderContent({
   const config = getProviderConfig(provider, model);
   const system = outputMode === 'presentation'
     ? buildPresentationSystemPrompt({ styleMode })
-    : buildPortalEditorSystemPrompt({ styleMode, templateId, portalIntent });
+    : outputMode === 'cinematic-flow'
+      ? buildCinematicFlowSystemPrompt({ styleMode })
+      : buildPortalEditorSystemPrompt({ styleMode });
   const safeMessages = (messages || []).map(message => ({
     role: message.role,
     content: String(message.content || ''),

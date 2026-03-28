@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://envisioncreative.com/schemas/cinematic-flow.schema.json",
+  "title": "Envision Cinematic Flow",
+  "description": "Scene-based brand presentation experience for Envision portals.",
+  "type": "object",
+  "required": ["mode", "cinematicFlow"],
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "const": "cinematic-flow"
+    },
+    "cinematicFlow": {
+      "type": "object",
+      "required": ["title", "theme", "shell", "atmosphere", "motion", "scenes"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "theme": {
+          "type": "object",
+          "required": ["base", "text", "accent", "accentAlt", "surface"],
+          "additionalProperties": false,
+          "properties": {
+            "base": { "$ref": "#/$defs/hexColor" },
+            "text": { "$ref": "#/$defs/hexColor" },
+            "accent": { "$ref": "#/$defs/hexColor" },
+            "accentAlt": { "$ref": "#/$defs/hexColor" },
+            "surface": { "$ref": "#/$defs/hexColor" }
+          }
+        },
+        "shell": {
+          "type": "object",
+          "required": ["progressBar", "sectionIndicator", "keyboardNav", "grainOverlay", "scrollBehavior"],
+          "additionalProperties": false,
+          "properties": {
+            "progressBar": { "type": "boolean" },
+            "sectionIndicator": { "type": "boolean" },
+            "keyboardNav": { "type": "boolean" },
+            "grainOverlay": { "type": "boolean" },
+            "scrollBehavior": {
+              "type": "string",
+              "enum": ["snap", "smooth", "free"]
+            }
+          }
+        },
+        "atmosphere": {
+          "type": "object",
+          "required": ["preset", "floatingAtmosphere", "particles", "orbitalRings", "cursorParallax", "intensity"],
+          "additionalProperties": false,
+          "properties": {
+            "preset": {
+              "type": "string",
+              "enum": ["deep-tech", "editorial-luxury", "cultural-immersive", "campaign-electric", "minimal-glow"]
+            },
+            "floatingAtmosphere": { "type": "boolean" },
+            "particles": { "type": "boolean" },
+            "orbitalRings": { "type": "boolean" },
+            "cursorParallax": { "type": "boolean" },
+            "intensity": {
+              "type": "string",
+              "enum": ["low", "medium", "high"]
+            }
+          }
+        },
+        "motion": {
+          "type": "object",
+          "required": ["engine", "style", "reducedMotion", "mobileFallback"],
+          "additionalProperties": false,
+          "properties": {
+            "engine": {
+              "type": "string",
+              "enum": ["motion", "gsap", "spline", "hybrid"]
+            },
+            "style": {
+              "type": "string",
+              "enum": ["cinematic-editorial", "luxury-minimal", "bold-campaign", "immersive-culture", "modern-tech"]
+            },
+            "reducedMotion": { "type": "boolean" },
+            "mobileFallback": {
+              "type": "string",
+              "enum": ["simplified", "static", "reduced"]
+            }
+          }
+        },
+        "scenes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/scene" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hexColor": {
+      "type": "string",
+      "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "scene": {
+      "type": "object",
+      "required": ["id", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": [
+            "opening-title",
+            "wordmark-reveal",
+            "brand-context",
+            "brand-philosophy",
+            "logo-evolution",
+            "icon-deconstruction",
+            "logo-system",
+            "typography-system",
+            "color-direction",
+            "applications-showcase",
+            "collateral-showcase",
+            "quote-scene",
+            "stats-scene",
+            "full-bleed-media",
+            "gallery-scene",
+            "embed-scene",
+            "cta-scene",
+            "closing-statement"
+          ]
+        },
+        "headline": { "type": "string" },
+        "subheadline": { "type": "string" },
+        "body": { "type": "string" },
+        "eyebrow": { "type": "string" },
+        "align": {
+          "type": "string",
+          "enum": ["left", "center", "right"]
+        },
+        "layout": { "type": "string" },
+        "tone": { "type": "string" },
+        "bullets": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "principles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "label": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "name": { "type": "string" },
+              "src": { "type": "string" }
+            }
+          }
+        },
+        "fonts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "name": { "type": "string" },
+              "typeface": { "type": "string" },
+              "usage": { "type": "string" }
+            }
+          }
+        },
+        "palette": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "name": { "type": "string" },
+              "hex": { "$ref": "#/$defs/hexColor" },
+              "role": { "type": "string" }
+            }
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "cta": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "label": { "type": "string" },
+            "href": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

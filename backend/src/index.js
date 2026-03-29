@@ -22,8 +22,15 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 // CORS — admin dashboard + client portal
+const allowedOrigins = [process.env.ADMIN_URL, process.env.PORTAL_URL].filter(Boolean);
+
 app.use(cors({
-  origin: [process.env.ADMIN_URL, process.env.PORTAL_URL, 'http://localhost:3001'],
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (/^http:\/\/localhost:\d+$/.test(origin)) return callback(null, true);
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
   credentials: true,
 }));
 

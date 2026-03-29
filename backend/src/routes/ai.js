@@ -37,6 +37,7 @@ async function handleBuilder(req, res) {
       provider: result.provider,
       model: result.model,
       reply: result.text,
+      structured: result.structured || null,
       timestamp: new Date(),
     });
   } catch (error) {

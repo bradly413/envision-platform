@@ -69,7 +69,7 @@ router.post('/', requireAdmin, async (req, res) => {
 
 // Admin: update portal content
 router.patch('/:id', requireAdmin, async (req, res) => {
-  const { content, status, expires_at } = req.body;
+  const { content, status, expires_at, slug, password, template_id } = req.body;
   try {
     const fields = [];
     const values = [];
@@ -77,13 +77,28 @@ router.patch('/:id', requireAdmin, async (req, res) => {
     if (content !== undefined) { fields.push(`content = $${i++}`); values.push(JSON.stringify(content)); }
     if (status !== undefined) { fields.push(`status = $${i++}`); values.push(status); }
     if (expires_at !== undefined) { fields.push(`expires_at = $${i++}`); values.push(expires_at); }
+    if (slug !== undefined) { fields.push(`slug = $${i++}`); values.push(slug); }
+    if (template_id !== undefined) { fields.push(`template_id = $${i++}`); values.push(template_id); }
+    if (password !== undefined) {
+      const trimmedPassword = String(password || '').trim();
+      if (trimmedPassword) {
+        const passwordHash = await bcrypt.hash(trimmedPassword, 10);
+        fields.push(`password_hash = $${i++}`);
+        values.push(passwordHash);
+        fields.push(`plain_password = $${i++}`);
+        values.push(trimmedPassword);
+      } else {
+        fields.push('password_hash = NULL');
+        fields.push('plain_password = NULL');
+      }
+    }
     fields.push(`updated_at = NOW()`);
     values.push(req.params.id);
     const { rows } = await db.query(
       `UPDATE portals SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`,
       values
     );
-    res.json(rows[0]);
+    res.json({ ...rows[0], url: `${process.env.PORTAL_URL}/${rows[0]?.slug}` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -151,6 +166,34 @@ router.post('/:id/events', requirePortalAuth, async (req, res) => {
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// Portal: fetch current authenticated portal session
+router.get('/session/current', requirePortalAuth, async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT p.*, c.name as client_name, c.company FROM portals p JOIN clients c ON p.client_id = c.id WHERE p.id = $1',
+      [req.portal.portalId]
+    );
+    const portal = rows[0];
+    if (!portal) return res.status(404).json({ error: 'Portal not found' });
+    if (portal.status !== 'active') return res.status(403).json({ error: 'Portal is not active' });
+    if (portal.expires_at && new Date(portal.expires_at) < new Date()) {
+      return res.status(403).json({ error: 'This presentation has expired' });
+    }
+
+    res.json({
+      portal: {
+        id: portal.id,
+        slug: portal.slug,
+        templateId: portal.template_id,
+        clientName: portal.client_name,
+        company: portal.company,
+        content: portal.content,
+      },
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Portal: login by slug + password
 router.post('/login', async (req, res) => {
   const { slug, password } = req.body;

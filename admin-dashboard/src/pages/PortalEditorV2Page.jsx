@@ -2946,119 +2946,130 @@ function WorkflowPromptCard({prompt, onToggleRaw, showRaw, isStructured}) {
 function WorkflowPlanCard({plan, outputMode, styleMode, client, loading, phase, onEditPlan, onApprove}) {
   if (!plan) return null;
 
-  const styleLabel = STYLE_MODES.find((mode) => mode.value === styleMode)?.label || styleMode;
-  const clientLabel = cleanText(plan?.briefSubject || client?.name || client?.company || 'Selected client');
-  const architecture = Array.isArray(plan?.architecture) ? plan.architecture : [];
-  const features = Array.isArray(plan?.sectionFeatures) ? plan.sectionFeatures : [];
-  const effects = Array.isArray(plan?.globalEffects) ? plan.globalEffects : [];
-  const assetLines = Array.isArray(plan?.assetsNeeded) ? plan.assetsNeeded : [];
   const awaitingApproval = phase === 'awaiting_approval';
   const previewReady = phase === 'preview_ready';
   const building = phase === 'building';
+  const [expanded, setExpanded] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+
+  // Build rotating highlights from plan data
+  const highlights = useMemo(() => {
+    const items = [];
+    if (plan.summary) items.push(plan.summary);
+    if (plan.visualThesis) items.push(plan.visualThesis);
+    const features = Array.isArray(plan.sectionFeatures) ? plan.sectionFeatures : [];
+    features.slice(0, 3).forEach(f => items.push(f));
+    const arch = Array.isArray(plan.architecture) ? plan.architecture : [];
+    if (arch[0]) items.push(arch[0]);
+    return items.length ? items : [plan.title || 'Plan ready'];
+  }, [plan]);
+
+  // Rotate highlights every 3.5s
+  useEffect(() => {
+    if (highlights.length <= 1) return;
+    const timer = setInterval(() => {
+      setHighlightIndex(i => (i + 1) % highlights.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [highlights.length]);
+
+  const architecture = Array.isArray(plan?.architecture) ? plan.architecture : [];
+  const features = Array.isArray(plan?.sectionFeatures) ? plan.sectionFeatures : [];
+  const effects = Array.isArray(plan?.globalEffects) ? plan.globalEffects : [];
 
   return (
     <div style={{display: 'grid', gap: 8}}>
-      <WorkflowSectionTitle>Plan</WorkflowSectionTitle>
-      <div style={{padding: 16, borderRadius: 18, border: awaitingApproval ? '1px solid rgba(96,165,250,.24)' : '1px solid rgba(255,255,255,.06)', background: awaitingApproval ? 'rgba(30,41,59,.84)' : 'rgba(255,255,255,.03)', display: 'grid', gap: 12}}>
-        <div style={{display: 'grid', gap: 6}}>
-          <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: awaitingApproval ? '#93C5FD' : previewReady ? '#86EFAC' : '#64748B'}}>
-            {awaitingApproval ? 'Plan ready' : building ? 'Build approved' : previewReady ? 'Plan approved' : 'Current direction'}
-          </div>
-          <div style={{fontSize: 15, fontWeight: 700, color: '#F8FAFC', lineHeight: 1.35}}>
-            {plan.title}
-          </div>
-          <div style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.65}}>
-            {plan.summary}
-          </div>
+      <div style={{padding: 18, borderRadius: 20, border: awaitingApproval ? '1px solid rgba(96,165,250,.20)' : '1px solid rgba(255,255,255,.06)', background: awaitingApproval ? 'rgba(30,41,59,.84)' : 'rgba(255,255,255,.03)', display: 'grid', gap: 14}}>
+        {/* Title */}
+        <div style={{fontSize: 16, fontWeight: 700, color: '#F8FAFC', lineHeight: 1.3}}>
+          {plan.title}
         </div>
 
-        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-          <span style={{padding: '6px 9px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', fontSize: 11, color: '#E2E8F0'}}>
-            {OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label}
-          </span>
-          <span style={{padding: '6px 9px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', fontSize: 11, color: '#E2E8F0'}}>
-            {styleLabel}
-          </span>
-          <span style={{padding: '6px 9px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', fontSize: 11, color: '#E2E8F0'}}>
-            {clientLabel}
-          </span>
+        {/* Rotating highlight */}
+        <div style={{minHeight: 44, position: 'relative', overflow: 'hidden'}}>
+          {highlights.map((text, i) => (
+            <div
+              key={i}
+              style={{
+                position: i === highlightIndex ? 'relative' : 'absolute',
+                top: 0, left: 0, right: 0,
+                fontSize: 13, color: '#94A3B8', lineHeight: 1.65,
+                opacity: i === highlightIndex ? 1 : 0,
+                transform: i === highlightIndex ? 'translateY(0)' : 'translateY(8px)',
+                transition: 'opacity 0.5s ease, transform 0.5s ease',
+              }}
+            >
+              {text}
+            </div>
+          ))}
         </div>
 
-        {architecture.length ? (
-          <div style={{display: 'grid', gap: 8}}>
-            <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
-              Architecture
-            </div>
-            <div style={{display: 'grid', gap: 7}}>
-              {architecture.map((item, index) => (
-                <div key={`${item}-${index}`} style={{fontSize: 12, color: '#E2E8F0', lineHeight: 1.55, display: 'flex', gap: 8}}>
-                  <span style={{color: '#64748B', minWidth: 14}}>{index + 1}.</span>
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
+        {/* Progress dots */}
+        {highlights.length > 1 ? (
+          <div style={{display: 'flex', gap: 5, justifyContent: 'center'}}>
+            {highlights.map((_, i) => (
+              <div key={i} style={{
+                width: i === highlightIndex ? 16 : 5, height: 5, borderRadius: 999,
+                background: i === highlightIndex ? '#3B82F6' : 'rgba(255,255,255,0.12)',
+                transition: 'width 0.3s ease, background 0.3s ease',
+              }} />
+            ))}
           </div>
         ) : null}
 
-        {features.length ? (
-          <div style={{display: 'grid', gap: 8}}>
-            <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
-              Sections + features
-            </div>
-            <div style={{display: 'grid', gap: 7}}>
-              {features.map((item) => (
-                <div key={item} style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.55}}>
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {effects.length ? (
-          <div style={{display: 'grid', gap: 8}}>
-            <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
-              Global effects
-            </div>
-            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-              {effects.map((item) => (
-                <span key={item} style={{padding: '6px 9px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(2,6,23,.35)', fontSize: 11, color: '#E2E8F0'}}>
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {assetLines.length ? (
-          <div style={{display: 'grid', gap: 8}}>
-            <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
-              Assets needed
-            </div>
-            <div style={{display: 'grid', gap: 7}}>
-              {assetLines.map((item) => (
-                <div key={item} style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.55}}>
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
+        {/* Action buttons */}
         {(awaitingApproval || building || previewReady) ? (
           <div style={{display: 'flex', gap: 8}}>
             <button
-              onClick={onEditPlan}
-              style={{flex: 1, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
-            >
-              {awaitingApproval ? 'Edit plan' : 'Refine plan'}
-            </button>
-            <button
               onClick={onApprove}
               disabled={loading || !awaitingApproval}
-              style={{flex: 1, padding: '10px 12px', borderRadius: 12, border: 'none', background: loading || !awaitingApproval ? '#334155' : '#2563EB', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: loading || !awaitingApproval ? 'default' : 'pointer'}}
+              style={{flex: 1, padding: '11px 14px', borderRadius: 12, border: 'none', background: loading || !awaitingApproval ? '#334155' : '#2563EB', color: '#F8FAFC', fontSize: 13, fontWeight: 700, cursor: loading || !awaitingApproval ? 'default' : 'pointer'}}
             >
               {building || loading ? 'Building…' : previewReady ? 'Preview built' : 'Approve & Build'}
+            </button>
+          </div>
+        ) : null}
+
+        {/* Expand/collapse for full details */}
+        <button
+          onClick={() => setExpanded(e => !e)}
+          style={{padding: 0, border: 'none', background: 'none', color: '#64748B', fontSize: 11, fontWeight: 600, cursor: 'pointer', textAlign: 'left'}}
+        >
+          {expanded ? '▾ Hide details' : '▸ View full plan'}
+        </button>
+
+        {expanded ? (
+          <div style={{display: 'grid', gap: 12, borderTop: '1px solid rgba(255,255,255,.06)', paddingTop: 12}}>
+            {architecture.length ? (
+              <div style={{display: 'grid', gap: 6}}>
+                <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Architecture</div>
+                {architecture.map((item, i) => (
+                  <div key={i} style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.55, display: 'flex', gap: 8}}>
+                    <span style={{color: '#64748B', minWidth: 14}}>{i + 1}.</span><span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {features.length ? (
+              <div style={{display: 'grid', gap: 6}}>
+                <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Sections</div>
+                {features.map((item, i) => (
+                  <div key={i} style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.55}}>{item}</div>
+                ))}
+              </div>
+            ) : null}
+            {effects.length ? (
+              <div style={{display: 'grid', gap: 6}}>
+                <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Effects</div>
+                <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                  {effects.map((item) => (
+                    <span key={item} style={{padding: '5px 8px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(2,6,23,.35)', fontSize: 10, color: '#CBD5E1'}}>{item}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <button onClick={onEditPlan} style={{padding: '9px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#94A3B8', fontSize: 11, fontWeight: 600, cursor: 'pointer'}}>
+              Edit plan
             </button>
           </div>
         ) : null}

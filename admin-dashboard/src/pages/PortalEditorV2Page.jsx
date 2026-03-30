@@ -3104,7 +3104,7 @@ export default function PortalEditorV2Page() {
   const normalizedPreview = extractedJSON
     ? normalizeBuilderPayload(outputMode, extractedJSON, {plan, client: selectedClientRecord, styleMode})
     : null;
-  const resolvedActiveView = activeView;
+  const resolvedActiveView = 'preview';
   const previewBoundaryKey = JSON.stringify({
     outputMode,
     phase,
@@ -4517,20 +4517,9 @@ export default function PortalEditorV2Page() {
       <section style={{flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'radial-gradient(circle at top left, rgba(37,99,235,.18), transparent 28%), radial-gradient(circle at bottom right, rgba(217,70,239,.14), transparent 26%), #09090B'}}>
         <header style={{padding: isMobile ? '16px' : '18px 24px', borderBottom: '1px solid rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap'}}>
           <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
-            <button
-              onClick={() => setActiveView('preview')}
-              style={{padding: '9px 14px', borderRadius: 999, border: resolvedActiveView === 'preview' ? '1px solid rgba(96,165,250,.35)' : '1px solid rgba(255,255,255,.08)', background: resolvedActiveView === 'preview' ? 'rgba(37,99,235,.18)' : 'rgba(255,255,255,.03)', color: normalizedPreview || !plan ? '#F8FAFC' : '#94A3B8', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
-            >
-              Preview
-            </button>
-            {plan && !planNeedsApproval ? (
-              <button
-                onClick={() => setActiveView('plan')}
-                style={{padding: '9px 14px', borderRadius: 999, border: resolvedActiveView === 'plan' ? '1px solid rgba(96,165,250,.35)' : '1px solid rgba(255,255,255,.08)', background: resolvedActiveView === 'plan' ? 'rgba(37,99,235,.18)' : 'rgba(255,255,255,.03)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
-              >
-                {planNeedsApproval ? 'Review plan' : 'Plan details'}
-              </button>
-            ) : null}
+            <div style={{padding: '9px 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', color: '#F8FAFC', fontSize: 12, fontWeight: 700}}>
+              {normalizedPreview ? 'Live preview' : planNeedsApproval ? 'Build-ready canvas' : 'Preview canvas'}
+            </div>
           </div>
 
           <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
@@ -4556,42 +4545,23 @@ export default function PortalEditorV2Page() {
 
         <div style={{flex: 1, minHeight: 0, display: 'flex', flexDirection: isTablet ? 'column' : 'row'}}>
           <div style={{flex: 1, minWidth: 0, padding: isMobile ? 16 : 24, overflow: 'auto'}}>
-            {resolvedActiveView === 'plan' ? (
-              plan ? (
-                <PlanConceptStage
-                  plan={plan}
-                  styleMode={styleMode}
-                  outputMode={outputMode}
-                  client={selectedClientRecord}
-                  planNeedsApproval={planNeedsApproval}
-                  onApprove={approveAndBuild}
-                  onShowPrompt={() => setActiveView('preview')}
-                />
+            <div ref={previewCaptureRef} style={{maxWidth: showInspector ? 1320 : 1480, margin: '0 auto', minHeight: '100%', display: 'grid', gap: 20, transition: 'max-width .22s ease'}}>
+              {normalizedPreview ? (
+                <PreviewErrorBoundary resetKey={previewBoundaryKey}>
+                  <BuilderLivePreview
+                    outputMode={outputMode}
+                    preview={normalizedPreview}
+                    plan={plan}
+                    styleMode={styleMode}
+                    client={selectedClientRecord}
+                    attachments={attachments}
+                    selectedNodeId={selectedPreviewNode}
+                    onSelectNode={(nodeId) => {
+                      setSelectedPreviewNode(nodeId);
+                    }}
+                  />
+                </PreviewErrorBoundary>
               ) : (
-                <div style={{maxWidth: 980, margin: '0 auto', minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                  <div style={{padding: 48, textAlign: 'center', color: '#94A3B8', fontSize: 14, lineHeight: 1.7}}>
-                    The plan will appear here after you submit a prompt.
-                  </div>
-                </div>
-              )
-            ) : (
-              <div ref={previewCaptureRef} style={{maxWidth: showInspector ? 1320 : 1480, margin: '0 auto', minHeight: '100%', display: 'grid', gap: 20, transition: 'max-width .22s ease'}}>
-                {normalizedPreview ? (
-                  <PreviewErrorBoundary resetKey={previewBoundaryKey}>
-                    <BuilderLivePreview
-                      outputMode={outputMode}
-                      preview={normalizedPreview}
-                      plan={plan}
-                      styleMode={styleMode}
-                      client={selectedClientRecord}
-                      attachments={attachments}
-                      selectedNodeId={selectedPreviewNode}
-                      onSelectNode={(nodeId) => {
-                        setSelectedPreviewNode(nodeId);
-                      }}
-                    />
-                  </PreviewErrorBoundary>
-                ) : (
                 <PreviewCanvas
                   plan={plan}
                   previewSummary={previewSummary}
@@ -4607,7 +4577,7 @@ export default function PortalEditorV2Page() {
                 />
               )}
 
-                {normalizedPreview && showDeployPanel ? (
+              {normalizedPreview && showDeployPanel ? (
                   <div style={{borderRadius: 24, border: '1px solid rgba(16,185,129,.22)', background: 'linear-gradient(180deg, rgba(6,78,59,.48), rgba(15,23,42,.9))', padding: isMobile ? 18 : 24, display: 'grid', gap: 18}}>
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
                       <div style={{display: 'grid', gap: 6}}>
@@ -4760,9 +4730,8 @@ export default function PortalEditorV2Page() {
                       Show structured output
                     </button>
                   </div>
-                ) : null}
-              </div>
-            )}
+              ) : null}
+            </div>
           </div>
 
           {showInspector ? (

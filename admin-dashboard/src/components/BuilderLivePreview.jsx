@@ -1302,22 +1302,12 @@ function getPresentationTheme(themeName = 'black') {
 }
 
 function shouldUseCinematicPreview(outputMode, plan, preview) {
-  const signals = cleanText([
-    outputMode,
-    plan?.title,
-    plan?.briefSubject,
-    plan?.summary,
-    plan?.visualThesis,
-    ...(plan?.structure || []),
-    preview?.hero?.headline,
-    preview?.hero?.subheadline,
-    preview?.logo?.headline,
-    preview?.presentation?.title,
-  ].filter(Boolean).join(' ')).toLowerCase()
-
+  // Only use cinematic preview for presentation mode or explicit cinematic-flow content
   if (outputMode === 'presentation') return true
-
-  return /(brand identity|logo|wordmark|rebrand|identity system|brand system|logo reveal|presentation|brand reveal|typography|color direction|identity challenge)/.test(signals)
+  if (outputMode === 'cinematic-flow') return true
+  if (preview?.mode === 'cinematic-flow' && preview?.cinematicFlow) return true
+  // Portal mode uses the standard card-based renderer for reliability
+  return false
 }
 
 function getCinematicTheme(styleMode, palette = []) {

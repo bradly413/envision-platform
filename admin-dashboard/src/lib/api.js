@@ -74,6 +74,7 @@ export const ai = {
 
 export const scrape = {
   fetch: (url) => api.post('/scrape', { url }),
+  crawl: (url, maxPages = 5) => api.post('/scrape/crawl', { url, maxPages }),
 };
 
 export const designSystems = {

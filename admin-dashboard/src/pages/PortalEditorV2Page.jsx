@@ -1085,9 +1085,27 @@ function buildVisualReferenceMessage({client, portal, plan, references = [], att
     lines.push(`References: ${activeReferences.map((item) => item.value || item.label).join(' | ')}`);
     activeReferences.forEach((item) => {
       if (item.scraped) {
-        lines.push(`\n--- Scraped from ${item.value} ---`);
+        lines.push(`\n--- Scraped from ${item.value} (${item.scraped.source || 'basic'}) ---`);
         if (item.scraped.title) lines.push(`Title: ${item.scraped.title}`);
         if (item.scraped.description) lines.push(`Description: ${item.scraped.description}`);
+        // Firecrawl extract: structured brand intelligence
+        if (item.scraped.extract) {
+          const ext = item.scraped.extract;
+          if (ext.industry) lines.push(`Industry: ${ext.industry}`);
+          if (ext.tone) lines.push(`Site tone: ${ext.tone}`);
+          if (Array.isArray(ext.brandColors) && ext.brandColors.length) {
+            lines.push('Brand colors found:');
+            ext.brandColors.forEach(c => lines.push(`  - ${c.name || 'Unnamed'}: ${c.hex} (${c.usage || 'general'})`));
+          }
+          if (Array.isArray(ext.fonts) && ext.fonts.length) {
+            lines.push('Fonts found:');
+            ext.fonts.forEach(f => lines.push(`  - ${f.name}: ${f.usage || 'general'}`));
+          }
+          if (ext.logoUrl) lines.push(`Logo URL: ${ext.logoUrl}`);
+          if (Array.isArray(ext.keyPhrases) && ext.keyPhrases.length) {
+            lines.push(`Key phrases: ${ext.keyPhrases.join(' | ')}`);
+          }
+        }
         if (item.scraped.text) lines.push(`Page content: ${item.scraped.text}`);
       }
     });

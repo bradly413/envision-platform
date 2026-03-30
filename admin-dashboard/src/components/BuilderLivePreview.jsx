@@ -2129,7 +2129,7 @@ function CinematicFlowRenderedPreview({preview, plan, styleMode, client, attachm
                   <div style={{display: 'grid', gridTemplateColumns: '0.95fr 1.05fr', gap: 18, alignItems: 'stretch'}}>
                     <div style={{borderRadius: 28, border: `1px solid ${rgba(flow.theme.accent, 0.24)}`, background: `radial-gradient(circle at 50% 40%, ${rgba(flow.theme.accent, 0.14)}, transparent 55%), ${rgba(flow.theme.text, 0.03)}`, minHeight: 280, display: 'grid', placeItems: 'center'}}>
                       <div style={{fontSize: 'clamp(84px, 8vw, 138px)', lineHeight: 0.85, fontWeight: 800, letterSpacing: '-0.08em', color: flow.theme.text, textTransform: 'lowercase'}}>
-                        {scene.parts?.map((item) => item.label).join('')}
+                        {scene.parts?.map((item) => item.label).join(' ')}
                       </div>
                     </div>
                     <div style={{display: 'grid', gap: 12}}>

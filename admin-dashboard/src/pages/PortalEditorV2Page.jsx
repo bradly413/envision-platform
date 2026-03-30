@@ -2411,28 +2411,153 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
     );
   }
 
-  return (
-    <div style={{position: 'relative', minHeight: 560, overflow: 'hidden', borderRadius: 32, border: '1px solid rgba(255,255,255,.08)', background: theme.background, padding: isEmpty ? 42 : 32, display: 'grid', alignItems: isEmpty ? 'center' : 'end'}}>
-      <div style={{position: 'absolute', inset: 0, background: `radial-gradient(circle at 18% 18%, ${theme.glowA}, transparent 28%), radial-gradient(circle at 82% 22%, ${theme.glowB}, transparent 30%)`}} />
-      <div style={{position: 'relative', zIndex: 1, maxWidth: isEmpty ? 760 : 920, display: 'grid', gap: isEmpty ? 14 : 18}}>
-        <div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.16em', color: theme.accent}}>
-          {stageEyebrow}
-        </div>
-        <div style={{fontSize: isEmpty ? 44 : 56, lineHeight: 0.94, fontWeight: 800, letterSpacing: '-.05em', color: '#F8FAFC', maxWidth: isEmpty ? 680 : 820}}>
-          {stageTitle}
-        </div>
-        <div style={{fontSize: isEmpty ? 15 : 17, color: 'rgba(226,232,240,.86)', lineHeight: 1.8, maxWidth: isEmpty ? 560 : 760}}>
-          {stageSummary}
-        </div>
-        {!isEmpty ? (
-          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-            {previewChips.map((bullet) => (
-              <span key={bullet} style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', fontSize: 12, color: '#E2E8F0'}}>
-                {bullet}
+  if (isEmpty) {
+    const idlePrompt = outputMode === 'presentation'
+      ? 'Describe the story, audience, and motion language you want...'
+      : 'Describe the portal, reference site, motion, and brand direction you want...';
+
+    return (
+      <div style={{position: 'relative', minHeight: 660, overflow: 'hidden', borderRadius: 36, border: '1px solid rgba(255,255,255,.06)', background: 'linear-gradient(180deg, rgba(5,10,20,.98), rgba(6,12,22,.98))', display: 'grid', placeItems: 'center', padding: 32}}>
+        <style>{`
+          @keyframes builderIdleDrift {
+            0% { transform: translate3d(-2%, 1%, 0) scale(1); }
+            50% { transform: translate3d(3%, -2%, 0) scale(1.06); }
+            100% { transform: translate3d(-2%, 1%, 0) scale(1); }
+          }
+          @keyframes builderIdlePulse {
+            0%, 100% { opacity: .58; transform: scale(1); }
+            50% { opacity: .9; transform: scale(1.08); }
+          }
+          @keyframes builderIdleScan {
+            0% { transform: translateX(-14%); opacity: .18; }
+            50% { transform: translateX(10%); opacity: .34; }
+            100% { transform: translateX(-14%); opacity: .18; }
+          }
+        `}</style>
+
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: -120,
+            background: `
+              radial-gradient(circle at 18% 24%, rgba(59,130,246,.44), transparent 26%),
+              radial-gradient(circle at 82% 72%, rgba(20,184,166,.36), transparent 28%),
+              radial-gradient(circle at 54% 58%, rgba(14,165,233,.22), transparent 34%)
+            `,
+            filter: 'blur(24px)',
+            animation: 'builderIdleDrift 12s ease-in-out infinite',
+            pointerEvents: 'none',
+          }}
+        />
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: '-10% -20%',
+            background: 'linear-gradient(115deg, transparent 18%, rgba(34,211,238,.12) 42%, transparent 58%)',
+            animation: 'builderIdleScan 10s ease-in-out infinite',
+            pointerEvents: 'none',
+            mixBlendMode: 'screen',
+          }}
+        />
+
+        <div style={{position: 'relative', zIndex: 1, width: '100%', maxWidth: 900, display: 'grid', gap: 26, justifyItems: 'center', textAlign: 'center'}}>
+          <div style={{display: 'grid', gap: 12, justifyItems: 'center'}}>
+            <div style={{padding: '7px 12px', borderRadius: 999, border: '1px solid rgba(96,165,250,.18)', background: 'rgba(8,47,73,.34)', color: '#BAE6FD', fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase'}}>
+              Builder ready
+            </div>
+            <div style={{fontSize: 'clamp(34px, 4.8vw, 58px)', lineHeight: .96, fontWeight: 800, letterSpacing: '-.05em', color: '#F8FAFC', maxWidth: 700}}>
+              What should we build next?
+            </div>
+            <div style={{maxWidth: 620, fontSize: 16, lineHeight: 1.8, color: 'rgba(226,232,240,.76)'}}>
+              Start with a prompt and the builder will turn it into a directed plan, motion system, and preview.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onEditPlan}
+            style={{
+              width: 'min(100%, 560px)',
+              textAlign: 'left',
+              display: 'grid',
+              gap: 16,
+              padding: '18px 18px 16px',
+              borderRadius: 24,
+              border: '1px solid rgba(255,255,255,.10)',
+              background: 'rgba(10,14,20,.78)',
+              boxShadow: '0 24px 80px rgba(2,6,23,.36)',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{fontSize: 18, color: 'rgba(226,232,240,.62)', lineHeight: 1.5}}>
+              {idlePrompt}
+            </div>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                <div style={{width: 24, height: 24, borderRadius: 999, display: 'grid', placeItems: 'center', color: '#E2E8F0', background: 'rgba(255,255,255,.06)', fontSize: 20, lineHeight: 1}}>
+                  +
+                </div>
+                <div style={{fontSize: 12, color: 'rgba(148,163,184,.9)', fontWeight: 600}}>
+                  Add references or start typing in the left rail
+                </div>
+              </div>
+              <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                <div
+                  aria-hidden="true"
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 999,
+                    background: '#14B8A6',
+                    boxShadow: '0 0 0 0 rgba(20,184,166,.32)',
+                    animation: 'builderIdlePulse 2.8s ease-in-out infinite',
+                  }}
+                />
+                <div style={{width: 38, height: 38, borderRadius: 999, display: 'grid', placeItems: 'center', background: 'linear-gradient(180deg, rgba(59,130,246,.92), rgba(20,184,166,.88))', color: '#F8FAFC', fontSize: 18, fontWeight: 800}}>
+                  ↑
+                </div>
+              </div>
+            </div>
+          </button>
+
+          <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center'}}>
+            {[
+              OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label,
+              STYLE_MODES.find((mode) => mode.value === styleMode)?.label || styleMode,
+              'Blue / teal atmosphere',
+            ].filter(Boolean).map((item) => (
+              <span key={item} style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', fontSize: 12, color: '#CBD5E1'}}>
+                {item}
               </span>
             ))}
           </div>
-        ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{position: 'relative', minHeight: 560, overflow: 'hidden', borderRadius: 32, border: '1px solid rgba(255,255,255,.08)', background: theme.background, padding: 32, display: 'grid', alignItems: 'end'}}>
+      <div style={{position: 'absolute', inset: 0, background: `radial-gradient(circle at 18% 18%, ${theme.glowA}, transparent 28%), radial-gradient(circle at 82% 22%, ${theme.glowB}, transparent 30%)`}} />
+      <div style={{position: 'relative', zIndex: 1, maxWidth: 920, display: 'grid', gap: 18}}>
+        <div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.16em', color: theme.accent}}>
+          {stageEyebrow}
+        </div>
+        <div style={{fontSize: 56, lineHeight: 0.94, fontWeight: 800, letterSpacing: '-.05em', color: '#F8FAFC', maxWidth: 820}}>
+          {stageTitle}
+        </div>
+        <div style={{fontSize: 17, color: 'rgba(226,232,240,.86)', lineHeight: 1.8, maxWidth: 760}}>
+          {stageSummary}
+        </div>
+        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+          {previewChips.map((bullet) => (
+            <span key={bullet} style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', fontSize: 12, color: '#E2E8F0'}}>
+              {bullet}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

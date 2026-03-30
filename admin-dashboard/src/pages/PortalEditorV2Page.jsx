@@ -183,6 +183,22 @@ function cleanText(value = '') {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+function extractPromptCompanyName(prompt = '') {
+  const text = cleanText(prompt);
+  if (!text) return '';
+  const patterns = [
+    /\bcalled\s+([A-Z][A-Za-z0-9 &''.]+?)(?:\.|,|;|\s+—|\s+that|\s+who|\s+which|\s+They|\s+The[iy])/,
+    /\bnamed\s+([A-Z][A-Za-z0-9 &''.]+?)(?:\.|,|;|\s+—|\s+that|\s+who|\s+which|\s+They|\s+The[iy])/,
+    /\bfor\s+([A-Z][A-Za-z0-9 &''.]{2,40}?)(?:\.|,|;|\s+—|\s+that|\s+who|\s+which|\s+They|\s+The[iy]|\s+specializ)/,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const value = cleanText(match?.[1] || '');
+    if (value && value.length > 2 && value.length < 60) return value;
+  }
+  return '';
+}
+
 function inferPromptSubject(prompt = '', outputMode = 'portal') {
   const text = cleanText(prompt);
   if (!text) return outputMode === 'presentation' ? 'Presentation' : 'Brand';
@@ -1405,7 +1421,12 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     client,
     referenceSite,
   });
-  const briefSubject = cleanText(client?.name || client?.company || inferPromptSubject(prompt, outputMode));
+  // Prefer company name from prompt over the dropdown selection
+  const promptSubject = inferPromptSubject(prompt, outputMode);
+  const isFallbackClient = !client?.name || client?.name === 'Draft workspace' || client?.name === 'Test Client';
+  const briefSubject = cleanText(
+    (isFallbackClient ? promptSubject : null) || extractPromptCompanyName(prompt) || client?.name || client?.company || promptSubject
+  );
   const selectedAssets = pickRegistryRecommendations({
     prompt: `${prompt} ${referenceContext} ${styleMode} ${outputMode} ${(concept?.assetHints || []).join(' ')}`,
     outputMode,

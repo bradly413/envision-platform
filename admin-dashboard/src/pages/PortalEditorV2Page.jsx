@@ -3319,6 +3319,7 @@ export default function PortalEditorV2Page() {
   const contextCount = effectiveReferences.length + effectiveAttachments.length;
   const isIdleEmpty = !plan && !latestUserMessage && !loading && phase === 'idle';
   const showRailModes = true;
+  const collapseIdleRail = isIdleEmpty && !isTablet;
 
   useEffect(() => {
     setSelectedPreviewNode(getDefaultPreviewNode(outputMode));
@@ -4103,7 +4104,7 @@ export default function PortalEditorV2Page() {
 
   return (
     <div style={{display: 'flex', flexDirection: isTablet ? 'column' : 'row', minHeight: '100vh', background: '#020617', color: '#E2E8F0', fontFamily: 'Inter, sans-serif'}}>
-      <aside style={{width: isTablet ? '100%' : 344, borderRight: isTablet ? 'none' : '1px solid rgba(255,255,255,.06)', borderBottom: isTablet ? '1px solid rgba(255,255,255,.06)' : 'none', background: 'linear-gradient(180deg, rgba(15,23,42,1) 0%, rgba(2,6,23,1) 100%)', display: 'flex', flexDirection: 'column'}}>
+      <aside style={{width: isTablet ? '100%' : collapseIdleRail ? 292 : 344, minWidth: isTablet ? 0 : collapseIdleRail ? 292 : 344, borderRight: isTablet ? 'none' : '1px solid rgba(255,255,255,.06)', borderBottom: isTablet ? '1px solid rgba(255,255,255,.06)' : 'none', background: 'linear-gradient(180deg, rgba(15,23,42,1) 0%, rgba(2,6,23,1) 100%)', display: 'flex', flexDirection: 'column', transition: 'width .24s ease, min-width .24s ease'}}>
         <div style={{padding: '18px 18px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', display: 'grid', gap: 12}}>
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12}}>
             <div>
@@ -4215,34 +4216,47 @@ export default function PortalEditorV2Page() {
             </label>
           </div>
 
-          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 16, border: error ? '1px solid rgba(248,113,113,.18)' : '1px solid rgba(255,255,255,.06)', background: error ? 'rgba(127,29,29,.10)' : 'rgba(255,255,255,.03)'}}>
-            <div style={{fontSize: 12, color: error ? '#FECACA' : '#CBD5E1', lineHeight: 1.5}}>
-              {isIdleEmpty ? 'Ready for a prompt.' : chatStatusCopy}
-            </div>
-            <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+          {isIdleEmpty ? (
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 10px', borderRadius: 14, border: '1px solid rgba(255,255,255,.05)', background: 'rgba(255,255,255,.02)'}}>
+              <div style={{fontSize: 11, color: '#94A3B8', lineHeight: 1.5}}>
+                Ready for a prompt.
+              </div>
               {builderDataChip ? (
-                <span style={{fontSize: 10, color: '#FDE68A', borderRadius: 999, padding: '5px 9px', background: 'rgba(120,53,15,.18)', border: '1px solid rgba(251,191,36,.2)'}}>
+                <span style={{fontSize: 10, color: '#FDE68A', borderRadius: 999, padding: '4px 8px', background: 'rgba(120,53,15,.16)', border: '1px solid rgba(251,191,36,.16)'}}>
                   {builderDataChip}
                 </span>
               ) : null}
-              <span style={{fontSize: 10, color: '#E2E8F0', borderRadius: 999, padding: '5px 9px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)'}}>
-                {STYLE_MODES.find((mode) => mode.value === styleMode)?.label}
-              </span>
-              {contextCount ? (
-                <span style={{fontSize: 10, color: '#E2E8F0', borderRadius: 999, padding: '5px 9px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)'}}>
-                  {contextCount} source{contextCount === 1 ? '' : 's'}
-                </span>
-              ) : null}
-              {builderDataNeedsRetry ? (
-                <button
-                  onClick={loadBuilderData}
-                  style={{padding: '5px 10px', borderRadius: 999, border: '1px solid rgba(251,191,36,.24)', background: 'rgba(120,53,15,.2)', color: '#FDE68A', fontSize: 10, fontWeight: 700, cursor: 'pointer'}}
-                >
-                  Retry data
-                </button>
-              ) : null}
             </div>
-          </div>
+          ) : (
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 16, border: error ? '1px solid rgba(248,113,113,.18)' : '1px solid rgba(255,255,255,.06)', background: error ? 'rgba(127,29,29,.10)' : 'rgba(255,255,255,.03)'}}>
+              <div style={{fontSize: 12, color: error ? '#FECACA' : '#CBD5E1', lineHeight: 1.5}}>
+                {chatStatusCopy}
+              </div>
+              <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+                {builderDataChip ? (
+                  <span style={{fontSize: 10, color: '#FDE68A', borderRadius: 999, padding: '5px 9px', background: 'rgba(120,53,15,.18)', border: '1px solid rgba(251,191,36,.2)'}}>
+                    {builderDataChip}
+                  </span>
+                ) : null}
+                <span style={{fontSize: 10, color: '#E2E8F0', borderRadius: 999, padding: '5px 9px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)'}}>
+                  {STYLE_MODES.find((mode) => mode.value === styleMode)?.label}
+                </span>
+                {contextCount ? (
+                  <span style={{fontSize: 10, color: '#E2E8F0', borderRadius: 999, padding: '5px 9px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)'}}>
+                    {contextCount} source{contextCount === 1 ? '' : 's'}
+                  </span>
+                ) : null}
+                {builderDataNeedsRetry ? (
+                  <button
+                    onClick={loadBuilderData}
+                    style={{padding: '5px 10px', borderRadius: 999, border: '1px solid rgba(251,191,36,.24)', background: 'rgba(120,53,15,.2)', color: '#FDE68A', fontSize: 10, fontWeight: 700, cursor: 'pointer'}}
+                  >
+                    Retry data
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          )}
 
           {showRailModes ? (
             <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
@@ -4272,7 +4286,7 @@ export default function PortalEditorV2Page() {
           ) : null}
         </div>
 
-        <div style={{flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, display: 'grid', gap: 14, alignContent: 'start'}}>
+        <div style={{flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, display: 'grid', gap: 14, alignContent: isIdleEmpty ? 'end' : 'start'}}>
           {isIdleEmpty ? (
             <div style={{fontSize: 12, color: '#64748B', lineHeight: 1.7, paddingTop: 2}}>
               Describe what you want to build, then I’ll turn it into a plan and working draft.

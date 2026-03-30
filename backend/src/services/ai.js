@@ -81,7 +81,7 @@ const COPY_ANTI_PATTERNS = [
 // ──────────────────────────────────────────────
 const FEW_SHOT_EXAMPLES = {
   cinematic: `
-EXAMPLE — Private aviation client (cinematic style):
+EXAMPLE — Private aviation client (cinematic style). THIS IS THE COMPLETE OUTPUT FORMAT — match this structure exactly:
 {
   "hero": {
     "headline": "Wheels Up at Dusk — The Quiet Side of Speed",
@@ -92,26 +92,74 @@ EXAMPLE — Private aviation client (cinematic style):
     "headline": "Built for the Tarmac, Not the Terminal",
     "positioning": "Charter exists in the margin between commercial convenience and ownership overhead — a fractional-feel service with full-service reach. We don't sell flights. We sell the three hours you get back and the meeting you make because of them.",
     "pillars": [
-      {
-        "title": "Tarmac-to-Tarmac Privacy",
-        "desc": "Every journey starts and ends on private aprons. No shared lounges, no public boarding. The client's name never appears on a departure board — only on the manifest the pilot reads at engine start."
-      },
-      {
-        "title": "Calendar-Native Scheduling",
-        "desc": "Flight ops sync directly with executive calendars. When a board meeting shifts from Tuesday to Thursday, the tail number follows. Charter treats scheduling changes as the norm, not the exception."
-      },
-      {
-        "title": "Concierge Continuity",
-        "desc": "A single point of contact from quote to wheels-down. The same coordinator who books the aircraft arranges ground transport, catering preferences, and customs pre-clearance for international legs."
-      },
-      {
-        "title": "Fleet-Agnostic Access",
-        "desc": "Light jets for day-trips to Chicago, heavy iron for transatlantic. Charter matches aircraft to mission profile rather than pushing a single fleet type, keeping per-hour costs honest."
-      }
+      { "title": "Tarmac-to-Tarmac Privacy", "desc": "Every journey starts and ends on private aprons. No shared lounges, no public boarding. The client's name never appears on a departure board — only on the manifest the pilot reads at engine start." },
+      { "title": "Calendar-Native Scheduling", "desc": "Flight ops sync directly with executive calendars. When a board meeting shifts from Tuesday to Thursday, the tail number follows. Charter treats scheduling changes as the norm, not the exception." },
+      { "title": "Concierge Continuity", "desc": "A single point of contact from quote to wheels-down. The same coordinator who books the aircraft arranges ground transport, catering preferences, and customs pre-clearance for international legs." },
+      { "title": "Fleet-Agnostic Access", "desc": "Light jets for day-trips to Chicago, heavy iron for transatlantic. Charter matches aircraft to mission profile rather than pushing a single fleet type, keeping per-hour costs honest." }
     ]
+  },
+  "logo": {
+    "headline": "A Mark That Holds Altitude",
+    "logoUrl": "",
+    "rationale": "The Charter wordmark pairs a custom-cut geometric sans with a single rising stroke on the 'h' — a subtle altitude cue that reads as intentional rather than decorative. The mark is designed to work engraved on fuselage panels and embossed on leather folios alike.",
+    "variants": [
+      { "type": "Primary lockup", "usage": "Full wordmark for hero placements, proposals, and hangar signage. Always on dark surfaces." },
+      { "type": "Icon mark", "usage": "The rising-h monogram for app icons, favicon, and tail fin branding. Minimum 24px digital." },
+      { "type": "Reversed", "usage": "White-on-dark for all digital surfaces and interior cabin screens." }
+    ],
+    "clearance": "Minimum clear space equal to the cap height of the 'C' on all sides.",
+    "animation": "The wordmark draws left to right over 1.2s with a subtle vertical lift on the h-stroke, eased with a deceleration curve."
+  },
+  "colors": {
+    "headline": "Fuel Vapor and Runway Light",
+    "palette": [
+      { "name": "Tarmac", "hex": "#0C0E12", "role": "Primary dark — grounds every surface with the weight of a private terminal after hours." },
+      { "name": "Cirrus", "hex": "#E8E4DF", "role": "Light contrast — the color of cloud ceilings seen from cruising altitude, used for headlines and key text." },
+      { "name": "Strobe", "hex": "#C9A84C", "role": "Accent signal — the warm flash of navigation lights at dusk, reserved for CTAs and data highlights." },
+      { "name": "Taxiway", "hex": "#2A3038", "role": "Card surface — steel-blue undertone that separates content layers without competing." },
+      { "name": "Beacon", "hex": "#D4421E", "role": "Alert and urgency — used sparingly for status indicators and time-sensitive callouts." }
+    ]
+  },
+  "typography": {
+    "headline": "Type That Reads at Speed",
+    "fonts": [
+      { "name": "Display", "typeface": "Neue Montreal", "usage": "Headlines and hero statements. A geometric sans with just enough warmth to feel premium without drifting into fashion territory.", "stack": "Neue Montreal, Inter, Helvetica Neue, sans-serif", "weight": "700-800", "style": "Normal only — no italics in display contexts", "scale": "Display: 48-72px" },
+      { "name": "Body", "typeface": "Inter", "usage": "All narrative copy, positioning statements, and interface text. Optimized for long-form reading at 16-18px.", "stack": "Inter, system-ui, sans-serif", "weight": "400-500", "style": "Regular and medium. Italic reserved for proper nouns in body copy.", "scale": "Body: 16-18px, Caption: 12-14px" }
+    ],
+    "scaleRatio": "1.25 major third — tight enough for professional density, open enough for editorial breathing room.",
+    "lineHeightGuidance": "Display: 0.95, Body: 1.65, Caption: 1.4"
+  },
+  "applications": [
+    { "context": "Boarding folio", "description": "Leather-bound trip document with debossed Charter wordmark, itinerary, and crew details. Tarmac black cover, Cirrus interior pages, Strobe accent on the flight number." },
+    { "context": "Hangar signage", "description": "Backlit aluminum panel with the primary lockup at 4ft width. Mounted at eye level inside the FBO entrance. No tagline — the mark alone." },
+    { "context": "Mobile app", "description": "Dark-mode interface using Tarmac base, Taxiway cards, and Strobe CTAs. The rising-h icon mark as the app icon on a black background." },
+    { "context": "Proposal deck", "description": "16:9 presentation with Tarmac backgrounds, Cirrus headlines in Neue Montreal, and Strobe data callouts. No stock photography — only Charter's own fleet imagery." }
+  ],
+  "cta": {
+    "headline": "The Runway Is Clear",
+    "buttonText": "Schedule Your Flight",
+    "secondaryButtonText": "Request a Quote",
+    "email": "flights@charter.aero",
+    "microcopy": "Most requests confirmed within 4 hours. No commitment until you approve the flight plan."
+  },
+  "sectionSequence": ["hero", "brand", "logo", "colors", "typography", "applications", "cta"],
+  "experience": {
+    "preset": "cinematic-editorial",
+    "motionLevel": "elevated",
+    "depth": "layered",
+    "heroEffects": ["shader-background", "title-reveal"],
+    "sectionEffects": {
+      "about": ["parallax-panels"],
+      "strategy": ["sticky-story"],
+      "deliverables": ["glass-panel"],
+      "palette": ["color-glow"],
+      "typography": ["headline-shift"],
+      "cta": ["magnetic-cta"]
+    },
+    "fallbacks": { "mobile": "reduced", "reducedMotion": true }
   }
 }
-Notice: the headline uses a concrete sensory image (dusk, tarmac), the positioning names a real market gap, and each pillar references a specific operational detail rather than an abstract value.`,
+Notice: Every section has rich, client-specific content. Headlines use sensory imagery. Color names reference the client's world. Typography usage explains WHY each typeface fits. Applications describe real artifacts with materials and details. The CTA resolves the emotional arc. MATCH THIS DEPTH FOR EVERY CLIENT.`,
 
   editorial: `
 EXAMPLE — Architecture firm (editorial style):

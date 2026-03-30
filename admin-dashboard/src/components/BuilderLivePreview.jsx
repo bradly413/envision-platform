@@ -1419,6 +1419,206 @@ function deriveBrandSignals(plan, content) {
   }
 }
 
+function normalizeSceneTypeFromStructure(label = '') {
+  const value = cleanText(label).toLowerCase()
+
+  if (!value) return null
+  if (/(opening|hero statement|hero|intro)/.test(value)) return 'opening-title'
+  if (/(video|media|logo reveal media|full-bleed)/.test(value)) return 'full-bleed-media'
+  if (/wordmark/.test(value)) return 'wordmark-reveal'
+  if (/(brand philosophy|philosophy|principles)/.test(value)) return 'brand-philosophy'
+  if (/(brand context|identity challenge|challenge|context)/.test(value)) return 'brand-context'
+  if (/(logo evolution|logo direction|evolution|before|after)/.test(value)) return 'logo-evolution'
+  if (/(icon deconstruction|icon breakdown|icon)/.test(value)) return 'icon-deconstruction'
+  if (/(logo system|lockup|usage rules|logo usage)/.test(value)) return 'logo-system'
+  if (/(typography system|type system|typography|fonts)/.test(value)) return 'typography-system'
+  if (/(color direction|color system|palette|colors)/.test(value)) return 'color-direction'
+  if (/(social|instagram|linkedin|facebook)/.test(value)) return 'social-media-showcase'
+  if (/(business card|collateral)/.test(value)) return 'business-cards-showcase'
+  if (/(applications|services|deliverables|proof|showcase)/.test(value)) return 'applications-showcase'
+  if (/(closing|decision|recommendation|cta|next step)/.test(value)) return 'closing-statement'
+  return null
+}
+
+function deriveIconParts(plan, subject) {
+  const prompt = cleanText([plan?.prompt, plan?.summary, plan?.visualThesis].filter(Boolean).join(' ')).toLowerCase()
+  if (/\b3\b/.test(prompt) && /\b8\b/.test(prompt) && /\be\b/.test(prompt)) {
+    return [
+      {label: 'e', desc: `The lowercase e anchors ${subject} with a more human, modern first impression.`},
+      {label: '3', desc: 'The 3 is fused into the mark as a subtle nod to the existing Envision 38 equity.'},
+      {label: '8', desc: 'The 8 completes the abstract geometry so the icon feels proprietary instead of decorative.'},
+    ]
+  }
+
+  return [
+    {label: 'Core form', desc: 'The primary shape gives the mark a clear, memorable silhouette.'},
+    {label: 'Embedded signal', desc: 'Secondary geometry folds brand meaning into the icon without over-explaining it.'},
+    {label: 'Motion edge', desc: 'The final composition is designed to reveal cleanly in motion and scale across touchpoints.'},
+  ]
+}
+
+function buildCinematicScene(type, context) {
+  const {
+    plan,
+    portalContent,
+    subject,
+    wordmark,
+    descriptor,
+    brandSignals,
+    applications,
+    beforeWordmark,
+    afterWordmark,
+    media,
+    styleMode,
+  } = context
+
+  switch (type) {
+    case 'opening-title':
+      return {
+        id: 'opening',
+        type,
+        eyebrow: context.outputMode === 'presentation' ? 'Builder preview · Presentation' : 'Builder preview · Identity portal',
+        headline: cleanText(portalContent?.hero?.headline || subject),
+        subheadline: cleanText(portalContent?.hero?.subheadline || plan?.visualThesis || plan?.summary || descriptor),
+        backgroundWord: cleanText(wordmark),
+      }
+    case 'full-bleed-media':
+      return media ? {
+        id: 'media',
+        type,
+        headline: /logo reveal/i.test(cleanText(plan?.prompt || '')) ? 'Logo reveal' : 'Reference motion',
+        caption: cleanText(plan?.visualThesis || 'Reference motion and atmosphere for the opening brand moment.'),
+        media: {
+          url: media.url,
+          kind: media.kind,
+          label: media.label,
+        },
+      } : null
+    case 'wordmark-reveal':
+      return {
+        id: 'wordmark',
+        type,
+        eyebrow: 'Identity reveal',
+        wordmark: afterWordmark,
+        descriptor,
+        tagline: cleanText(plan?.visualThesis || portalContent?.logo?.headline || 'Directed brand evolution'),
+      }
+    case 'brand-context':
+      return {
+        id: 'context',
+        type,
+        headline: cleanText(portalContent?.brand?.headline || 'Why this identity changes now'),
+        body: cleanText(portalContent?.brand?.positioning || plan?.summary || plan?.visualThesis || 'The preview is centered on a clearer identity system and a stronger first impression.'),
+        bullets: brandSignals.bullets,
+      }
+    case 'brand-philosophy':
+      return {
+        id: 'philosophy',
+        type,
+        headline: cleanText(plan?.structure?.find((item) => /philosophy|principles/i.test(item)) || 'Brand philosophy'),
+        principles: brandSignals.principles,
+        supportingText: cleanText(plan?.visualThesis || 'The identity should feel deliberate, ownable, and cinematic without turning into decoration.'),
+      }
+    case 'logo-evolution':
+      return {
+        id: 'evolution',
+        type,
+        headline: cleanText(portalContent?.logo?.headline || 'Logo evolution'),
+        before: beforeWordmark,
+        after: afterWordmark,
+        rationale: cleanText(portalContent?.logo?.rationale || plan?.interactionThesis?.[0] || 'The logo reveal should feel more deliberate, premium, and ownable.'),
+        highlights: brandSignals.principles,
+      }
+    case 'icon-deconstruction':
+      return {
+        id: 'icon',
+        type,
+        headline: cleanText(plan?.structure?.find((item) => /icon/i.test(item)) || 'Icon deconstruction'),
+        parts: deriveIconParts(plan, subject),
+      }
+    case 'logo-system':
+      return {
+        id: 'system',
+        type,
+        headline: cleanText(plan?.structure?.find((item) => /logo system|lockup|usage/i.test(item)) || 'Logo system'),
+        variants: [
+          {title: 'Primary lockup', body: 'Hero wordmark for opening moments and anchor frames.'},
+          {title: 'Icon lockup', body: 'Compact brand mark for favicons, social avatars, and supporting touchpoints.'},
+          {title: 'Light / dark use', body: 'Prepared for cinematic dark surfaces and high-contrast editorial applications.'},
+        ],
+        rules: [
+          'Protect clear space around the mark.',
+          'Keep the icon legible at small sizes.',
+          'Avoid distortion, glow abuse, or stretched lockups.',
+        ],
+      }
+    case 'typography-system':
+      return {
+        id: 'type',
+        type,
+        headline: cleanText(portalContent?.typography?.headline || 'Typography system'),
+        fonts: (portalContent?.typography?.fonts || []).slice(0, 3),
+        samples: [
+          {label: 'Display', value: cleanText(afterWordmark || wordmark)},
+          {label: 'Support', value: cleanText(descriptor || subject)},
+        ],
+      }
+    case 'color-direction':
+      return {
+        id: 'palette',
+        type,
+        headline: cleanText(portalContent?.colors?.headline || 'Color direction'),
+        palette: (portalContent?.colors?.palette || []).slice(0, 5),
+        summary: cleanText(plan?.understanding?.colorMood || plan?.summary || ''),
+        moodWords: brandSignals.principles,
+      }
+    case 'social-media-showcase':
+      return {
+        id: 'social',
+        type,
+        headline: cleanText(plan?.structure?.find((item) => /social|instagram|linkedin|facebook/i.test(item)) || 'Social rollout'),
+        items: [
+          {title: 'Launch teaser', body: 'Short reveal frames for announcing the new identity across owned channels.'},
+          {title: 'Grid system', body: 'Modular social cards translating type, color, and icon logic into campaign posts.'},
+          {title: 'Motion crop', body: 'Short-form snippets derived from the logo reveal for reels and stories.'},
+        ],
+      }
+    case 'business-cards-showcase':
+      return {
+        id: 'proof-cards',
+        type,
+        headline: cleanText(plan?.structure?.find((item) => /business card|collateral/i.test(item)) || 'Collateral applications'),
+        supportingText: cleanText(plan?.summary || ''),
+        items: [
+          {title: 'Front card', body: 'Bold brand face with heavy lowercase wordmark and atmospheric depth.'},
+          {title: 'Back card', body: 'Contact information framed with tighter spacing and stronger hierarchy.'},
+          {title: 'Light variant', body: 'A clean inverse system for print situations needing more contrast.'},
+        ],
+      }
+    case 'applications-showcase':
+      return {
+        id: 'proof',
+        type,
+        headline: cleanText(plan?.structure?.find((item) => /applications|services|deliverables|proof|showcase/i.test(item)) || 'Applications in context'),
+        supportingText: cleanText(plan?.summary || ''),
+        items: applications.length ? applications : [
+          {title: 'Hero reveal', body: 'Large-format opening frame with slower cinematic pacing.'},
+          {title: 'Identity system', body: 'Logo, typography, and color direction aligned as one story.'},
+          {title: 'Application proof', body: 'Real-world brand moments that validate the direction.'},
+        ],
+      }
+    case 'closing-statement':
+      return {
+        id: 'closing',
+        type,
+        headline: cleanText(portalContent?.cta?.headline || 'Approve the reveal'),
+        body: cleanText(portalContent?.cta?.body || 'Once the opening identity direction feels right, the build can expand into the full portal sequence.'),
+      }
+    default:
+      return null
+  }
+}
+
 function buildCinematicFlow(preview, plan, client, styleMode, outputMode, attachments = []) {
   const portalContent = buildPortalContent(outputMode === 'portal' ? preview : (preview?.portal || {}), plan, client, styleMode)
   const deck = outputMode === 'presentation' ? buildPresentation(preview, plan, client) : null
@@ -1434,79 +1634,53 @@ function buildCinematicFlow(preview, plan, client, styleMode, outputMode, attach
   }))
   const beforeWordmark = wordmark.toUpperCase()
   const afterWordmark = styleMode === 'luxury' ? wordmark : wordmark.toLowerCase()
+  const sceneContext = {
+    plan,
+    portalContent,
+    subject,
+    wordmark,
+    descriptor,
+    brandSignals,
+    applications,
+    beforeWordmark,
+    afterWordmark,
+    media,
+    styleMode,
+    outputMode,
+  }
 
-  const scenes = [
-    {
-      id: 'opening',
-      type: 'opening-title',
-      eyebrow: outputMode === 'presentation' ? 'Builder preview · Presentation' : 'Builder preview · Identity portal',
-      headline: cleanText(portalContent?.hero?.headline || subject),
-      subheadline: cleanText(portalContent?.hero?.subheadline || plan?.visualThesis || plan?.summary || descriptor),
-      backgroundWord: cleanText(wordmark),
-    },
-    media ? {
-      id: 'media',
-      type: 'full-bleed-media',
-      headline: 'Logo reveal',
-      caption: cleanText(plan?.visualThesis || 'Reference motion and atmosphere for the opening brand moment.'),
-      media: {
-        url: media.url,
-        kind: media.kind,
-        label: media.label,
-      },
-    } : null,
-    {
-      id: 'wordmark',
-      type: 'wordmark-reveal',
-      eyebrow: 'Identity reveal',
-      wordmark: afterWordmark,
-      descriptor,
-      tagline: cleanText(plan?.visualThesis || portalContent?.logo?.headline || 'Directed brand evolution'),
-    },
-    {
-      id: 'context',
-      type: 'brand-context',
-      headline: cleanText(portalContent?.brand?.headline || plan?.structure?.[1] || 'Why this identity changes now'),
-      body: cleanText(portalContent?.brand?.positioning || plan?.summary || plan?.visualThesis || 'The preview is centered on a clearer identity system and a stronger first impression.'),
-      bullets: brandSignals.bullets,
-    },
-    {
-      id: 'evolution',
-      type: 'logo-evolution',
-      headline: cleanText(portalContent?.logo?.headline || plan?.structure?.[3] || 'Logo evolution'),
-      before: beforeWordmark,
-      after: afterWordmark,
-      rationale: cleanText(portalContent?.logo?.rationale || plan?.interactionThesis?.[0] || 'The logo reveal should feel more deliberate, premium, and ownable.'),
-      highlights: brandSignals.principles,
-    },
-    {
-      id: 'palette',
-      type: 'color-direction',
-      headline: cleanText(portalContent?.colors?.headline || 'Color direction'),
-      palette: (portalContent?.colors?.palette || []).slice(0, 5),
-      summary: cleanText(plan?.understanding?.colorMood || plan?.summary || ''),
-      moodWords: brandSignals.principles,
-    },
-    {
-      id: 'proof',
-      type: cleanText(plan?.prompt || '').toLowerCase().includes('business card')
-        ? 'business-cards-showcase'
-        : 'applications-showcase',
-      headline: cleanText(plan?.structure?.[plan?.structure?.length - 2] || 'Applications in context'),
-      supportingText: cleanText(plan?.summary || ''),
-      items: applications.length ? applications : [
-        {title: 'Hero reveal', body: 'Large-format opening frame with slower cinematic pacing.'},
-        {title: 'Identity system', body: 'Logo, typography, and color direction aligned as one story.'},
-        {title: 'Application proof', body: 'Real-world brand moments that validate the direction.'},
-      ],
-    },
-    {
-      id: 'closing',
-      type: 'closing-statement',
-      headline: cleanText(portalContent?.cta?.headline || 'Approve the reveal'),
-      body: cleanText(portalContent?.cta?.body || 'Once the opening identity direction feels right, the build can expand into the full portal sequence.'),
-    },
-  ].filter(Boolean)
+  const structureSceneTypes = (plan?.structure || [])
+    .map((item) => normalizeSceneTypeFromStructure(item))
+    .filter(Boolean)
+
+  const preferredSceneTypes = structureSceneTypes.length
+    ? structureSceneTypes
+    : [
+        'opening-title',
+        media ? 'full-bleed-media' : null,
+        'wordmark-reveal',
+        'brand-context',
+        'logo-evolution',
+        'color-direction',
+        cleanText(plan?.prompt || '').toLowerCase().includes('business card') ? 'business-cards-showcase' : 'applications-showcase',
+        'closing-statement',
+      ].filter(Boolean)
+
+  const dedupedSceneTypes = []
+  preferredSceneTypes.forEach((type) => {
+    if (type && !dedupedSceneTypes.includes(type)) dedupedSceneTypes.push(type)
+  })
+
+  if (!dedupedSceneTypes.includes('opening-title')) dedupedSceneTypes.unshift('opening-title')
+  if (media && !dedupedSceneTypes.includes('full-bleed-media')) dedupedSceneTypes.splice(1, 0, 'full-bleed-media')
+  if (!dedupedSceneTypes.includes('wordmark-reveal') && /(logo|wordmark|rebrand|identity)/i.test(cleanText(plan?.prompt || ''))) {
+    dedupedSceneTypes.splice(Math.min(2, dedupedSceneTypes.length), 0, 'wordmark-reveal')
+  }
+  if (!dedupedSceneTypes.includes('closing-statement')) dedupedSceneTypes.push('closing-statement')
+
+  const scenes = dedupedSceneTypes
+    .map((type) => buildCinematicScene(type, sceneContext))
+    .filter(Boolean)
 
   return {
     theme,
@@ -1905,6 +2079,26 @@ function CinematicFlowRenderedPreview({preview, plan, styleMode, client, attachm
                   </div>
                 </div>
               )
+            } else if (scene.type === 'brand-philosophy') {
+              body = (
+                <div style={{minHeight: 380, display: 'grid', gap: 22, alignContent: 'center'}}>
+                  <div style={{fontSize: 12, fontWeight: 700, letterSpacing: '.18em', textTransform: 'uppercase', color: flow.theme.accent}}>
+                    {scene.headline || 'Brand philosophy'}
+                  </div>
+                  <div style={{display: 'flex', flexWrap: 'wrap', gap: 12}}>
+                    {(scene.principles || []).map((item, itemIndex) => (
+                      <div key={`${item}-${itemIndex}`} style={{padding: '12px 18px', borderRadius: 999, background: rgba(flow.theme.text, 0.05), border: `1px solid ${rgba(flow.theme.text, 0.08)}`, color: flow.theme.text, fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em'}}>
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                  {scene.supportingText ? (
+                    <div style={{maxWidth: 680, fontSize: 16, lineHeight: 1.78, color: rgba(flow.theme.text, 0.76)}}>
+                      {scene.supportingText}
+                    </div>
+                  ) : null}
+                </div>
+              )
             } else if (scene.type === 'logo-evolution') {
               body = (
                 <div style={{minHeight: 440, display: 'grid', gap: 22}}>
@@ -1938,6 +2132,88 @@ function CinematicFlowRenderedPreview({preview, plan, styleMode, client, attachm
                   </div>
                 </div>
               )
+            } else if (scene.type === 'icon-deconstruction') {
+              body = (
+                <div style={{minHeight: 400, display: 'grid', gap: 18}}>
+                  <div style={{fontSize: 12, fontWeight: 700, letterSpacing: '.18em', textTransform: 'uppercase', color: flow.theme.accent}}>
+                    {scene.headline || 'Icon deconstruction'}
+                  </div>
+                  <div style={{display: 'grid', gridTemplateColumns: '0.95fr 1.05fr', gap: 18, alignItems: 'stretch'}}>
+                    <div style={{borderRadius: 28, border: `1px solid ${rgba(flow.theme.accent, 0.24)}`, background: `radial-gradient(circle at 50% 40%, ${rgba(flow.theme.accent, 0.14)}, transparent 55%), ${rgba(flow.theme.text, 0.03)}`, minHeight: 280, display: 'grid', placeItems: 'center'}}>
+                      <div style={{fontSize: 'clamp(84px, 8vw, 138px)', lineHeight: 0.85, fontWeight: 800, letterSpacing: '-0.08em', color: flow.theme.text, textTransform: 'lowercase'}}>
+                        {scene.parts?.map((item) => item.label).join('')}
+                      </div>
+                    </div>
+                    <div style={{display: 'grid', gap: 12}}>
+                      {(scene.parts || []).map((item, itemIndex) => (
+                        <div key={`${item.label}-${itemIndex}`} style={{padding: 18, borderRadius: 22, border: `1px solid ${rgba(flow.theme.text, 0.08)}`, background: rgba(flow.theme.text, 0.03)}}>
+                          <div style={{fontSize: 12, fontWeight: 800, letterSpacing: '.18em', textTransform: 'uppercase', color: flow.theme.accent, marginBottom: 8}}>
+                            {item.label}
+                          </div>
+                          <div style={{fontSize: 14, lineHeight: 1.7, color: rgba(flow.theme.text, 0.76)}}>
+                            {item.desc}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            } else if (scene.type === 'logo-system') {
+              body = (
+                <div style={{minHeight: 390, display: 'grid', gap: 18}}>
+                  <div style={{fontSize: 12, fontWeight: 700, letterSpacing: '.18em', textTransform: 'uppercase', color: flow.theme.accent}}>
+                    {scene.headline || 'Logo system'}
+                  </div>
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16}}>
+                    {(scene.variants || []).slice(0, 3).map((item, itemIndex) => (
+                      <div key={`${item.title}-${itemIndex}`} style={{padding: 20, borderRadius: 24, border: `1px solid ${rgba(flow.theme.text, 0.08)}`, background: rgba(flow.theme.text, 0.03), minHeight: 210, display: 'grid', gap: 14, alignContent: 'space-between'}}>
+                        <div style={{fontSize: 10, fontWeight: 700, letterSpacing: '.18em', textTransform: 'uppercase', color: rgba(flow.theme.text, 0.48)}}>
+                          Variant
+                        </div>
+                        <div style={{fontSize: 22, lineHeight: 1.02, fontWeight: 800, letterSpacing: '-0.04em', color: flow.theme.text}}>
+                          {item.title}
+                        </div>
+                        <div style={{fontSize: 13, lineHeight: 1.68, color: rgba(flow.theme.text, 0.72)}}>
+                          {item.body}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {scene.rules?.length ? (
+                    <div style={{display: 'flex', flexWrap: 'wrap', gap: 10}}>
+                      {scene.rules.map((item, itemIndex) => (
+                        <div key={`${item}-${itemIndex}`} style={{padding: '10px 14px', borderRadius: 999, border: `1px solid ${rgba(flow.theme.text, 0.08)}`, background: rgba(flow.theme.text, 0.04), color: rgba(flow.theme.text, 0.72), fontSize: 12, fontWeight: 600}}>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )
+            } else if (scene.type === 'typography-system') {
+              body = (
+                <div style={{minHeight: 400, display: 'grid', gap: 20}}>
+                  <div style={{fontSize: 12, fontWeight: 700, letterSpacing: '.18em', textTransform: 'uppercase', color: flow.theme.accent}}>
+                    {scene.headline || 'Typography system'}
+                  </div>
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16}}>
+                    {(scene.fonts || []).slice(0, 2).map((font, fontIndex) => (
+                      <div key={`${font.name || font.typeface}-${fontIndex}`} style={{padding: 22, borderRadius: 24, border: `1px solid ${rgba(flow.theme.text, 0.08)}`, background: rgba(flow.theme.text, 0.03), minHeight: 220, display: 'grid', gap: 12}}>
+                        <div style={{fontSize: 10, fontWeight: 700, letterSpacing: '.18em', textTransform: 'uppercase', color: rgba(flow.theme.text, 0.48)}}>
+                          {font.name || 'Font system'}
+                        </div>
+                        <div style={{fontSize: fontIndex === 0 ? 46 : 28, lineHeight: fontIndex === 0 ? 0.95 : 1.08, fontWeight: fontIndex === 0 ? 800 : 600, letterSpacing: '-0.04em', color: flow.theme.text}}>
+                          {scene.samples?.[fontIndex]?.value || font.typeface || font.usage}
+                        </div>
+                        <div style={{fontSize: 13, lineHeight: 1.68, color: rgba(flow.theme.text, 0.72)}}>
+                          {font.typeface || font.usage}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
             } else if (scene.type === 'color-direction') {
               body = (
                 <div style={{minHeight: 360, display: 'grid', gap: 18}}>
@@ -1960,6 +2236,41 @@ function CinematicFlowRenderedPreview({preview, plan, styleMode, client, attachm
                       {scene.summary}
                     </div>
                   ) : null}
+                  {scene.moodWords?.length ? (
+                    <div style={{display: 'flex', flexWrap: 'wrap', gap: 10}}>
+                      {scene.moodWords.map((item, itemIndex) => (
+                        <div key={`${item}-${itemIndex}`} style={{padding: '10px 14px', borderRadius: 999, border: `1px solid ${rgba(flow.theme.text, 0.08)}`, background: rgba(flow.theme.text, 0.04), color: flow.theme.text, fontSize: 12, fontWeight: 700}}>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )
+            } else if (scene.type === 'social-media-showcase') {
+              body = (
+                <div style={{minHeight: 410, display: 'grid', gap: 18}}>
+                  <div>
+                    <div style={{fontSize: 12, fontWeight: 700, letterSpacing: '.18em', textTransform: 'uppercase', color: flow.theme.accent, marginBottom: 12}}>
+                      Social rollout
+                    </div>
+                    <div style={{fontSize: 'clamp(34px, 3vw, 52px)', lineHeight: 1, fontWeight: 800, letterSpacing: '-0.04em', color: flow.theme.text}}>
+                      {scene.headline}
+                    </div>
+                  </div>
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16}}>
+                    {(scene.items || []).slice(0, 3).map((item, itemIndex) => (
+                      <div key={`${item.title}-${itemIndex}`} style={{padding: 18, borderRadius: 24, border: `1px solid ${rgba(flow.theme.text, 0.08)}`, background: rgba(flow.theme.text, 0.03), minHeight: 240, display: 'grid', gap: 10, alignContent: 'space-between'}}>
+                        <div style={{borderRadius: 18, minHeight: 112, background: `linear-gradient(145deg, ${rgba(flow.theme.accent, 0.24)}, ${rgba(flow.theme.accentAlt, 0.14)})`}} />
+                        <div style={{fontSize: 19, lineHeight: 1.08, fontWeight: 800, letterSpacing: '-0.04em', color: flow.theme.text}}>
+                          {item.title}
+                        </div>
+                        <div style={{fontSize: 13, lineHeight: 1.68, color: rgba(flow.theme.text, 0.7)}}>
+                          {item.body}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )
             } else if (scene.type === 'applications-showcase' || scene.type === 'business-cards-showcase') {

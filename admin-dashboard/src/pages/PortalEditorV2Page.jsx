@@ -53,6 +53,27 @@ const TEMPLATE_OPTIONS = [
 ];
 
 const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || 'https://envision-portal.netlify.app';
+const BUILDER_DATA_CACHE_KEY = 'envision-builder-v2-workspace-cache';
+const FALLBACK_CLIENT_ID = 'draft-client';
+const FALLBACK_PORTAL_ID = 'draft-portal';
+const FALLBACK_CLIENTS = [
+  {
+    id: FALLBACK_CLIENT_ID,
+    name: 'Draft workspace',
+    company: 'Local planning fallback',
+    email: '',
+  },
+];
+const FALLBACK_PORTALS = [
+  {
+    id: FALLBACK_PORTAL_ID,
+    client_id: FALLBACK_CLIENT_ID,
+    client_name: 'Draft workspace',
+    slug: 'draft-workspace',
+    template_id: 'brand-reveal-v1',
+    status: 'draft',
+  },
+];
 
 const MODE_INTRO = {
   portal: 'Build an immersive portal by describing the story, visual territory, and motion language you want. I will create a plan first, then generate the portal after approval.',
@@ -159,6 +180,28 @@ function cleanText(value = '') {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+function inferPromptSubject(prompt = '', outputMode = 'portal') {
+  const text = cleanText(prompt);
+  if (!text) return outputMode === 'presentation' ? 'Presentation' : 'Brand';
+
+  const patterns = [
+    /\bfor\s+([^,.:\n]+?)(?:\.|,|:|$)/i,
+    /\babout\s+([^,.:\n]+?)(?:\.|,|:|$)/i,
+    /\bfor the\s+([^,.:\n]+?)(?:\.|,|:|$)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const value = cleanText(match?.[1] || '');
+    if (value && value.length > 2 && value.length < 80) return value;
+  }
+
+  const leading = cleanText(text.split(/[.!?\n]/)[0] || '');
+  return leading.length > 80
+    ? leading.slice(0, 80).trim()
+    : leading || (outputMode === 'presentation' ? 'Presentation' : 'Brand');
+}
+
 function slugifyValue(value = '') {
   return cleanText(value)
     .toLowerCase()
@@ -194,6 +237,34 @@ function tryParseJSONCandidate(candidate) {
     return JSON.parse(candidate);
   } catch {
     return null;
+  }
+}
+
+function readBuilderWorkspaceCache() {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.localStorage.getItem(BUILDER_DATA_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed?.clients) || !Array.isArray(parsed?.portals)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeBuilderWorkspaceCache(clients = [], portals = []) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(BUILDER_DATA_CACHE_KEY, JSON.stringify({
+      clients,
+      portals,
+      cachedAt: new Date().toISOString(),
+    }));
+  } catch {
+    // Ignore local storage write issues so the builder can continue.
   }
 }
 
@@ -334,7 +405,7 @@ function getPortalFallbackPalette(styleMode = 'cinematic') {
 
 function hydratePortalContent(content = {}, {plan, client, styleMode}) {
   const next = {...(content || {})};
-  const company = cleanText(client?.company || client?.name || next.brand?.name || 'Brand');
+  const company = cleanText(client?.company || client?.name || plan?.briefSubject || next.brand?.name || 'Brand');
   const structure = Array.isArray(plan?.structure) ? plan.structure : [];
   const logoSignals = plan?.referenceIntelligence?.logoSignals || [];
   const visualSignals = plan?.referenceIntelligence?.visualSignals || [];
@@ -355,7 +426,7 @@ function hydratePortalContent(content = {}, {plan, client, styleMode}) {
     next.hero.headline = company;
   }
   if (shouldReplacePortalCopy(next.hero.subheadline)) {
-    next.hero.subheadline = cleanText(plan?.title || plan?.visualThesis || 'Brand evolution, redefined.');
+    next.hero.subheadline = cleanText(plan?.visualThesis || plan?.summary || 'Brand evolution, redefined.');
   }
   if (shouldReplacePortalCopy(next.hero.intro)) {
     next.hero.intro = cleanText([conceptSummary, visualSignals[0]].filter(Boolean).join(' '));
@@ -450,7 +521,7 @@ function createFallbackStructuredOutput({outputMode, plan, client, styleMode}) {
     return {
       mode: 'presentation',
       presentation: {
-        title: cleanText(plan.title || `${client?.name || 'Presentation'} concept`),
+        title: cleanText(plan.title || `${plan?.briefSubject || client?.name || 'Presentation'} concept`),
         theme: styleMode === 'luxury' ? 'serif' : styleMode === 'minimal' ? 'moon' : 'black',
         transition: styleMode === 'bold' ? 'zoom' : 'slide',
         slides,
@@ -458,7 +529,7 @@ function createFallbackStructuredOutput({outputMode, plan, client, styleMode}) {
     };
   }
 
-  const company = cleanText(client?.company || client?.name || 'Brand');
+  const company = cleanText(client?.company || client?.name || plan?.briefSubject || 'Brand');
   const structure = Array.isArray(plan.structure) ? plan.structure : [];
   const draft = hydratePortalContent({
     hero: {
@@ -550,66 +621,204 @@ function pickConceptProfile({prompt, outputMode, styleMode, client, referenceSit
   return pool[hashValue(seed) % pool.length] || profiles[0];
 }
 
-function createStructure(prompt, outputMode, concept) {
-  const text = prompt.toLowerCase();
+function createStructure(prompt, outputMode, concept, referenceIntelligence) {
+  const text = cleanText(prompt).toLowerCase();
+  const isInstitutional = referenceIntelligence?.isInstitutional;
+  const isCampaign = /campaign|launch|rollout|activation|awareness/.test(text);
+  const isIdentity = /brand|identity|logo|rebrand|wordmark|mark/.test(text);
+  const isProposal = /proposal|sales|pitch|business development/.test(text);
 
-  if (/campaign|launch|rollout/.test(text) && outputMode === 'presentation') {
-    return [
-      'Opening title sequence',
-      'Market context',
-      'Audience tension',
-      'Campaign big idea',
-      'Launch motion system',
-      'Channel rollout',
-      'Proof points',
-      'Closing next step',
+  if (outputMode === 'presentation') {
+    if (isCampaign) {
+      return [
+        'Opening statement',
+        'Audience context',
+        'Campaign idea',
+        'Channel rollout',
+        'Key creative moments',
+        'Proof points',
+        'Next step',
+      ];
+    }
+
+    if (isInstitutional) {
+      return [
+        'Opening statement',
+        'Institutional context',
+        'Trust and credibility problem',
+        'Identity direction',
+        'Seal or logo system',
+        'Typography and color',
+        'Applications',
+        'Recommendation',
+      ];
+    }
+
+    if (isIdentity) {
+      return [
+        'Opening statement',
+        'Current brand problem',
+        'Strategic direction',
+        'Logo evolution',
+        'Icon system',
+        'Typography and color',
+        'Applications',
+        'Recommendation',
+      ];
+    }
+
+    if (isProposal) {
+      return [
+        'Opening statement',
+        'Opportunity overview',
+        'Offer structure',
+        'Differentiators',
+        'Proof points',
+        'Timeline',
+        'Decision point',
+      ];
+    }
+
+    return concept?.structure || [
+      'Opening statement',
+      'Context',
+      'Core idea',
+      'System',
+      'Applications',
+      'Recommendation',
     ];
   }
 
-  return concept?.structure || (
-    outputMode === 'presentation'
-      ? ['Opening title sequence', 'Current brand snapshot', 'Core challenge', 'Strategic direction', 'Logo evolution', 'Icon system', 'Typography system', 'Color system', 'Applications', 'Closing recommendation']
-      : ['Hero introduction', 'Brand story', 'Current identity issue', 'Logo evolution', 'Icon system', 'Typography and palette', 'Applications and mockups', 'Decision / next step']
-  );
+  if (isInstitutional) {
+    return [
+      'Hero statement',
+      'Institutional context',
+      'Identity challenge',
+      'Logo system',
+      'Typography and color',
+      'Applications',
+      'Decision and next step',
+    ];
+  }
+
+  if (isCampaign) {
+    return [
+      'Hero statement',
+      'Campaign context',
+      'Big idea',
+      'Channel moments',
+      'Proof and deliverables',
+      'Call to action',
+    ];
+  }
+
+  if (isIdentity) {
+    return [
+      'Hero statement',
+      'Brand context',
+      'Identity challenge',
+      'Logo direction',
+      'Typography and color',
+      'Applications',
+      'Decision and next step',
+    ];
+  }
+
+  if (isProposal) {
+    return [
+      'Hero statement',
+      'Opportunity overview',
+      'Offer structure',
+      'Proof points',
+      'Timeline and decision',
+    ];
+  }
+
+  return concept?.structure || [
+    'Hero statement',
+    'Context',
+    'Core idea',
+    'Applications',
+    'Decision and next step',
+  ];
 }
 
 function pickAsset(plan, category) {
   return plan?.selectedAssets?.find((item) => item.category === category) || null;
 }
 
-function createVisualThesis({styleMode, outputMode, selectedAssets, concept}) {
-  const background = selectedAssets.find((item) => item.category === 'backgrounds')?.title || 'immersive background system';
-  const text = selectedAssets.find((item) => item.category === 'text-animations')?.title || 'editorial text motion';
-  const component = selectedAssets.find((item) => item.category === 'components')?.title || 'structured content composition';
-  const styleLabel = STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode;
-  const mood = concept?.mood || 'premium story-led depth and rhythm';
+function inferBriefFocus({prompt, client, referenceIntelligence, outputMode}) {
+  const text = cleanText(prompt).toLowerCase();
+  const clientLabel = client?.name || client?.company || 'the client';
 
-  if (outputMode === 'presentation') {
-    return `${styleLabel} presentation shaped by ${mood}, built on ${background}, paced with ${text}, and grounded by ${component} so the deck feels specific to this client instead of defaulting to one repeated deck pattern.`;
+  if (referenceIntelligence?.isInstitutional) {
+    return `a more credible and distinctive institutional identity for ${clientLabel}`;
   }
 
-  return `${styleLabel} portal shaped by ${mood}, using ${background}, ${text}, and ${component} to create a distinct concept territory rather than another generic immersive portal.`;
+  if (/brand|identity|logo|rebrand|wordmark|mark/.test(text)) {
+    return `a clearer identity system and stronger first impression for ${clientLabel}`;
+  }
+
+  if (/campaign|launch|rollout|activation|awareness/.test(text)) {
+    return `a campaign story with sharper momentum and clearer activation moments for ${clientLabel}`;
+  }
+
+  if (/proposal|sales|pitch/.test(text)) {
+    return `a more convincing pitch narrative and clearer proof structure for ${clientLabel}`;
+  }
+
+  if (outputMode === 'presentation') {
+    return `a presentation with stronger pacing, clearer hierarchy, and a more specific client point of view`;
+  }
+
+  return `a portal with stronger hierarchy, clearer messaging, and a more specific client point of view`;
 }
 
-function createInteractionThesis({outputMode, selectedAssets, concept}) {
-  const background = selectedAssets.find((item) => item.category === 'backgrounds');
-  const text = selectedAssets.find((item) => item.category === 'text-animations');
-  const animation = selectedAssets.find((item) => item.category === 'animations');
-  const component = selectedAssets.find((item) => item.category === 'components');
+function createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept}) {
+  const styleLabel = STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode;
+  const clientLabel = client?.name || client?.company || inferPromptSubject(prompt, outputMode) || 'the client';
+  const focus = inferBriefFocus({prompt, client, referenceIntelligence, outputMode});
+  const mood = cleanText(concept?.mood || '');
+  const medium = outputMode === 'presentation' ? 'presentation' : 'portal';
 
+  return `${styleLabel} ${medium} for ${clientLabel}, centered on ${focus}${mood ? `, with ${mood}.` : '.'}`;
+}
+
+function createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence}) {
+  const styleLabel = STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode;
+  const clientLabel = client?.name || client?.company || 'the client';
+  const focus = inferBriefFocus({prompt, client, referenceIntelligence, outputMode});
+  const mood = cleanText(concept?.mood || 'clear hierarchy, stronger typography, and more deliberate pacing');
+  const medium = outputMode === 'presentation' ? 'presentation' : 'portal';
+
+  return `${styleLabel} ${medium} for ${clientLabel}, built around ${focus} with ${mood}.`;
+}
+
+function createInteractionThesis({outputMode, styleMode, prompt, referenceIntelligence, concept}) {
+  const text = cleanText(prompt).toLowerCase();
+  const isCampaign = /campaign|launch|rollout|activation|awareness/.test(text);
   const lines = [];
 
   if (concept?.interaction) {
     lines.push(concept.interaction);
   }
 
-  lines.push(`${text?.title || 'Text motion'} sets the headline pacing and reveal hierarchy.`)
-  lines.push(`${background?.title || 'Background motion'} supplies the atmospheric visual plane behind the story.`)
-
   if (outputMode === 'presentation') {
-    lines.push(`${animation?.title || component?.title || 'Interactive elements'} should be translated into deterministic, frame-safe motion for slides.`)
+    lines.push('Use measured title sequencing and clean slide transitions so the story feels directed rather than template driven.');
+    lines.push(referenceIntelligence?.isInstitutional
+      ? 'Keep motion restrained and credible, with emphasis on clarity, trust, and composure over spectacle.'
+      : isCampaign
+        ? 'Let the pacing build momentum between sections so campaign moments feel sharper and more active.'
+        : 'Use motion to reinforce hierarchy and keep each section change feeling intentional.');
   } else {
-    lines.push(`${component?.title || animation?.title || 'Motion components'} can use scroll or depth to make the portal feel spatial instead of static.`)
+    lines.push(styleMode === 'minimal'
+      ? 'Rely on restrained scroll depth, slower reveals, and stronger typography instead of constant animation.'
+      : 'Use scroll depth and a small number of stronger reveal moments so the portal feels spatial instead of static.');
+    lines.push(referenceIntelligence?.isInstitutional
+      ? 'Favor steadier pacing, cleaner transitions, and fewer ornamental effects so the brand reads as credible.'
+      : isCampaign
+        ? 'Use sharper rhythm changes and more obvious section handoffs so the campaign story feels active.'
+        : 'Use background motion only as support; the headline and content hierarchy should stay in control.');
   }
 
   return lines;
@@ -708,8 +917,8 @@ function buildAttachmentRecord(file, dataUrl = '') {
     size: file.size,
     cues: uniq(cues),
     keywords: uniq(keywords),
-    dataUrl: type.startsWith('image/') ? dataUrl : '',
-    previewUrl: type.startsWith('image/') ? dataUrl : '',
+    dataUrl: type.startsWith('image/') || type.startsWith('video/') ? dataUrl : '',
+    previewUrl: type.startsWith('image/') || type.startsWith('video/') ? dataUrl : '',
   };
 }
 
@@ -913,17 +1122,26 @@ function inferPortalType({prompt, outputMode, referenceIntelligence}) {
   return 'Immersive portal';
 }
 
-function inferMotionStyle({selectedAssets = [], outputMode}) {
-  const textAsset = selectedAssets.find((item) => item.category === 'text-animations')?.title;
-  const animationAsset = selectedAssets.find((item) => item.category === 'animations')?.title;
-  const componentAsset = selectedAssets.find((item) => item.category === 'components')?.title;
+function inferMotionStyle({outputMode, styleMode, prompt, referenceIntelligence}) {
+  const text = cleanText(prompt).toLowerCase();
+  const isCampaign = /campaign|launch|rollout|activation|awareness/.test(text);
+  const isIdentity = /brand|identity|logo|rebrand|wordmark|mark/.test(text);
 
-  return [
-    outputMode === 'presentation' ? 'presentation-safe transitions' : 'scroll-led parallax',
-    textAsset ? `${textAsset} headlines` : '',
-    animationAsset ? `${animationAsset} accents` : '',
-    componentAsset ? `${componentAsset} structure` : '',
-  ].filter(Boolean).join(' • ');
+  const parts = [
+    outputMode === 'presentation' ? 'measured slide pacing' : 'restrained scroll depth',
+  ];
+
+  if (styleMode === 'minimal') parts.push('slower reveals');
+  else if (styleMode === 'bold') parts.push('higher-contrast transitions');
+  else if (styleMode === 'editorial') parts.push('typography-led motion');
+  else if (styleMode === 'luxury') parts.push('quieter premium pacing');
+  else parts.push('clear section handoffs');
+
+  if (referenceIntelligence?.isInstitutional) parts.push('credible, low-noise emphasis');
+  else if (isCampaign) parts.push('stronger momentum between sections');
+  else if (isIdentity) parts.push('headline-first sequencing');
+
+  return parts.join(' • ');
 }
 
 function inferColorMood({styleMode, concept, referenceIntelligence}) {
@@ -950,7 +1168,7 @@ function createUnderstanding({prompt, outputMode, styleMode, client, structure, 
     client: client?.name || 'No client selected',
     artDirection: STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode,
     sections: structure,
-    motionStyle: inferMotionStyle({selectedAssets, outputMode}),
+    motionStyle: inferMotionStyle({outputMode, styleMode, prompt, referenceIntelligence}),
     colorMood: inferColorMood({styleMode, concept, referenceIntelligence}),
     components,
     assets,
@@ -1006,14 +1224,15 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     client,
     referenceSite,
   });
+  const briefSubject = cleanText(client?.name || client?.company || inferPromptSubject(prompt, outputMode));
   const selectedAssets = pickRegistryRecommendations({
     prompt: `${prompt} ${referenceContext} ${styleMode} ${outputMode} ${(concept?.assetHints || []).join(' ')}`,
     outputMode,
     limit: 4,
     variationSeed: `${client?.name || ''}|${client?.company || ''}|${prompt}|${styleMode}|${outputMode}|${concept?.id || ''}`,
   });
-  const structure = createStructure(prompt, outputMode, concept);
-  const titleSeed = client?.name || (outputMode === 'presentation' ? 'Presentation' : 'Portal');
+  const structure = createStructure(prompt, outputMode, concept, referenceIntelligence);
+  const titleSeed = briefSubject || (outputMode === 'presentation' ? 'Presentation' : 'Portal');
   const designGuardrails = buildDesignGuardrails({outputMode, styleMode});
   const logoGuidance = buildLogoGuidance({prompt, client, references, attachments});
   const understanding = createUnderstanding({
@@ -1029,14 +1248,15 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
   });
 
   return {
-    title: `${titleSeed} — ${outputMode === 'presentation' ? 'Presentation plan' : 'Portal plan'}`,
+    title: outputMode === 'presentation'
+      ? `${titleSeed} presentation`
+      : `${titleSeed} portal`,
+    briefSubject,
     outputMode,
     conceptLabel: concept?.label || '',
-    summary: concept?.summary || (outputMode === 'presentation'
-      ? 'A cinematic, full-screen interactive presentation with strong pacing, premium motion, and structured approval before build.'
-      : 'A cinematic, interactive portal with immersive storytelling, layered motion, and a cleaner approval-first builder flow.'),
-    visualThesis: createVisualThesis({styleMode, outputMode, selectedAssets, concept}),
-    interactionThesis: createInteractionThesis({outputMode, selectedAssets, concept}),
+    summary: createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept}),
+    visualThesis: createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence}),
+    interactionThesis: createInteractionThesis({outputMode, styleMode, prompt, referenceIntelligence, concept}),
     contentPlan: createContentPlan(outputMode, structure),
     visualDirection: [
       concept?.mood ? `Creative territory: ${concept.mood}` : null,
@@ -1986,12 +2206,19 @@ function getPreviewTheme(styleMode, outputMode) {
   return themes[styleMode] || themes.cinematic;
 }
 
-function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client}) {
+function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, phase}) {
   const theme = getPreviewTheme(styleMode, outputMode);
   const isEmpty = !plan;
-  const stageTitle = previewSummary?.title || plan?.title || 'Start with a prompt.';
+  const waitingForApproval = Boolean(plan && phase === 'awaiting_approval');
+  const stageTitle = waitingForApproval
+    ? 'Approve the plan to generate the preview.'
+    : previewSummary?.title || plan?.title || 'Start with a prompt.';
   const stageEyebrow = outputMode === 'presentation' ? 'Interactive presentation' : 'Immersive portal';
-  const stageSummary = plan?.visualThesis || plan?.summary || 'A cleaner concept preview will appear after the first plan.';
+  const stageSummary = waitingForApproval
+    ? 'Your plan is ready. Review it, make edits if needed, and only then generate the first live preview.'
+    : phase === 'building'
+      ? 'Generating the approved preview now. This area will update once the real build is ready.'
+      : plan?.visualThesis || plan?.summary || 'A cleaner concept preview will appear after the first plan.';
   const previewChips = (previewSummary?.bullets?.length
     ? previewSummary.bullets
     : [
@@ -2187,7 +2414,7 @@ function PlanConceptStage({plan, styleMode, outputMode, client, planNeedsApprova
                 onClick={onShowPrompt}
                 style={{padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
               >
-                Back to preview
+                {planNeedsApproval ? 'Edit plan' : 'Back to preview'}
               </button>
               {planNeedsApproval ? (
                 <button
@@ -2313,6 +2540,7 @@ export default function PortalEditorV2Page() {
   const [toolNotice, setToolNotice] = useState('');
   const [clients, setClients] = useState([]);
   const [portals, setPortals] = useState([]);
+  const [builderDataSource, setBuilderDataSource] = useState('live');
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedPortal, setSelectedPortal] = useState('');
   const [plan, setPlan] = useState(null);
@@ -2363,18 +2591,56 @@ export default function PortalEditorV2Page() {
     }
   }, []);
 
-  useEffect(() => {
-    const fetchBuilderData = async () => {
-      try {
-        const [clientsData, portalsData] = await Promise.all([clientsApi.list(), portalsApi.list()]);
-        setClients(clientsData || []);
-        setPortals(portalsData?.portals || portalsData || []);
-      } catch (fetchError) {
-        setError(`Failed to load builder data. ${String(fetchError)}`);
-      }
-    };
+  const loadBuilderData = async () => {
+    try {
+      const [clientsData, portalsData] = await Promise.all([clientsApi.list(), portalsApi.list()]);
+      const nextClients = clientsData || [];
+      const nextPortals = portalsData?.portals || portalsData || [];
+      if (!nextClients.length && !nextPortals.length) {
+        const cached = readBuilderWorkspaceCache();
+        if (cached?.clients?.length || cached?.portals?.length) {
+          setClients(cached.clients || []);
+          setPortals(cached.portals || []);
+          setBuilderDataSource('cache');
+          setError('Live workspace data came back empty, so the builder reopened your last synced client and portal list.');
+          return;
+        }
 
-    fetchBuilderData();
+        setClients(FALLBACK_CLIENTS);
+        setPortals(FALLBACK_PORTALS);
+        setBuilderDataSource('fallback');
+        setSelectedClient((current) => current || FALLBACK_CLIENT_ID);
+        setSelectedPortal((current) => current || FALLBACK_PORTAL_ID);
+        setError('No live clients or portals were returned, so the builder opened a local draft workspace instead.');
+        return;
+      }
+
+      setClients(nextClients);
+      setPortals(nextPortals);
+      setBuilderDataSource('live');
+      writeBuilderWorkspaceCache(nextClients, nextPortals);
+      setError((current) => current?.includes('workspace') || current?.includes('builder data') ? '' : current);
+    } catch (fetchError) {
+      const cached = readBuilderWorkspaceCache();
+      if (cached?.clients?.length || cached?.portals?.length) {
+        setClients(cached.clients || []);
+        setPortals(cached.portals || []);
+        setBuilderDataSource('cache');
+        setError('Live client and portal data is temporarily unavailable, so the builder is using your last synced workspace snapshot.');
+        return;
+      }
+
+      setClients(FALLBACK_CLIENTS);
+      setPortals(FALLBACK_PORTALS);
+      setBuilderDataSource('fallback');
+      setSelectedClient((current) => current || FALLBACK_CLIENT_ID);
+      setSelectedPortal((current) => current || FALLBACK_PORTAL_ID);
+      setError(`Live client and portal data is unavailable right now (${String(fetchError)}). You can keep planning in a local draft workspace and retry anytime.`);
+    }
+  };
+
+  useEffect(() => {
+    loadBuilderData();
   }, []);
 
   const filteredPortals = useMemo(
@@ -2384,12 +2650,41 @@ export default function PortalEditorV2Page() {
     [portals, selectedClient],
   );
 
+  useEffect(() => {
+    if (!clients.length) {
+      if (selectedClient) setSelectedClient('');
+      if (selectedPortal) setSelectedPortal('');
+      return;
+    }
+
+    const clientStillExists = clients.some((client) => String(client.id) === String(selectedClient));
+    const nextClientId = clientStillExists
+      ? String(selectedClient)
+      : String(clients[0].id);
+
+    const nextPortals = portals.filter((portal) => (
+      nextClientId ? String(portal.client_id) === String(nextClientId) : true
+    ));
+    const portalStillExists = nextPortals.some((portal) => String(portal.id) === String(selectedPortal));
+    const nextPortalId = nextPortals.length
+      ? (portalStillExists ? String(selectedPortal) : String(nextPortals[0].id))
+      : '';
+
+    if (nextClientId !== String(selectedClient || '')) {
+      setSelectedClient(nextClientId);
+    }
+
+    if (nextPortalId !== String(selectedPortal || '')) {
+      setSelectedPortal(nextPortalId);
+    }
+  }, [clients, portals, selectedClient, selectedPortal]);
+
   const selectedClientRecord = clients.find((client) => String(client.id) === String(selectedClient));
   const selectedPortalRecord = portals.find((portal) => String(portal.id) === String(selectedPortal));
   const normalizedPreview = extractedJSON
     ? normalizeBuilderPayload(outputMode, extractedJSON, {plan, client: selectedClientRecord, styleMode})
     : null;
-  const resolvedActiveView = activeView === 'preview' && plan && !normalizedPreview ? 'plan' : activeView;
+  const resolvedActiveView = activeView;
   const previewBoundaryKey = JSON.stringify({
     outputMode,
     phase,
@@ -2407,12 +2702,14 @@ export default function PortalEditorV2Page() {
   const planNeedsApproval = Boolean(plan && phase === 'awaiting_approval');
   const planStatusLabel = planNeedsApproval ? 'Plan pending approval' : 'Approved build plan';
   const patchTargetLabel = canPatchPreview ? formatSelectionLabel(outputMode, selectedPreviewNode) : '';
-  const promptPlaceholder = canPatchPreview
-    ? `Describe the changes you want for ${patchTargetLabel.toLowerCase()} while keeping the rest of the build intact…`
-    : outputMode === 'presentation'
-      ? 'Describe the story, audience, and the motion language you want…'
-      : 'Describe the portal, reference site, mood, components, and motion you want…';
-  const promptActionLabel = canPatchPreview ? 'Patch preview' : 'Create plan';
+  const promptPlaceholder = planNeedsApproval
+    ? 'Describe what to change in the plan before building the preview…'
+    : canPatchPreview
+      ? `Describe the changes you want for ${patchTargetLabel.toLowerCase()} while keeping the rest of the build intact…`
+      : outputMode === 'presentation'
+        ? 'Describe the story, audience, and the motion language you want…'
+        : 'Describe the portal, reference site, mood, components, and motion you want…';
+  const promptActionLabel = planNeedsApproval ? 'Update plan' : canPatchPreview ? 'Patch preview' : 'Create plan';
   const primaryHeaderAction = planNeedsApproval ? 'approve' : (normalizedPreview && phase === 'preview_ready') ? 'save' : 'none';
   const showInspector = resolvedActiveView === 'preview' && showInspectorPanel && Boolean(normalizedPreview && inspector);
   const conversationMessages = messages.filter((message, index) => !(
@@ -2467,11 +2764,17 @@ export default function PortalEditorV2Page() {
             : phase === 'preview_ready'
               ? 'Preview ready. Keep prompting to refine the result.'
               : latestEvent?.detail || 'Describe what you want and I’ll build it into the preview.';
+  const builderDataNeedsRetry = builderDataSource !== 'live';
+  const builderDataChip = builderDataSource === 'cache'
+    ? 'Cached workspace'
+    : builderDataSource === 'fallback'
+      ? 'Draft workspace'
+      : null;
   const publishSlug = slugifyValue(deploySlug || selectedPortalRecord?.slug || selectedClientRecord?.name || '');
   const publishUrl = publishSlug ? `${PORTAL_URL}/${publishSlug}` : '';
   const contextCount = effectiveReferences.length + effectiveAttachments.length;
   const isIdleEmpty = !plan && !latestUserMessage && !loading && phase === 'idle';
-  const showRailModes = Boolean(plan || latestUserMessage || referenceLibrary.length || versions.length || contextCount);
+  const showRailModes = true;
 
   useEffect(() => {
     setSelectedPreviewNode(getDefaultPreviewNode(outputMode));
@@ -2772,7 +3075,7 @@ export default function PortalEditorV2Page() {
       const nextAttachments = await Promise.all(files.map(async (file) => {
         let dataUrl = '';
 
-        if (file.type.startsWith('image/')) {
+        if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
           try {
             dataUrl = await readFileAsDataUrl(file);
           } catch {
@@ -2933,6 +3236,46 @@ export default function PortalEditorV2Page() {
 
     const userPrompt = cleanText(input);
 
+    if (planNeedsApproval && plan) {
+      stopBuildProgress();
+      const revisedPrompt = [
+        plan.briefSubject ? `Subject: ${plan.briefSubject}` : '',
+        plan.visualThesis ? `Current direction: ${plan.visualThesis}` : '',
+        plan.structure?.length ? `Current structure: ${plan.structure.join(' • ')}` : '',
+        `Revision request: ${userPrompt}`,
+      ].filter(Boolean).join('\n');
+
+      const revisedPlan = createPlan({
+        prompt: revisedPrompt,
+        outputMode,
+        styleMode,
+        client: selectedClientRecord,
+        references: effectiveReferences,
+        attachments: effectiveAttachments,
+        libraryMatches: matchedLibraryItems,
+      });
+
+      setMessages((current) => [
+        ...current,
+        {role: 'user', content: userPrompt},
+        {role: 'assistant', content: 'Plan updated. Review the revision, and approve it when you are ready to build the first preview.'},
+      ]);
+      setPlan(revisedPlan);
+      setExtractedJSON(null);
+      setBuildProgress([]);
+      setInput('');
+      setPhase('awaiting_approval');
+      setActiveView('preview');
+      setError('');
+      setSaveMsg('');
+      setSelectedPreviewNode(getDefaultPreviewNode(outputMode));
+      setShowInspectorPanel(false);
+      setShowStructuredOutput(false);
+      setToolNotice('Plan updated. Review it, or keep refining before you build.');
+      appendBuildEvent('Plan revised', revisedPlan.title);
+      return;
+    }
+
     if (canPatchPreview) {
       setMessages((current) => [...current, {role: 'user', content: userPrompt}]);
       setInput('');
@@ -3036,7 +3379,7 @@ export default function PortalEditorV2Page() {
     setBuildProgress([]);
     setInput('');
     setPhase('awaiting_approval');
-    setActiveView('plan');
+    setActiveView('preview');
     setError('');
     setSaveMsg('');
     setSelectedPreviewNode(getDefaultPreviewNode(outputMode));
@@ -3060,8 +3403,9 @@ export default function PortalEditorV2Page() {
     setPhase('building');
     setActiveView('preview');
     setError('');
-    setExtractedJSON(provisionalOutput);
+    setExtractedJSON(null);
     setShowDeployPanel(false);
+    setShowInspectorPanel(false);
     startBuildProgress(plan.structure);
     appendBuildEvent('Build started', 'Using approved plan to generate structured output.');
 
@@ -3280,11 +3624,63 @@ export default function PortalEditorV2Page() {
             </label>
           </div>
 
+          <div style={{display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 10}}>
+            <label style={{display: 'grid', gap: 6}}>
+              <span style={{fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.08em'}}>Provider</span>
+              <select
+                value={provider}
+                onChange={(e) => handleProviderChange(e.target.value)}
+                style={{width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13}}
+              >
+                {Object.keys(MODEL_OPTIONS).map((option) => (
+                  <option key={option} value={option} style={{color: '#111827'}}>
+                    {option.charAt(0).toUpperCase() + option.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{display: 'grid', gap: 6}}>
+              <span style={{fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.08em'}}>Model</span>
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                style={{width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13}}
+              >
+                {MODEL_OPTIONS[provider].map((option) => (
+                  <option key={option.value} value={option.value} style={{color: '#111827'}}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{display: 'grid', gap: 6}}>
+              <span style={{fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.08em'}}>Art direction</span>
+              <select
+                value={styleMode}
+                onChange={(e) => setStyleMode(e.target.value)}
+                style={{width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13}}
+              >
+                {STYLE_MODES.map((mode) => (
+                  <option key={mode.value} value={mode.value} style={{color: '#111827'}}>
+                    {mode.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 16, border: error ? '1px solid rgba(248,113,113,.18)' : '1px solid rgba(255,255,255,.06)', background: error ? 'rgba(127,29,29,.10)' : 'rgba(255,255,255,.03)'}}>
             <div style={{fontSize: 12, color: error ? '#FECACA' : '#CBD5E1', lineHeight: 1.5}}>
               {isIdleEmpty ? 'Ready for a prompt.' : chatStatusCopy}
             </div>
             <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+              {builderDataChip ? (
+                <span style={{fontSize: 10, color: '#FDE68A', borderRadius: 999, padding: '5px 9px', background: 'rgba(120,53,15,.18)', border: '1px solid rgba(251,191,36,.2)'}}>
+                  {builderDataChip}
+                </span>
+              ) : null}
               <span style={{fontSize: 10, color: '#E2E8F0', borderRadius: 999, padding: '5px 9px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)'}}>
                 {STYLE_MODES.find((mode) => mode.value === styleMode)?.label}
               </span>
@@ -3292,6 +3688,14 @@ export default function PortalEditorV2Page() {
                 <span style={{fontSize: 10, color: '#E2E8F0', borderRadius: 999, padding: '5px 9px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)'}}>
                   {contextCount} source{contextCount === 1 ? '' : 's'}
                 </span>
+              ) : null}
+              {builderDataNeedsRetry ? (
+                <button
+                  onClick={loadBuilderData}
+                  style={{padding: '5px 10px', borderRadius: 999, border: '1px solid rgba(251,191,36,.24)', background: 'rgba(120,53,15,.2)', color: '#FDE68A', fontSize: 10, fontWeight: 700, cursor: 'pointer'}}
+                >
+                  Retry data
+                </button>
               ) : null}
             </div>
           </div>
@@ -3340,10 +3744,13 @@ export default function PortalEditorV2Page() {
                   <div style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.65}}>{plan?.summary}</div>
                   <div style={{display: 'flex', gap: 8}}>
                     <button
-                      onClick={() => setActiveView('plan')}
+                      onClick={() => {
+                        setActiveView('preview');
+                        setToolNotice('Describe what to change, then click Update plan.');
+                      }}
                       style={{flex: 1, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
                     >
-                      Review plan
+                      Edit plan
                     </button>
                     <button
                       onClick={approveAndBuild}
@@ -3744,14 +4151,7 @@ export default function PortalEditorV2Page() {
         <header style={{padding: isMobile ? '16px' : '18px 24px', borderBottom: '1px solid rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap'}}>
           <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
             <button
-              onClick={() => {
-                if (!normalizedPreview && plan) {
-                  setActiveView('plan');
-                  setToolNotice('Approve and build the plan first, then the live preview tab will take over.');
-                  return;
-                }
-                setActiveView('preview');
-              }}
+              onClick={() => setActiveView('preview')}
               style={{padding: '9px 14px', borderRadius: 999, border: resolvedActiveView === 'preview' ? '1px solid rgba(96,165,250,.35)' : '1px solid rgba(255,255,255,.08)', background: resolvedActiveView === 'preview' ? 'rgba(37,99,235,.18)' : 'rgba(255,255,255,.03)', color: normalizedPreview || !plan ? '#F8FAFC' : '#94A3B8', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
             >
               Preview
@@ -3767,30 +4167,6 @@ export default function PortalEditorV2Page() {
           </div>
 
           <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
-            <label style={{display: 'grid', gap: 4}}>
-              <span style={{fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.08em'}}>Model</span>
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                style={{minWidth: isMobile ? 140 : 180, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12}}
-              >
-                {MODEL_OPTIONS[provider].map((option) => (
-                  <option key={option.value} value={option.value} style={{color: '#111827'}}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-            <label style={{display: 'grid', gap: 4}}>
-              <span style={{fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.08em'}}>Art direction</span>
-              <select
-                value={styleMode}
-                onChange={(e) => setStyleMode(e.target.value)}
-                style={{minWidth: isMobile ? 140 : 156, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12}}
-              >
-                {STYLE_MODES.map((mode) => (
-                  <option key={mode.value} value={mode.value} style={{color: '#111827'}}>{mode.label}</option>
-                ))}
-              </select>
-            </label>
             {normalizedPreview ? (
               <button
                 onClick={() => setShowInspectorPanel((current) => !current)}
@@ -3850,6 +4226,7 @@ export default function PortalEditorV2Page() {
                       plan={plan}
                       styleMode={styleMode}
                       client={selectedClientRecord}
+                      attachments={attachments}
                       selectedNodeId={selectedPreviewNode}
                       onSelectNode={(nodeId) => {
                         setSelectedPreviewNode(nodeId);
@@ -3863,6 +4240,7 @@ export default function PortalEditorV2Page() {
                     outputMode={outputMode}
                     styleMode={styleMode}
                     client={selectedClientRecord}
+                    phase={phase}
                   />
                 )}
 

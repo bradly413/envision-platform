@@ -2206,16 +2206,19 @@ function getPreviewTheme(styleMode, outputMode) {
   return themes[styleMode] || themes.cinematic;
 }
 
-function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, phase}) {
+function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, phase, onApprove, onEditPlan}) {
   const theme = getPreviewTheme(styleMode, outputMode);
   const isEmpty = !plan;
   const waitingForApproval = Boolean(plan && phase === 'awaiting_approval');
+  const structurePreview = Array.isArray(plan?.structure) ? plan.structure.slice(0, 4) : [];
+  const motionPreview = plan?.interactionThesis?.slice(0, 2) || [];
+  const focusLabel = cleanText(plan?.briefSubject || client?.name || client?.company || inferPromptSubject(plan?.prompt || '', outputMode) || 'This build');
   const stageTitle = waitingForApproval
-    ? 'Approve the plan to generate the preview.'
+    ? cleanText(plan?.title || `${focusLabel} ${outputMode === 'presentation' ? 'presentation' : 'portal'}`)
     : previewSummary?.title || plan?.title || 'Start with a prompt.';
   const stageEyebrow = outputMode === 'presentation' ? 'Interactive presentation' : 'Immersive portal';
   const stageSummary = waitingForApproval
-    ? 'Your plan is ready. Review it, make edits if needed, and only then generate the first live preview.'
+    ? cleanText(plan?.summary || `Plan ready for ${focusLabel}. Review it, tweak it if needed, then build the first preview.`)
     : phase === 'building'
       ? 'Generating the approved preview now. This area will update once the real build is ready.'
       : plan?.visualThesis || plan?.summary || 'A cleaner concept preview will appear after the first plan.';
@@ -2228,6 +2231,84 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
       ])
     .filter(Boolean)
     .slice(0, 3);
+
+  if (waitingForApproval) {
+    return (
+      <div style={{display: 'grid', gap: 20}}>
+        <div style={{position: 'relative', overflow: 'hidden', borderRadius: 30, border: '1px solid rgba(255,255,255,.08)', background: theme.background, padding: 28}}>
+          <div style={{position: 'absolute', inset: 0, background: `radial-gradient(circle at 18% 18%, ${theme.glowA}, transparent 28%), radial-gradient(circle at 82% 22%, ${theme.glowB}, transparent 30%)`}} />
+          <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: 18}}>
+            <div style={{display: 'grid', gap: 10}}>
+              <div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.16em', color: theme.accent}}>
+                Plan ready
+              </div>
+              <div style={{fontSize: 'clamp(34px, 4vw, 58px)', lineHeight: .94, fontWeight: 800, letterSpacing: '-.05em', color: '#F8FAFC', maxWidth: 860}}>
+                {stageTitle}
+              </div>
+              <div style={{fontSize: 16, color: 'rgba(226,232,240,.84)', lineHeight: 1.8, maxWidth: 760}}>
+                {stageSummary}
+              </div>
+            </div>
+
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14}}>
+              <div style={{padding: '16px 18px', borderRadius: 22, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)'}}>
+                <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B', marginBottom: 10}}>
+                  What we're fixing
+                </div>
+                <div style={{fontSize: 14, lineHeight: 1.7, color: '#E2E8F0'}}>
+                  {cleanText(plan?.visualThesis || `Make ${focusLabel} feel more distinct, clearer, and more directed.`)}
+                </div>
+              </div>
+              <div style={{padding: '16px 18px', borderRadius: 22, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)'}}>
+                <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B', marginBottom: 10}}>
+                  What we'll build
+                </div>
+                <div style={{fontSize: 14, lineHeight: 1.7, color: '#E2E8F0'}}>
+                  {structurePreview.length ? structurePreview.join(' • ') : 'Hero statement • Brand context • Identity direction'}
+                </div>
+              </div>
+              <div style={{padding: '16px 18px', borderRadius: 22, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)'}}>
+                <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B', marginBottom: 10}}>
+                  How it will move
+                </div>
+                <div style={{fontSize: 14, lineHeight: 1.7, color: '#E2E8F0'}}>
+                  {motionPreview.length ? motionPreview.join(' ') : 'Restrained motion with a few stronger reveal moments.'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap'}}>
+              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
+                  {OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label}
+                </span>
+                <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
+                  {STYLE_MODES.find((mode) => mode.value === styleMode)?.label || styleMode}
+                </span>
+                <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
+                  {focusLabel}
+                </span>
+              </div>
+              <div style={{display: 'flex', gap: 10, flexWrap: 'wrap'}}>
+                <button
+                  onClick={onEditPlan}
+                  style={{padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
+                >
+                  Edit plan
+                </button>
+                <button
+                  onClick={onApprove}
+                  style={{padding: '11px 16px', borderRadius: 12, border: 'none', background: '#2563EB', color: '#F8FAFC', fontSize: 12, fontWeight: 800, cursor: 'pointer'}}
+                >
+                  Approve & Build
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{position: 'relative', minHeight: 560, overflow: 'hidden', borderRadius: 32, border: '1px solid rgba(255,255,255,.08)', background: theme.background, padding: isEmpty ? 42 : 32, display: 'grid', alignItems: isEmpty ? 'center' : 'end'}}>
@@ -4156,7 +4237,7 @@ export default function PortalEditorV2Page() {
             >
               Preview
             </button>
-            {plan ? (
+            {plan && !planNeedsApproval ? (
               <button
                 onClick={() => setActiveView('plan')}
                 style={{padding: '9px 14px', borderRadius: 999, border: resolvedActiveView === 'plan' ? '1px solid rgba(96,165,250,.35)' : '1px solid rgba(255,255,255,.08)', background: resolvedActiveView === 'plan' ? 'rgba(37,99,235,.18)' : 'rgba(255,255,255,.03)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
@@ -4234,15 +4315,20 @@ export default function PortalEditorV2Page() {
                     />
                   </PreviewErrorBoundary>
                 ) : (
-                  <PreviewCanvas
-                    plan={plan}
-                    previewSummary={previewSummary}
-                    outputMode={outputMode}
-                    styleMode={styleMode}
-                    client={selectedClientRecord}
-                    phase={phase}
-                  />
-                )}
+                <PreviewCanvas
+                  plan={plan}
+                  previewSummary={previewSummary}
+                  outputMode={outputMode}
+                  styleMode={styleMode}
+                  client={selectedClientRecord}
+                  phase={phase}
+                  onApprove={approveAndBuild}
+                  onEditPlan={() => {
+                    setActiveView('preview');
+                    setToolNotice('Describe what to change, then click Update plan.');
+                  }}
+                />
+              )}
 
                 {normalizedPreview && showDeployPanel ? (
                   <div style={{borderRadius: 24, border: '1px solid rgba(16,185,129,.22)', background: 'linear-gradient(180deg, rgba(6,78,59,.48), rgba(15,23,42,.9))', padding: isMobile ? 18 : 24, display: 'grid', gap: 18}}>

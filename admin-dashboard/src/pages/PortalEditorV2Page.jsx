@@ -2562,6 +2562,232 @@ function safelyBuildPreviewMeta({outputMode, normalizedPreview, plan, client, se
   }
 }
 
+function WorkflowSectionTitle({children, action}) {
+  return (
+    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10}}>
+      <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
+        {children}
+      </div>
+      {action || null}
+    </div>
+  );
+}
+
+function WorkflowPromptCard({prompt, onToggleRaw, showRaw, isStructured}) {
+  if (!prompt?.body && !prompt?.raw) return null;
+
+  return (
+    <div style={{display: 'grid', gap: 8}}>
+      <WorkflowSectionTitle
+        action={prompt.raw ? (
+          <button
+            type="button"
+            onClick={onToggleRaw}
+            style={{
+              padding: '7px 10px',
+              borderRadius: 999,
+              border: '1px solid rgba(255,255,255,.08)',
+              background: 'rgba(255,255,255,.03)',
+              color: '#CBD5E1',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {showRaw ? 'Hide raw prompt' : isStructured ? 'View raw prompt' : 'View full prompt'}
+          </button>
+        ) : null}
+      >
+        Prompt
+      </WorkflowSectionTitle>
+      <div style={{padding: '14px 15px', borderRadius: 16, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 10}}>
+        <div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: isStructured ? '#93C5FD' : '#64748B'}}>
+          {prompt.eyebrow}
+        </div>
+        <div style={{fontSize: 13, color: '#E2E8F0', lineHeight: 1.75}}>
+          {prompt.body}
+        </div>
+        {prompt.details?.length ? (
+          <div style={{display: 'grid', gap: 7}}>
+            {prompt.details.map((detail) => (
+              <div key={detail} style={{fontSize: 12, color: '#94A3B8', lineHeight: 1.55}}>
+                {detail}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {showRaw && prompt.raw ? (
+          <pre style={{margin: 0, padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(2,6,23,.45)', fontSize: 11, color: '#94A3B8', lineHeight: 1.6, whiteSpace: 'pre-wrap', overflowX: 'auto'}}>
+            {prompt.raw}
+          </pre>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function WorkflowPlanCard({plan, outputMode, styleMode, client, loading, phase, onEditPlan, onApprove}) {
+  if (!plan) return null;
+
+  const styleLabel = STYLE_MODES.find((mode) => mode.value === styleMode)?.label || styleMode;
+  const clientLabel = cleanText(plan?.briefSubject || client?.name || client?.company || 'Selected client');
+  const structure = Array.isArray(plan?.structure) ? plan.structure.slice(0, 6) : [];
+  const motion = Array.isArray(plan?.interactionThesis) ? plan.interactionThesis.slice(0, 3) : [];
+  const assetLines = [
+    plan?.fetchedContext?.referenceSite ? `Reference site: ${plan.fetchedContext.referenceSite}` : '',
+    plan?.fetchedContext?.attachments ? `${plan.fetchedContext.attachments} uploaded file${plan.fetchedContext.attachments === 1 ? '' : 's'}` : '',
+    plan?.selectedAssets?.length ? `System cues: ${plan.selectedAssets.slice(0, 3).map((item) => item.title).join(' • ')}` : '',
+  ].filter(Boolean);
+  const awaitingApproval = phase === 'awaiting_approval';
+  const previewReady = phase === 'preview_ready';
+  const building = phase === 'building';
+
+  return (
+    <div style={{display: 'grid', gap: 8}}>
+      <WorkflowSectionTitle>Plan</WorkflowSectionTitle>
+      <div style={{padding: 16, borderRadius: 18, border: awaitingApproval ? '1px solid rgba(96,165,250,.24)' : '1px solid rgba(255,255,255,.06)', background: awaitingApproval ? 'rgba(30,41,59,.84)' : 'rgba(255,255,255,.03)', display: 'grid', gap: 12}}>
+        <div style={{display: 'grid', gap: 6}}>
+          <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: awaitingApproval ? '#93C5FD' : previewReady ? '#86EFAC' : '#64748B'}}>
+            {awaitingApproval ? 'Plan ready' : building ? 'Build approved' : previewReady ? 'Plan approved' : 'Current direction'}
+          </div>
+          <div style={{fontSize: 15, fontWeight: 700, color: '#F8FAFC', lineHeight: 1.35}}>
+            {plan.title}
+          </div>
+          <div style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.65}}>
+            {plan.summary}
+          </div>
+        </div>
+
+        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+          <span style={{padding: '6px 9px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', fontSize: 11, color: '#E2E8F0'}}>
+            {OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label}
+          </span>
+          <span style={{padding: '6px 9px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', fontSize: 11, color: '#E2E8F0'}}>
+            {styleLabel}
+          </span>
+          <span style={{padding: '6px 9px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', fontSize: 11, color: '#E2E8F0'}}>
+            {clientLabel}
+          </span>
+        </div>
+
+        {structure.length ? (
+          <div style={{display: 'grid', gap: 8}}>
+            <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
+              Sections
+            </div>
+            <div style={{display: 'grid', gap: 7}}>
+              {structure.map((section, index) => (
+                <div key={`${section}-${index}`} style={{fontSize: 12, color: '#E2E8F0', lineHeight: 1.55, display: 'flex', gap: 8}}>
+                  <span style={{color: '#64748B', minWidth: 14}}>{index + 1}.</span>
+                  <span>{section}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {motion.length ? (
+          <div style={{display: 'grid', gap: 8}}>
+            <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
+              Motion + effects
+            </div>
+            <div style={{display: 'grid', gap: 7}}>
+              {motion.map((item) => (
+                <div key={item} style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.55}}>
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {assetLines.length ? (
+          <div style={{display: 'grid', gap: 8}}>
+            <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
+              Assets + references
+            </div>
+            <div style={{display: 'grid', gap: 7}}>
+              {assetLines.map((item) => (
+                <div key={item} style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.55}}>
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {(awaitingApproval || building || previewReady) ? (
+          <div style={{display: 'flex', gap: 8}}>
+            <button
+              onClick={onEditPlan}
+              style={{flex: 1, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
+            >
+              {awaitingApproval ? 'Edit plan' : 'Refine plan'}
+            </button>
+            <button
+              onClick={onApprove}
+              disabled={loading || !awaitingApproval}
+              style={{flex: 1, padding: '10px 12px', borderRadius: 12, border: 'none', background: loading || !awaitingApproval ? '#334155' : '#2563EB', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: loading || !awaitingApproval ? 'default' : 'pointer'}}
+            >
+              {building || loading ? 'Building…' : previewReady ? 'Preview built' : 'Approve & Build'}
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function WorkflowProgressCard({phase, buildProgress = [], buildEvents = []}) {
+  const visibleEvents = buildEvents.slice(0, 4);
+  const title = phase === 'building'
+    ? 'Build progress'
+    : phase === 'preview_ready'
+      ? 'Build timeline'
+      : 'Recent activity';
+
+  if (!visibleEvents.length && !buildProgress.length) return null;
+
+  return (
+    <div style={{display: 'grid', gap: 8}}>
+      <WorkflowSectionTitle>{title}</WorkflowSectionTitle>
+      <div style={{padding: '14px 15px', borderRadius: 16, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 12}}>
+        {buildProgress.length ? (
+          <div style={{display: 'grid', gap: 8}}>
+            {buildProgress.map((step) => {
+              const dotColor = step.status === 'completed'
+                ? '#34D399'
+                : step.status === 'active'
+                  ? '#60A5FA'
+                  : step.status === 'error'
+                    ? '#F87171'
+                    : '#475569';
+              return (
+                <div key={step.id} style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                  <span style={{width: 8, height: 8, borderRadius: '50%', background: dotColor, flex: '0 0 auto'}} />
+                  <div style={{fontSize: 12, color: step.status === 'queued' ? '#64748B' : '#E2E8F0', lineHeight: 1.5}}>
+                    {step.label}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        {visibleEvents.length ? (
+          <div style={{display: 'grid', gap: 8}}>
+            {visibleEvents.map((event, index) => (
+              <div key={`${event.label}-${index}`} style={{padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.05)', background: 'rgba(2,6,23,.35)', display: 'grid', gap: 4}}>
+                <div style={{fontSize: 11, fontWeight: 700, color: '#E2E8F0'}}>{event.label}</div>
+                <div style={{fontSize: 11, color: '#94A3B8', lineHeight: 1.55}}>{event.detail}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 class PreviewErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -2802,7 +3028,6 @@ export default function PortalEditorV2Page() {
     ? conversationMessages
     : conversationMessages.slice(-4);
   const latestUserMessage = [...conversationMessages].reverse().find((message) => message.role === 'user');
-  const latestAssistantMessage = [...conversationMessages].reverse().find((message) => message.role === 'assistant');
   const briefSummary = useMemo(() => summarizeBriefForRail(latestUserMessage?.content || ''), [latestUserMessage?.content]);
   const promptForMatching = cleanText(input || latestUserMessage?.content || plan?.summary || '');
   const matchedLibraryItems = useMemo(() => getRecommendedLibraryItems({
@@ -3818,89 +4043,37 @@ export default function PortalEditorV2Page() {
 
           {leftRailMode === 'brief' ? (
             <div style={{display: 'grid', gap: 14}}>
-              {planNeedsApproval ? (
-                <div style={{padding: 16, borderRadius: 18, border: '1px solid rgba(96,165,250,.24)', background: 'rgba(30,41,59,.84)', display: 'grid', gap: 10}}>
-                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#93C5FD'}}>Plan ready</div>
-                  <div style={{fontSize: 15, fontWeight: 700, color: '#F8FAFC'}}>{plan?.title}</div>
-                  <div style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.65}}>{plan?.summary}</div>
-                  <div style={{display: 'flex', gap: 8}}>
-                    <button
-                      onClick={() => {
-                        setActiveView('preview');
-                        setToolNotice('Describe what to change, then click Update plan.');
-                      }}
-                      style={{flex: 1, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
-                    >
-                      Edit plan
-                    </button>
-                    <button
-                      onClick={approveAndBuild}
-                      disabled={loading || !plan}
-                      style={{flex: 1, padding: '10px 12px', borderRadius: 12, border: 'none', background: loading ? '#334155' : '#2563EB', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: loading || !plan ? 'default' : 'pointer'}}
-                    >
-                      {loading ? 'Building…' : 'Approve & Build'}
-                    </button>
-                  </div>
-                </div>
+              {plan ? (
+                <WorkflowPlanCard
+                  plan={plan}
+                  outputMode={outputMode}
+                  styleMode={styleMode}
+                  client={selectedClientRecord}
+                  loading={loading}
+                  phase={phase}
+                  onApprove={approveAndBuild}
+                  onEditPlan={() => {
+                    setActiveView('preview');
+                    setToolNotice('Describe what to change, then click Update plan.');
+                  }}
+                />
+              ) : null}
+
+              {(phase === 'building' || phase === 'preview_ready' || buildEvents.length > 1) ? (
+                <WorkflowProgressCard
+                  phase={phase}
+                  buildProgress={buildProgress}
+                  buildEvents={buildEvents}
+                />
               ) : null}
 
               {!isIdleEmpty ? (
-              <div style={{display: 'grid', gap: 8}}>
-                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10}}>
-                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Brief summary</div>
-                  {briefSummary.raw ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowRawBrief((current) => !current)}
-                      style={{
-                        padding: '7px 10px',
-                        borderRadius: 999,
-                        border: '1px solid rgba(255,255,255,.08)',
-                        background: 'rgba(255,255,255,.03)',
-                        color: '#CBD5E1',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {showRawBrief ? 'Hide raw brief' : briefSummary.isStructured ? 'View raw brief' : 'View full brief'}
-                    </button>
-                  ) : null}
-                </div>
-                <div style={{padding: '0 0 14px', borderBottom: '1px solid rgba(255,255,255,.06)'}}>
-                  <div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: briefSummary.isStructured ? '#93C5FD' : '#64748B', marginBottom: 10}}>
-                    {briefSummary.eyebrow}
-                  </div>
-                  <div style={{fontSize: 13, color: latestUserMessage ? '#E2E8F0' : '#94A3B8', lineHeight: 1.75}}>
-                    {briefSummary.body}
-                  </div>
-                  {briefSummary.details.length ? (
-                    <div style={{display: 'grid', gap: 8, marginTop: 12}}>
-                      {briefSummary.details.map((detail) => (
-                        <div key={detail} style={{fontSize: 12, color: '#94A3B8', lineHeight: 1.6}}>
-                          {detail}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  {showRawBrief && briefSummary.raw ? (
-                    <pre style={{margin: '14px 0 0', padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', fontSize: 11, color: '#94A3B8', lineHeight: 1.6, whiteSpace: 'pre-wrap', overflowX: 'auto'}}>
-                      {briefSummary.raw}
-                    </pre>
-                  ) : null}
-                </div>
-              </div>
-              ) : null}
-
-              {!isIdleEmpty ? (
-              <div style={{display: 'grid', gap: 8}}>
-                <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Builder note</div>
-                <div style={{padding: '0 0 14px', borderBottom: '1px solid rgba(255,255,255,.06)'}}>
-                  <div style={{fontSize: 13, color: '#CBD5E1', lineHeight: 1.75, whiteSpace: 'pre-wrap'}}>
-                    {latestAssistantMessage ? formatConversationMessage(latestAssistantMessage) : 'I’ll summarize the direction here as the build progresses.'}
-                  </div>
-                </div>
-              </div>
+                <WorkflowPromptCard
+                  prompt={briefSummary}
+                  onToggleRaw={() => setShowRawBrief((current) => !current)}
+                  showRaw={showRawBrief}
+                  isStructured={briefSummary.isStructured}
+                />
               ) : null}
             </div>
           ) : null}

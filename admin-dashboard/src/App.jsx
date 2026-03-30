@@ -11,7 +11,7 @@ import TasksPage from './pages/TasksPage';
 import FinancePage from './pages/FinancePage';
 import AgentsPage from './pages/AgentsPage';
 import PortalsPage from './pages/PortalsPage';
-import PortalEditorPage from './pages/PortalEditorPage';
+import PortalEditorV2Page from './pages/PortalEditorV2Page';
 
 const queryClient = new QueryClient();
 
@@ -35,7 +35,8 @@ export default function App() {
             <Route path="finance" element={<FinancePage />} />
             <Route path="agents" element={<AgentsPage />} />
             <Route path="portals" element={<PortalsPage />} />
-            <Route path="portal-editor" element={<PortalEditorPage />} />
+            <Route path="portal-editor" element={<PortalEditorV2Page />} />
+            <Route path="portal-editor-v2" element={<Navigate to="/portal-editor" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>

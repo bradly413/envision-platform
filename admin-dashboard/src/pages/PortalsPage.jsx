@@ -1,11 +1,45 @@
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { portals, clients, agents } from '../lib/api';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || 'https://envision-portal.netlify.app';
 const STATUS_COLOR = { draft: '#9CA3AF', active: '#10B981', expired: '#EF4444', archived: '#6B7280' };
 const STATUS_BG = { draft: '#F3F4F6', active: '#D1FAE5', expired: '#FEE2E2', archived: '#F3F4F6' };
+
+function EyeIcon({ visible }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M2 12C4.8 7.8 8.13 5.7 12 5.7C15.87 5.7 19.2 7.8 22 12C19.2 16.2 15.87 18.3 12 18.3C8.13 18.3 4.8 16.2 2 12Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      {visible ? null : (
+        <path
+          d="M4 20L20 4"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+    </svg>
+  );
+}
+
+function formatTemplateLabel(templateId) {
+  if (!templateId) return 'Custom';
+  return templateId
+    .split('/')
+    .pop()
+    .replace(/\.[a-z0-9]+$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .trim();
+}
 
 function AnalyticsPanel({ portal, analytics, loading, outreachDraft, outreachLoading, onGenerateEmail, onClose }) {
   if (!portal) return null;
@@ -30,7 +64,7 @@ function AnalyticsPanel({ portal, analytics, loading, outreachDraft, outreachLoa
       ) : (
         <>
           {/* Stat grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 18 }}>
             {[
               { label: 'Total visits', value: analytics?.totalVisits || 0, color: '#60A5FA' },
               { label: 'Avg session', value: `${avgSessionMin}m`, color: '#34D399' },
@@ -67,7 +101,7 @@ function AnalyticsPanel({ portal, analytics, loading, outreachDraft, outreachLoa
 
           {/* AI outreach */}
           <div style={{ background: '#1E293B', borderRadius: 8, padding: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: outreachDraft ? 10 : 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: outreachDraft ? 10 : 0 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>AI Client Outreach Agent</div>
               <button onClick={onGenerateEmail} disabled={outreachLoading} style={{
                 fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 6,
@@ -93,6 +127,7 @@ export default function PortalsPage() {
   const navigate = useNavigate();
   const { data: allPortals = [], isLoading } = useQuery('portals', portals.list);
   const { data: allClients = [] } = useQuery('clients', () => clients.list());
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1440 : window.innerWidth));
   const [selectedPortal, setSelectedPortal] = useState(null);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -105,11 +140,18 @@ export default function PortalsPage() {
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClientForm, setNewClientForm] = useState({ name: '', company: '', email: '' });
   const [savingClient, setSavingClient] = useState(false);
-  const canGeneratePortal = Boolean(form.client_id) && !createMutation.isLoading && !savingClient;
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const createMutation = useMutation(portals.create, {
     onSuccess: () => { qc.invalidateQueries('portals'); setShowCreate(false); setForm({ client_id: '', password: '', template_id: 'brand-reveal-v1' }); setShowNewClient(false); }
   });
+
+  const canGeneratePortal = Boolean(form.client_id) && !createMutation.isLoading && !savingClient;
 
   const createNewClient = async () => {
     if (!newClientForm.name.trim()) return;
@@ -149,6 +191,9 @@ export default function PortalsPage() {
   });
 
   const [openMenu, setOpenMenu] = useState(null);
+  const isMobile = viewportWidth < 768;
+  const isTablet = viewportWidth < 1024;
+  const isDesktopCompact = viewportWidth < 1440;
 
   const loadAnalytics = async (portal) => {
     if (selectedPortal?.id === portal.id) { setSelectedPortal(null); setAnalyticsData(null); setOutreachDraft(''); return; }
@@ -196,23 +241,38 @@ export default function PortalsPage() {
   };
 
   return (
-    <div style={{ padding: 32, fontFamily: 'Inter, sans-serif' }} onClick={() => setOpenMenu(null)}>
+    <div
+      style={{ padding: isMobile ? 16 : isTablet ? 24 : 32, fontFamily: 'Inter, sans-serif' }}
+      onClick={() => setOpenMenu(null)}
+    >
+      <div style={{ maxWidth: 1440, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 16,
+          flexWrap: 'wrap',
+          marginBottom: 24,
+        }}
+      >
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#111827', margin: 0 }}>Client portals</h1>
           <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 3 }}>
             {allPortals.filter(p => p.status === 'active').length} live · {allPortals.length} total
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: isMobile ? 'stretch' : 'flex-end', width: isMobile ? '100%' : 'auto' }}>
           <button onClick={() => navigate('/portal-editor')} style={{
-            padding: '8px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff',
-            fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer',
-          }}>✦ Portal Editor</button>
+            padding: '8px 16px', borderRadius: 8, border: '1px solid #DBEAFE', background: '#EFF6FF',
+            fontSize: 13, fontWeight: 700, color: '#1D4ED8', cursor: 'pointer',
+            width: isMobile ? 'calc(50% - 4px)' : 'auto',
+          }}>◎ Experience Builder</button>
           <button onClick={() => setShowCreate(true)} style={{
             padding: '8px 16px', borderRadius: 8, border: 'none', background: '#111827',
             fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer',
+            width: isMobile ? '100%' : 'auto',
           }}>+ Generate portal</button>
         </div>
       </div>
@@ -232,67 +292,127 @@ export default function PortalsPage() {
           {allPortals.map(portal => (
             <div key={portal.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', marginBottom: 10, position: 'relative' }}>
               {/* Portal card row */}
-              <div style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 16, overflow: 'visible' }}>
-                {/* Avatar */}
-                <div style={{
-                  width: 40, height: 40, borderRadius: 10, background: portal.status === 'active' ? '#111827' : '#F3F4F6',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 15, fontWeight: 800, color: portal.status === 'active' ? '#fff' : '#9CA3AF', flexShrink: 0,
-                }}>
-                  {(portal.client_name || portal.slug || '?')[0].toUpperCase()}
-                </div>
+              <div style={{ padding: isMobile ? 16 : 20, overflow: 'visible' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: isTablet ? '1fr' : isDesktopCompact ? 'minmax(0, 1fr) auto' : 'minmax(0, 1fr) auto auto',
+                    gap: 14,
+                    alignItems: 'start',
+                    marginBottom: 14,
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 14, minWidth: 0 }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12, background: portal.status === 'active' ? '#111827' : '#F3F4F6',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 16, fontWeight: 800, color: portal.status === 'active' ? '#fff' : '#9CA3AF', flexShrink: 0,
+                    }}>
+                      {(portal.client_name || portal.slug || '?')[0].toUpperCase()}
+                    </div>
 
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 3 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{portal.client_name || portal.slug}</span>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                      background: STATUS_BG[portal.status] || '#F3F4F6',
-                      color: STATUS_COLOR[portal.status] || '#9CA3AF',
-                    }}>{portal.status || 'draft'}</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 5 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: '#111827', minWidth: 0 }}>
+                          {portal.client_name || portal.slug}
+                        </span>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                          background: STATUS_BG[portal.status] || '#F3F4F6',
+                          color: STATUS_COLOR[portal.status] || '#9CA3AF',
+                        }}>
+                          {portal.status || 'draft'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', fontSize: 12, color: '#9CA3AF' }}>
+                        <span style={{ color: '#6B7280', fontWeight: 600 }}>/{portal.slug}</span>
+                        <span>ID {portal.id}</span>
+                        {portal.event_count > 0 ? <span>{portal.event_count} views</span> : null}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: '#9CA3AF', display: 'flex', gap: 12 }}>
-                    <span>/{portal.slug}</span>
-                    {portal.event_count > 0 && <span>{portal.event_count} views</span>}
-                    {portal.template_id && <span>{portal.template_id}</span>}
+
+                  <div style={{ display: 'flex', justifyContent: isTablet ? 'flex-start' : 'flex-end', alignItems: 'center' }}>
+                    <span
+                      title={portal.template_id}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        maxWidth: isMobile ? '100%' : 220,
+                        padding: '7px 11px',
+                        borderRadius: 999,
+                        background: '#F8FAFC',
+                        border: '1px solid #E5E7EB',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: '#475569',
+                        textTransform: 'uppercase',
+                        letterSpacing: '.06em',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {formatTemplateLabel(portal.template_id)}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: isTablet ? 'flex-start' : 'flex-end', alignItems: 'center' }}>
+                    <div style={{ fontSize: 12, color: '#9CA3AF', display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <span style={{ letterSpacing: 2, fontWeight: 600, color: '#6B7280' }}>
+                        {showPassword[portal.id] ? (portal.plain_password || '—') : '••••••••'}
+                      </span>
+                      <button
+                        onClick={() => setShowPassword(p => ({ ...p, [portal.id]: !p[portal.id] }))}
+                        title={showPassword[portal.id] ? 'Hide password' : 'Show password'}
+                        aria-label={showPassword[portal.id] ? 'Hide password' : 'Show password'}
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 999,
+                          border: '1px solid #E5E7EB',
+                          background: '#fff',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          color: '#6B7280',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <EyeIcon visible={Boolean(showPassword[portal.id])} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Password */}
-                <div style={{ fontSize: 12, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ letterSpacing: 2 }}>{showPassword[portal.id] ? (portal.plain_password || '—') : '••••••••'}</span>
-                  <button onClick={() => setShowPassword(p => ({ ...p, [portal.id]: !p[portal.id] }))}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#9CA3AF' }}>
-                    {showPassword[portal.id] ? 'hide' : 'show'}
-                  </button>
-                </div>
-
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   {/* Status toggle */}
                   <button onClick={() => statusMutation.mutate({ id: portal.id, status: portal.status === 'active' ? 'draft' : 'active' })}
-                    style={{ padding: '6px 12px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    style={{ padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                       background: portal.status === 'active' ? '#D1FAE5' : '#FEF3C7',
-                      color: portal.status === 'active' ? '#065F46' : '#92400E' }}>
+                      color: portal.status === 'active' ? '#065F46' : '#92400E',
+                      width: isMobile ? 'calc(50% - 4px)' : 'auto',
+                    }}>
                     {portal.status === 'active' ? '● Active' : '○ Set Active'}
                   </button>
-                  <button onClick={() => navigate('/portal-editor')} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151' }}>Edit</button>
-                  <button onClick={() => sendToClient(portal)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151' }}>Send ↗</button>
+                  <button onClick={() => navigate('/portal-editor')} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151', width: isMobile ? 'calc(50% - 4px)' : 'auto' }}>Builder</button>
+                  <button onClick={() => sendToClient(portal)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151', width: isMobile ? 'calc(50% - 4px)' : 'auto' }}>Send ↗</button>
                   <button onClick={() => loadAnalytics(portal)} style={{
-                    padding: '6px 12px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                     background: selectedPortal?.id === portal.id ? '#111827' : '#F3F4F6',
                     color: selectedPortal?.id === portal.id ? '#fff' : '#374151',
+                    width: isMobile ? 'calc(50% - 4px)' : 'auto',
                   }}>Analytics</button>
-                  <button onClick={() => copyURL(portal)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: copied === portal.id ? '#10B981' : '#374151' }}>
+                  <button onClick={() => copyURL(portal)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: copied === portal.id ? '#10B981' : '#374151', width: isMobile ? 'calc(50% - 4px)' : 'auto' }}>
                     {copied === portal.id ? 'Copied!' : 'Copy URL'}
                   </button>
-                  <a href={`${PORTAL_URL}/${portal.slug}`} target="_blank" rel="noreferrer" style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151', textDecoration: 'none' }}>Open ↗</a>
+                  <a href={`${PORTAL_URL}/${portal.slug}`} target="_blank" rel="noreferrer" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151', textDecoration: 'none', width: isMobile ? 'calc(50% - 4px)' : 'auto', textAlign: 'center' }}>Open ↗</a>
 
                   {/* ⋯ menu */}
-                  <div style={{ position: 'relative' }}>
+                  <div style={{ position: 'relative', marginLeft: isMobile ? 0 : 'auto' }}>
                     <button onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === portal.id ? null : portal.id); }}
-                      style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', fontSize: 16, cursor: 'pointer', color: '#6B7280', lineHeight: 1 }}>
+                      style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 16, cursor: 'pointer', color: '#6B7280', lineHeight: 1, minWidth: 42 }}>
                       ···
                     </button>
                     {openMenu === portal.id && (
@@ -345,7 +465,7 @@ export default function PortalsPage() {
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={e => { if (e.target === e.currentTarget) { setShowCreate(false); setShowNewClient(false); } }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 440, boxShadow: '0 20px 60px rgba(0,0,0,.15)' }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 'min(440px, calc(100vw - 32px))', boxShadow: '0 20px 60px rgba(0,0,0,.15)' }}>
             <div style={{ fontSize: 16, fontWeight: 800, color: '#111827', marginBottom: 20 }}>Generate portal</div>
 
             {/* Client selector */}
@@ -412,6 +532,7 @@ export default function PortalsPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

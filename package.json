@@ -8,6 +8,7 @@
     "dev:backend": "npm run dev --workspace=backend",
     "dev:admin": "npm run dev --workspace=admin-dashboard",
     "dev:portal": "npm run dev --workspace=client-portal",
+    "start": "npm run start --workspace=backend",
     "build": "npm run build --workspaces",
     "install:all": "npm install --workspaces"
   },

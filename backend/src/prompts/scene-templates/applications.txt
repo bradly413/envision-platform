@@ -1,0 +1,52 @@
+// SCENE: Applications — Service/deliverable cards grid
+// Use when: Showing what the brand delivers or how it applies to real artifacts.
+// CONTENT to customize: services array (title, desc, specs)
+import { motion } from "framer-motion";
+import { useInView } from "./useInView";
+
+export default function Applications() {
+  const { ref, isInView } = useInView(0.3);
+
+  /* CONTENT: Replace with client deliverables/services */
+  const services = [
+    { title: "Connected TV / OTT", desc: ":30 and :15 campaign spots for streaming platforms. Non-skippable CTV and pre-roll.", specs: ["1920×1080", "MP4 (H.264)", "Up to 500 MB"] },
+    { title: "Programmatic Display", desc: "Full creative suites across all IAB standard sizes for retargeting sequencing.", specs: ["300×250", "728×90", "160×600", "320×50"] },
+    { title: "Website Design", desc: "Interactive prototypes and full redesigns. Mobile-first, conversion-optimized layouts.", specs: ["Responsive", "Interactive Mockups", "Live Prototypes"] },
+    { title: "Campaign Strategy", desc: "Multi-media campaigns with channel strategy, flight scheduling, and KPI frameworks.", specs: ["Awareness", "Acquisition", "Retargeting"] },
+  ];
+
+  return (
+    <section ref={ref} className="flow-section relative px-8">
+      <div className="max-w-6xl w-full relative z-10">
+        {/* CONTENT: Replace section title and subtitle */}
+        <motion.p className="font-sans text-xs tracking-[0.4em] uppercase text-primary/80 font-semibold mb-4 text-center"
+          initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}}
+          transition={{ duration: 0.8, delay: 0.2 }}>What We Deliver</motion.p>
+        <motion.p className="font-sans text-sm text-muted-foreground/40 text-center mb-16 max-w-2xl mx-auto font-light leading-relaxed"
+          initial={{ opacity: 0, y: 10 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.8, delay: 0.4 }}>
+          Full-service creative production across display, CTV, digital, and web — aligned to drive awareness and conversion.
+        </motion.p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {services.map((s, i) => (
+            <motion.div key={i} className="border border-border/15 rounded-xl p-8 bg-card/10 backdrop-blur-sm"
+              initial={{ opacity: 0, y: 40 }}
+              animate={isInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 1, delay: 0.5 + i * 0.15, ease: [0.22, 1, 0.36, 1] }}
+              style={{ perspective: 800 }}>
+              <motion.div whileHover={{ y: -4, scale: 1.01 }} transition={{ duration: 0.3 }}>
+                <h3 className="font-sans text-lg font-bold text-foreground/90 mb-3">{s.title}</h3>
+                <p className="font-sans text-sm text-muted-foreground/45 leading-relaxed font-light mb-5">{s.desc}</p>
+                <div className="flex flex-wrap gap-2">
+                  {s.specs.map((spec, j) => (
+                    <span key={j} className="font-sans text-[10px] tracking-wider uppercase text-primary/60 border border-primary/15 rounded-full px-3 py-1 font-medium">{spec}</span>
+                  ))}
+                </div>
+              </motion.div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

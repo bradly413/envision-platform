@@ -1,5 +1,7 @@
 const { formatMotionKnowledgeBase } = require('../config/motionPatterns');
 const { formatGsapKnowledgeBase } = require('../config/gsapPatterns');
+const { buildCinematicCodeSystemPrompt } = require('../prompts/cinematic-code-prompt');
+const { resolveModel, getTaskForOutputMode } = require('../config/models');
 
 const PROVIDER_DEFAULTS = {
   anthropic: process.env.ANTHROPIC_PORTAL_EDITOR_MODEL || 'claude-sonnet-4-20250514',
@@ -42,6 +44,186 @@ const STYLE_PACKETS = {
     'The work should feel precise and intentional, not sparse because of missing detail.',
   ],
 };
+
+// ──────────────────────────────────────────────
+// ANTI-PATTERNS — concrete phrases the AI must reject
+// ──────────────────────────────────────────────
+const COPY_ANTI_PATTERNS = [
+  'elevate your brand',
+  'take your brand to the next level',
+  'unlock your potential',
+  'seamless experience',
+  'cutting-edge solutions',
+  'leverage synergies',
+  'in today\'s fast-paced world',
+  'revolutionize your',
+  'game-changing',
+  'next-generation',
+  'best-in-class',
+  'world-class',
+  'turnkey solution',
+  'holistic approach',
+  'move the needle',
+  'at the intersection of',
+  'reimagine the future',
+  'empower your',
+  'drive meaningful results',
+  'innovative solutions for',
+  'passion for excellence',
+  'committed to delivering',
+  'unique value proposition',
+  'digital transformation journey',
+];
+
+// ──────────────────────────────────────────────
+// FEW-SHOT GOLD STANDARD — partial examples per style
+// Only hero + brand shown to save tokens; the AI extrapolates the rest.
+// ──────────────────────────────────────────────
+const FEW_SHOT_EXAMPLES = {
+  cinematic: `
+EXAMPLE — Private aviation client (cinematic style):
+{
+  "hero": {
+    "headline": "Wheels Up at Dusk — The Quiet Side of Speed",
+    "subheadline": "Charter aviation for executives who measure distance in decisions, not miles.",
+    "intro": "From a private terminal on the edge of Lambert Field, Charter turns taxiway heat-shimmer into a prologue. No terminals. No lines. Just the low hum of turbines and a flight plan drawn around your calendar."
+  },
+  "brand": {
+    "headline": "Built for the Tarmac, Not the Terminal",
+    "positioning": "Charter exists in the margin between commercial convenience and ownership overhead — a fractional-feel service with full-service reach. We don't sell flights. We sell the three hours you get back and the meeting you make because of them.",
+    "pillars": [
+      {
+        "title": "Tarmac-to-Tarmac Privacy",
+        "desc": "Every journey starts and ends on private aprons. No shared lounges, no public boarding. The client's name never appears on a departure board — only on the manifest the pilot reads at engine start."
+      },
+      {
+        "title": "Calendar-Native Scheduling",
+        "desc": "Flight ops sync directly with executive calendars. When a board meeting shifts from Tuesday to Thursday, the tail number follows. Charter treats scheduling changes as the norm, not the exception."
+      },
+      {
+        "title": "Concierge Continuity",
+        "desc": "A single point of contact from quote to wheels-down. The same coordinator who books the aircraft arranges ground transport, catering preferences, and customs pre-clearance for international legs."
+      },
+      {
+        "title": "Fleet-Agnostic Access",
+        "desc": "Light jets for day-trips to Chicago, heavy iron for transatlantic. Charter matches aircraft to mission profile rather than pushing a single fleet type, keeping per-hour costs honest."
+      }
+    ]
+  }
+}
+Notice: the headline uses a concrete sensory image (dusk, tarmac), the positioning names a real market gap, and each pillar references a specific operational detail rather than an abstract value.`,
+
+  editorial: `
+EXAMPLE — Architecture firm (editorial style):
+{
+  "hero": {
+    "headline": "Drawn in Concrete, Read in Light",
+    "subheadline": "Structural narratives for civic and cultural commissions.",
+    "intro": "Hale Partners treats every elevation as a sentence and every site plan as an argument. Since 2004, the firm has built its reputation on public projects where material choices are public statements — libraries that age into their neighborhoods, courthouses that earn respect through proportion rather than ornament."
+  },
+  "brand": {
+    "headline": "Where the Brief Meets the Beam",
+    "positioning": "Hale Partners occupies the disciplined middle between spectacle-driven firms and cost-driven contractors. We win commissions by proving that civic architecture can be rigorous, beautiful, and delivered on a municipal budget.",
+    "pillars": [
+      {
+        "title": "Material Honesty",
+        "desc": "Exposed structure, honest joinery, and finishes that patina rather than decay. Every material choice is documented in the project narrative so the client understands why board-formed concrete was chosen over curtain wall."
+      },
+      {
+        "title": "Public Legibility",
+        "desc": "Buildings that read from the street. Entrances are obvious, circulation is intuitive, and the hierarchy between public and private space is expressed in the architecture itself — not delegated to signage."
+      }
+    ]
+  }
+}
+Notice: the editorial style uses longer, more measured sentences, avoids exclamation, and treats the brand story like a feature article rather than a pitch.`,
+
+  luxury: `
+EXAMPLE — Fine jewelry atelier (luxury style):
+{
+  "hero": {
+    "headline": "Set by Hand, Worn by Few",
+    "subheadline": "Bespoke stone-setting from a third-generation atelier.",
+    "intro": "Maison Veret does not keep inventory. Each commission begins with a conversation about the stone — its provenance, its cut, the light it wants — and ends with a setting designed to disappear behind it."
+  },
+  "brand": {
+    "headline": "The Setting Serves the Stone",
+    "positioning": "Maison Veret operates by referral in a market saturated with branded luxury. No retail presence, no advertising, no logo on the clasp. Reputation is the only distribution channel, and the work is the only marketing.",
+    "pillars": [
+      {
+        "title": "Commission-Only Model",
+        "desc": "No pre-made pieces, no seasonal collections. Every object begins as a brief and ends as a one-of-one. The client is involved at every stage from wax model to final polish."
+      },
+      {
+        "title": "Provenance Documentation",
+        "desc": "Every stone is traced to its mine, every metal to its refiner. The atelier provides a full material passport with each piece — not for marketing, but because the client deserves to know what they are wearing."
+      }
+    ]
+  }
+}
+Notice: luxury style uses extreme restraint — fewer words, shorter sentences, no adjective stacking. Confidence comes from specificity, not volume.`,
+};
+
+// ──────────────────────────────────────────────
+// DESIGN SYSTEM CONTEXT FORMATTER
+// ──────────────────────────────────────────────
+function formatDesignSystemContext(designSystem) {
+  if (!designSystem) return '';
+
+  const parts = ['--- DESIGN SYSTEM DNA (use as foundation, not constraint) ---'];
+
+  if (designSystem.name) {
+    parts.push(`System name: ${designSystem.name}`);
+  }
+
+  const colors = typeof designSystem.colors === 'string'
+    ? JSON.parse(designSystem.colors)
+    : designSystem.colors;
+  if (Array.isArray(colors) && colors.length) {
+    parts.push('Established palette:');
+    colors.forEach(c => {
+      parts.push(`  - ${c.name || 'Unnamed'}: ${c.hex} (${c.role || 'unspecified role'})`);
+    });
+  }
+
+  const typo = typeof designSystem.typography === 'string'
+    ? JSON.parse(designSystem.typography)
+    : designSystem.typography;
+  if (typo && typo.fonts && typo.fonts.length) {
+    parts.push('Established typography:');
+    typo.fonts.forEach(f => {
+      parts.push(`  - ${f.name}: ${f.typeface} — ${f.usage || 'general use'}`);
+    });
+  }
+
+  const copyStyle = typeof designSystem.copy_style === 'string'
+    ? JSON.parse(designSystem.copy_style)
+    : designSystem.copy_style;
+  if (copyStyle) {
+    if (copyStyle.sampleHeadlines && copyStyle.sampleHeadlines.length) {
+      parts.push('Reference headlines from previous work:');
+      copyStyle.sampleHeadlines.forEach(h => parts.push(`  - "${h}"`));
+    }
+    if (copyStyle.preset) {
+      parts.push(`Previously used experience preset: ${copyStyle.preset}`);
+    }
+    if (copyStyle.motionLevel) {
+      parts.push(`Previously used motion level: ${copyStyle.motionLevel}`);
+    }
+  }
+
+  const exp = typeof designSystem.experience === 'string'
+    ? JSON.parse(designSystem.experience)
+    : designSystem.experience;
+  if (exp && exp.heroEffects) {
+    parts.push(`Previously used hero effects: ${exp.heroEffects.join(', ')}`);
+  }
+
+  parts.push('--- END DESIGN SYSTEM DNA ---');
+  parts.push('Use this DNA as a starting point. Maintain consistency with established palette, typography, and tone unless the user explicitly asks to depart from it.');
+
+  return parts.join('\n');
+}
 
 const PRESENTATION_THEMES = [
   'black',
@@ -175,6 +357,22 @@ function extractStructuredJson(text = '') {
   return null;
 }
 
+function extractCodeFiles(text = '') {
+  const source = String(text || '').trim();
+  if (!source) return null;
+
+  const files = {};
+  const pattern = /```file:([^\n]+)\n([\s\S]*?)```/g;
+  let match;
+  while ((match = pattern.exec(source)) !== null) {
+    const filename = match[1].trim();
+    const content = match[2].trim();
+    if (filename && content) files[filename] = content;
+  }
+
+  return Object.keys(files).length > 0 ? files : null;
+}
+
 function getJsonContract(outputMode = 'portal') {
   if (outputMode === 'presentation') {
     return `Return a JSON object with this top-level structure:
@@ -232,11 +430,14 @@ function getProviderConfig(provider, model) {
   return { provider: normalizedProvider, model: resolvedModel };
 }
 
-function buildPortalEditorSystemPrompt({ styleMode = 'cinematic' } = {}) {
+function buildPortalEditorSystemPrompt({ styleMode = 'cinematic', designSystem } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
   const stylePacket = STYLE_PACKETS[styleMode] || STYLE_PACKETS.cinematic;
   const motionKnowledge = formatMotionKnowledgeBase();
   const gsapKnowledge = formatGsapKnowledgeBase();
+  const antiPatterns = COPY_ANTI_PATTERNS.map(p => `"${p}"`).join(', ');
+  const fewShot = FEW_SHOT_EXAMPLES[styleMode] || FEW_SHOT_EXAMPLES.cinematic;
+  const designContext = formatDesignSystemContext(designSystem);
 
   return `You are Envision Creative's senior creative director and portal content editor.
 You create client-facing presentation portal content that feels high-end, art directed, and strategically sharp.
@@ -246,12 +447,53 @@ ${styleDirective}
 Style-specific direction:
 - ${stylePacket.join('\n- ')}
 
+═══ EDITORIAL QUALITY RULES ═══
+
+Headline craft:
+- Every hero headline must contain a concrete image, metaphor, or sensory detail tied to the client's actual world. No abstract tagline formulas.
+- Subheadlines should read like a second beat — a rhythmic counterpoint, not a restatement.
+- Section headlines should each use a different rhetorical device: metaphor, imperative, question, fragment, or declarative. Never repeat the same headline pattern across sections.
+
+Positioning depth:
+- The brand positioning must name the specific market gap the client occupies. Reference at least one real competitor category or market dynamic.
+- Positioning should be 2–3 sentences minimum and feel like the opening paragraph of a strategy document, not a tagline.
+
+Pillar requirements:
+- Generate 4–5 brand pillars, not 3.
+- Each pillar description must be 2–3 sentences that connect the pillar to a specific client behavior, operational detail, or market outcome.
+- Pillar titles should be concrete and category-specific. "Innovation" is banned. "Tarmac-to-Tarmac Privacy" is the quality bar.
+
+Typography direction:
+- For each font choice, explain in the "usage" field why that typeface reinforces the brand personality. A law firm's serif should feel different from a jazz venue's.
+- Reference the visual weight, character set, or historical associations the typeface brings.
+- Include a complete "stack" field with 3–4 fallback fonts.
+
+Color palette requirements:
+- Generate 4–5 colors minimum.
+- Each color "role" must explain the emotional or narrative function, not just the placement. "Signals authority in header contexts and anchors the visual hierarchy" is better than "Primary backgrounds."
+- Ensure at least one accent color has a distinct emotional function (warmth, urgency, trust, etc.) named in its role.
+
+CTA section:
+- The CTA headline should feel like a closing line of a film — resolving the emotional arc of the portal, not restating the brand name.
+- Button text should be action-specific to the client's service, not generic ("Schedule Your Flight" not "Get Started").
+
+Source material handling:
+- When the user provides source material (briefs, URLs, brand documents), extract the client's actual language, terminology, and market positioning.
+- Use their words and framing as raw material — do not rewrite their voice into generic agency language.
+- When source material includes campaign deliverables or spec sheets, reflect that structure in the output rather than flattening it into generic brand copy.
+
+═══ BANNED PHRASES ═══
+Never use any of these phrases or close variants: ${antiPatterns}
+If you catch yourself writing anything on this list, rewrite the sentence with a concrete, client-specific alternative.
+
+═══ DIFFERENTIATION TEST ═══
+Before finalizing output, mentally verify: if I swapped the client name for a different company in the same industry, would 60%+ of this content still work? If yes, it is too generic. Rewrite with more specificity.
+
+${designContext}
+
 Follow these rules:
 - Write with the taste level of a senior brand strategist and design director, not a generic AI assistant.
-- Avoid boilerplate agency language, startup cliches, empty adjectives, and vague claims.
-- Make every section feel specific to the client, their industry, and their brand position.
 - Never use "Envision", "Envision Creative", or agency self-branding inside the generated on-screen client content unless the actual client/source material is Envision.
-- The hero headline, subheadline, and intro must contain client-specific nouns, category cues, or campaign language. They must not read like interchangeable agency demo copy.
 - Different clients should produce materially different narrative framing, palette direction, typography direction, and motion choices.
 - The selected art direction must visibly change composition, language, palette behavior, and motion taste. Do not treat styleMode as a cosmetic adjective swap.
 - Favor clear hierarchy, memorable phrasing, and premium restraint over hype.
@@ -265,7 +507,6 @@ Follow these rules:
 - Use only the approved presets and effects listed below. Do not invent new effect names in the JSON.
 - If you choose GSAP-like motion, reserve it for a few high-value narrative beats like title sequences, pinned chapters, proof reveals, or panel handoffs.
 - If the builder context includes parsed creative briefs, treat those structured brief details as the source of truth for campaign theme, launch date, objectives, assets, spec sections, and brand signals.
-- When source material includes campaign deliverables or spec sheets, reflect that structure in the output instead of flattening it into generic brand copy.
 
 Motion engine roles:
 ${motionKnowledge.engineBlock}
@@ -300,9 +541,23 @@ Approved section effects:
 - editorial-rise
 - magnetic-cta
 
+═══ ASSET ALIGNMENT ═══
+When the approved plan specifies selected assets, you MUST use at least 2 of them in experience.sectionEffects or experience.heroEffects. If you choose different effects, explain why in a brief note before the JSON.
+
+═══ GOLD STANDARD EXAMPLE ═══
+Study this example for the quality bar. Match or exceed it.
+
+${fewShot}
+
+═══ OUTPUT FORMAT ═══
+
 When asked to create or update portal content, respond with a JSON object in this structure:
 {
-  "hero": { "headline": "", "subheadline": "", "intro": "" },
+  "hero": {
+    "headline": "",
+    "subheadline": "",
+    "intro": ""
+  },
   "brand": {
     "headline": "",
     "positioning": "",
@@ -311,7 +566,10 @@ When asked to create or update portal content, respond with a JSON object in thi
   "logo": {
     "headline": "",
     "logoUrl": "",
-    "rationale": ""
+    "rationale": "",
+    "variants": [{ "type": "primary|secondary|icon|reversed", "usage": "" }],
+    "clearance": "",
+    "animation": ""
   },
   "colors": {
     "headline": "",
@@ -319,9 +577,21 @@ When asked to create or update portal content, respond with a JSON object in thi
   },
   "typography": {
     "headline": "",
-    "fonts": [{ "name": "", "typeface": "", "usage": "", "stack": "" }]
+    "fonts": [{ "name": "", "typeface": "", "usage": "", "stack": "", "weight": "", "style": "", "scale": "" }],
+    "scaleRatio": "",
+    "lineHeightGuidance": ""
   },
-  "cta": { "headline": "", "buttonText": "", "email": "" },
+  "applications": [
+    { "context": "", "description": "" }
+  ],
+  "cta": {
+    "headline": "",
+    "buttonText": "",
+    "secondaryButtonText": "",
+    "email": "",
+    "microcopy": ""
+  },
+  "sectionSequence": ["hero", "brand", "logo", "colors", "typography", "applications", "cta"],
   "experience": {
     "preset": "cinematic-editorial",
     "motionLevel": "elevated",
@@ -342,17 +612,38 @@ When asked to create or update portal content, respond with a JSON object in thi
   }
 }
 
-Choose the experience preset that best matches the brand. Keep the effect system tasteful and restrained: 2 to 4 signature motion ideas are better than gimmick overload.
-If the brief is for a cultural organization, school, real estate brand, aviation company, restaurant, law firm, or another distinct category, reflect that category directly in the language and creative system. Do not collapse everything into the same "modern marketing evolution" story.
+Logo section rules:
+- "variants" should list 2-4 logo usage contexts (primary lockup, secondary mark, icon/favicon, reversed for dark backgrounds) with a brief usage note for each.
+- "clearance" should describe minimum clear space rules in practical terms.
+- "animation" should describe how the logo might animate on reveal (e.g., "Draws from center outward over 0.8s with an ease-out curve").
 
+Typography section rules:
+- "scaleRatio" should specify the multiplier between type sizes (e.g., "1.25 major third" or "1.333 perfect fourth").
+- "lineHeightGuidance" should specify line-height per level (e.g., "Display: 0.95, Body: 1.65, Caption: 1.4").
+- Each font's "weight" and "style" fields describe the recommended weight range and any italic usage.
+- Each font's "scale" field describes its role in the type scale (e.g., "Display: 48-72px, Body: 16-18px").
+
+Applications section rules:
+- Generate 3-5 application contexts showing the brand in real-world use.
+- Each "context" names a specific artifact (business card, website header, signage, packaging, social media template, email signature, etc.).
+- Each "description" explains how the brand system applies to that artifact — materials, layout choices, and design details.
+
+Section sequence rules:
+- "sectionSequence" controls the order sections appear in the portal. Default is hero → brand → logo → colors → typography → applications → cta.
+- Reorder if the narrative calls for it. For example, a typography-led brand might put typography before colors.
+
+Choose the experience preset that best matches the brand. Keep the effect system tasteful and restrained.
+If the brief is for a cultural organization, school, real estate brand, aviation company, restaurant, law firm, or another distinct category, reflect that category directly in the language and creative system.
 Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
 }
 
-function buildPresentationSystemPrompt({ styleMode = 'cinematic' } = {}) {
+function buildPresentationSystemPrompt({ styleMode = 'cinematic', designSystem } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
   const stylePacket = STYLE_PACKETS[styleMode] || STYLE_PACKETS.cinematic;
   const motionKnowledge = formatMotionKnowledgeBase();
   const gsapKnowledge = formatGsapKnowledgeBase();
+  const antiPatterns = COPY_ANTI_PATTERNS.map(p => `"${p}"`).join(', ');
+  const designContext = formatDesignSystemContext(designSystem);
 
   return `You are Envision Creative's senior presentation director and motion strategist.
 You create client-facing cinematic presentation specs that can be rendered with reveal.js.
@@ -361,6 +652,26 @@ ${styleDirective}
 
 Style-specific direction:
 - ${stylePacket.join('\n- ')}
+
+═══ EDITORIAL QUALITY RULES ═══
+
+Slide headline craft:
+- Every opening slide headline must contain a concrete image, metaphor, or sensory detail tied to the client's actual world. No abstract tagline formulas.
+- Subtitles should read like a second beat — a rhythmic counterpoint, not a restatement.
+- Slide headlines should each use a different rhetorical device: metaphor, imperative, question, fragment, or declarative. Never repeat the same headline pattern across slides.
+
+Positioning depth:
+- The brand positioning must name the specific market gap the client occupies. Reference at least one real competitor category or market dynamic.
+- Positioning should be 2–3 sentences minimum and feel like the opening paragraph of a strategy document, not a tagline.
+
+═══ BANNED PHRASES ═══
+Never use any of these phrases or close variants: ${antiPatterns}
+If you catch yourself writing anything on this list, rewrite the sentence with a concrete, client-specific alternative.
+
+═══ DIFFERENTIATION TEST ═══
+Before finalizing output, mentally verify: if I swapped the client name for a different company in the same industry, would 60%+ of this content still work? If yes, it is too generic. Rewrite with more specificity.
+
+${designContext}
 
 Follow these rules:
 - Think like a premium keynote designer, not a generic copywriter.
@@ -478,11 +789,13 @@ Use verticalSlides only when a nested stack is genuinely useful.
 Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
 }
 
-function buildCinematicFlowSystemPrompt({ styleMode = 'cinematic' } = {}) {
+function buildCinematicFlowSystemPrompt({ styleMode = 'cinematic', designSystem } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
   const stylePacket = STYLE_PACKETS[styleMode] || STYLE_PACKETS.cinematic;
   const motionKnowledge = formatMotionKnowledgeBase();
   const gsapKnowledge = formatGsapKnowledgeBase();
+  const antiPatterns = COPY_ANTI_PATTERNS.map(p => `"${p}"`).join(', ');
+  const designContext = formatDesignSystemContext(designSystem);
 
   return `You are Envision Creative's senior cinematic experience director.
 You create scene-based brand presentation experiences for client reveals.
@@ -491,6 +804,26 @@ ${styleDirective}
 
 Style-specific direction:
 - ${stylePacket.join('\n- ')}
+
+═══ EDITORIAL QUALITY RULES ═══
+
+Scene headline craft:
+- Every opening scene headline must contain a concrete image, metaphor, or sensory detail tied to the client's actual world. No abstract tagline formulas.
+- Subheadlines should read like a second beat — a rhythmic counterpoint, not a restatement.
+- Scene headlines should each use a different rhetorical device: metaphor, imperative, question, fragment, or declarative. Never repeat the same headline pattern across scenes.
+
+Positioning depth:
+- The brand positioning must name the specific market gap the client occupies. Reference at least one real competitor category or market dynamic.
+- Positioning should be 2–3 sentences minimum and feel like the opening paragraph of a strategy document, not a tagline.
+
+═══ BANNED PHRASES ═══
+Never use any of these phrases or close variants: ${antiPatterns}
+If you catch yourself writing anything on this list, rewrite the sentence with a concrete, client-specific alternative.
+
+═══ DIFFERENTIATION TEST ═══
+Before finalizing output, mentally verify: if I swapped the client name for a different company in the same industry, would 60%+ of this content still work? If yes, it is too generic. Rewrite with more specificity.
+
+${designContext}
 
 Follow these rules:
 - Think in scenes, pacing, and narrative transitions, not just sections on a web page.
@@ -589,6 +922,38 @@ Scene guidance:
 - If attached source material includes deliverable inventories or spec sheets, map them into scene types instead of summarizing them as generic brand copy.
 
 Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
+}
+
+// Convert OpenAI-style image_url messages to Anthropic's image format
+function toAnthropicMessages(messages) {
+  return messages.map(msg => {
+    if (!Array.isArray(msg.content)) return msg;
+    return {
+      role: msg.role,
+      content: msg.content.map(block => {
+        if (block.type === 'image_url' && block.image_url?.url) {
+          const dataUrl = block.image_url.url;
+          const match = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+          if (match) {
+            return { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } };
+          }
+        }
+        return block;
+      }),
+    };
+  });
+}
+
+// Extract only text from multimodal messages for providers that don't support images
+function toTextOnlyMessages(messages) {
+  return messages.map(msg => {
+    if (!Array.isArray(msg.content)) return msg;
+    const text = msg.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('\n');
+    return { role: msg.role, content: text || '' };
+  });
 }
 
 async function generateWithAnthropic({ apiKey, model, system, messages, maxTokens = 1400 }) {
@@ -744,16 +1109,21 @@ async function generateBuilderContent({
   outputMode = 'portal',
   messages,
   maxTokens,
+  designSystem,
 }) {
-  const config = getProviderConfig(provider, model);
+  const config = (provider && model)
+    ? getProviderConfig(provider, model)
+    : resolveModel(getTaskForOutputMode(outputMode), model || provider);
   const system = outputMode === 'presentation'
-    ? buildPresentationSystemPrompt({ styleMode })
+    ? buildPresentationSystemPrompt({ styleMode, designSystem })
     : outputMode === 'cinematic-flow'
-      ? buildCinematicFlowSystemPrompt({ styleMode })
-      : buildPortalEditorSystemPrompt({ styleMode });
+      ? buildCinematicFlowSystemPrompt({ styleMode, designSystem })
+      : outputMode === 'cinematic-code'
+        ? buildCinematicCodeSystemPrompt({ styleMode, designSystem })
+        : buildPortalEditorSystemPrompt({ styleMode, designSystem });
   const safeMessages = (messages || []).map(message => ({
     role: message.role,
-    content: String(message.content || ''),
+    content: message.content || '',
   }));
 
   let text;
@@ -762,7 +1132,7 @@ async function generateBuilderContent({
       apiKey: process.env.ANTHROPIC_API_KEY,
       model: config.model,
       system,
-      messages: safeMessages,
+      messages: toAnthropicMessages(safeMessages),
       maxTokens,
     });
   } else if (config.provider === 'openai') {
@@ -778,7 +1148,7 @@ async function generateBuilderContent({
       apiKey: process.env.GOOGLE_API_KEY,
       model: config.model,
       system,
-      messages: safeMessages,
+      messages: toTextOnlyMessages(safeMessages),
       maxTokens,
     });
   } else {
@@ -787,6 +1157,19 @@ async function generateBuilderContent({
 
   if (!text) {
     throw new Error('No response text returned from AI provider');
+  }
+
+  // Cinematic-code mode: extract file blocks instead of JSON
+  if (outputMode === 'cinematic-code') {
+    const files = extractCodeFiles(text);
+    const fileCount = files ? Object.keys(files).length : 0;
+    return {
+      provider: config.provider,
+      model: config.model,
+      text,
+      structured: files ? { mode: 'cinematic-code', cinematicCode: { files, metadata: { sceneCount: fileCount, styleMode, generatedAt: new Date().toISOString() } } } : null,
+      outputMode,
+    };
   }
 
   let structured = extractStructuredJson(text);

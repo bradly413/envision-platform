@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {toPng} from 'html-to-image';
-import {ai, clients as clientsApi, portals as portalsApi} from '../lib/api';
+import {ai, clients as clientsApi, portals as portalsApi, scrape} from '../lib/api';
 import {
   formatRegistryCategoryLabel,
   getRegistryOptionsForCategory,
@@ -18,6 +18,7 @@ import {
   saveReferenceLibrary,
 } from '../lib/referenceLibrary';
 import BuilderLivePreview from '../components/BuilderLivePreview';
+import {parseCreativeBrief, formatBriefForContext} from '../lib/briefParser';
 
 const MODEL_OPTIONS = {
   anthropic: [
@@ -44,6 +45,7 @@ const STYLE_MODES = [
 const OUTPUT_MODES = [
   {value: 'portal', label: 'Portal'},
   {value: 'presentation', label: 'Presentation'},
+  {value: 'cinematic-code', label: 'Cinematic'},
 ];
 
 const TEMPLATE_OPTIONS = [
@@ -78,6 +80,7 @@ const FALLBACK_PORTALS = [
 const MODE_INTRO = {
   portal: 'Build an immersive portal by describing the story, visual territory, and motion language you want. I will create a plan first, then generate the portal after approval.',
   presentation: 'Build an interactive presentation by describing the narrative, audience, and desired motion system. I will create a plan first, then generate the presentation after approval.',
+  'cinematic-code': 'Build a cinematic brand identity presentation with full-viewport scroll scenes, Framer Motion animations, and atmospheric effects. I will create a plan first, then generate the complete React code after approval.',
 };
 
 const CONCEPT_PROFILES = {
@@ -219,6 +222,17 @@ function readFileAsDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error(`Failed to read ${file?.name || 'file'}`));
+    reader.readAsText(file);
+  });
+}
+
+const TEXT_MIME_TYPES = ['text/', 'application/json', 'application/xml', 'application/xhtml'];
 
 function hashValue(value = '') {
   let hash = 0;
@@ -568,6 +582,13 @@ function createFallbackStructuredOutput({outputMode, plan, client, styleMode}) {
 
 function normalizeBuilderPayload(outputMode, json, options = {}) {
   if (!json) return null;
+
+  if (outputMode === 'cinematic-code') {
+    if (json.mode === 'cinematic-code' && json.cinematicCode) return json;
+    if (json.cinematicCode) return {mode: 'cinematic-code', cinematicCode: json.cinematicCode};
+    if (json.files) return {mode: 'cinematic-code', cinematicCode: {files: json.files, metadata: json.metadata || {}}};
+    return json;
+  }
 
   if (outputMode === 'presentation') {
     if (json.mode === 'presentation' && json.presentation) return json;
@@ -1062,6 +1083,32 @@ function buildVisualReferenceMessage({client, portal, plan, references = [], att
 
   if (activeReferences.length) {
     lines.push(`References: ${activeReferences.map((item) => item.value || item.label).join(' | ')}`);
+    activeReferences.forEach((item) => {
+      if (item.scraped) {
+        lines.push(`\n--- Scraped from ${item.value} (${item.scraped.source || 'basic'}) ---`);
+        if (item.scraped.title) lines.push(`Title: ${item.scraped.title}`);
+        if (item.scraped.description) lines.push(`Description: ${item.scraped.description}`);
+        // Firecrawl extract: structured brand intelligence
+        if (item.scraped.extract) {
+          const ext = item.scraped.extract;
+          if (ext.industry) lines.push(`Industry: ${ext.industry}`);
+          if (ext.tone) lines.push(`Site tone: ${ext.tone}`);
+          if (Array.isArray(ext.brandColors) && ext.brandColors.length) {
+            lines.push('Brand colors found:');
+            ext.brandColors.forEach(c => lines.push(`  - ${c.name || 'Unnamed'}: ${c.hex} (${c.usage || 'general'})`));
+          }
+          if (Array.isArray(ext.fonts) && ext.fonts.length) {
+            lines.push('Fonts found:');
+            ext.fonts.forEach(f => lines.push(`  - ${f.name}: ${f.usage || 'general'}`));
+          }
+          if (ext.logoUrl) lines.push(`Logo URL: ${ext.logoUrl}`);
+          if (Array.isArray(ext.keyPhrases) && ext.keyPhrases.length) {
+            lines.push(`Key phrases: ${ext.keyPhrases.join(' | ')}`);
+          }
+        }
+        if (item.scraped.text) lines.push(`Page content: ${item.scraped.text}`);
+      }
+    });
   }
 
   if (activeAttachments.length) {
@@ -1070,6 +1117,20 @@ function buildVisualReferenceMessage({client, portal, plan, references = [], att
       lines.push(`- ${item.name}${item.cues?.length ? ` — ${item.cues.join(', ')}` : ''}`);
     });
   }
+
+  // Include parsed brief content from HTML attachments
+  const briefAttachments = activeAttachments.filter(item => item.parsedBrief);
+  briefAttachments.forEach((item) => {
+    lines.push(`\n--- Parsed brief from ${item.name} ---`);
+    lines.push(formatBriefForContext(item.parsedBrief));
+  });
+
+  // Include raw text content from text/HTML/JSON attachments
+  const textAttachments = activeAttachments.filter(item => item.textContent && !item.parsedBrief);
+  textAttachments.forEach((item) => {
+    lines.push(`\n--- Content from ${item.name} ---`);
+    lines.push(item.textContent);
+  });
 
   if (plan?.referenceIntelligence?.logoSignals?.length) {
     lines.push(`Logo cues: ${plan.referenceIntelligence.logoSignals.join(' | ')}`);
@@ -1476,32 +1537,27 @@ function buildContextMessage({client, portal, plan}) {
 }
 
 function buildPlanMessage(plan) {
-  return [
-    `Approved plan: ${plan.title}`,
-    plan.summary,
-    '',
-    `Visual thesis: ${plan.visualThesis}`,
-    '',
-    'Interaction thesis:',
-    ...plan.interactionThesis.map((item) => `- ${item}`),
-    '',
-    'Visual direction:',
-    ...plan.visualDirection.map((item) => `- ${item}`),
-    '',
-    'Structure:',
-    ...plan.structure.map((item, index) => `${index + 1}. ${item}`),
-    '',
-    'Selected assets:',
-    ...plan.selectedAssets.map((item) => `- ${item.title} (${item.categoryLabel}, ${item.supportLabel}): ${item.rationale}`),
-    ...(plan.referenceIntelligence?.logoSignals?.length ? ['', 'Reference-led logo cues:', ...plan.referenceIntelligence.logoSignals.map((item) => `- ${item}`)] : []),
-    ...(plan.referenceIntelligence?.visualSignals?.length ? ['', 'Reference-led visual cues:', ...plan.referenceIntelligence.visualSignals.map((item) => `- ${item}`)] : []),
-    '',
-    'Logo guidance:',
-    ...(plan.logoGuidance || []).map((item) => `- ${item}`),
-    '',
-    'Design guardrails:',
-    ...(plan.designGuardrails || DESIGN_GUARDRAILS).map((item) => `- ${item}`),
-  ].join('\n');
+  const structured = {
+    title: plan.title,
+    summary: plan.summary,
+    visualThesis: plan.visualThesis,
+    interactionThesis: plan.interactionThesis,
+    visualDirection: plan.visualDirection,
+    structure: plan.structure,
+    selectedAssets: (plan.selectedAssets || []).map(a => ({
+      title: a.title, category: a.category, id: a.id,
+      effectMapping: a.effectMapping || null,
+      rationale: a.rationale,
+    })),
+    logoGuidance: plan.logoGuidance,
+    designGuardrails: plan.designGuardrails || DESIGN_GUARDRAILS,
+    referenceIntelligence: plan.referenceIntelligence ? {
+      logoSignals: plan.referenceIntelligence.logoSignals,
+      visualSignals: plan.referenceIntelligence.visualSignals,
+      summary: plan.referenceIntelligence.summary,
+    } : null,
+  };
+  return `Approved plan (structured):\n\`\`\`json\n${JSON.stringify(structured, null, 2)}\n\`\`\``;
 }
 
 function normalizeTextReply(reply = '') {
@@ -1675,6 +1731,34 @@ function formatSelectionLabel(outputMode, selectedNodeId) {
   return labels[selectedNodeId] || 'Selected section';
 }
 
+function validatePortalOutput(json) {
+  if (!json) return [];
+  const warnings = [];
+  const pillars = json.brand?.pillars;
+  if (Array.isArray(pillars) && pillars.length < 4) warnings.push(`Only ${pillars.length} pillar${pillars.length === 1 ? '' : 's'} (4–5 expected)`);
+  const palette = json.colors?.palette;
+  if (Array.isArray(palette) && palette.length < 4) warnings.push(`Only ${palette.length} color${palette.length === 1 ? '' : 's'} (4–5 expected)`);
+  if (!json.logo?.rationale || json.logo.rationale.length < 20) warnings.push('Logo rationale is thin');
+  if (!json.applications?.length) warnings.push('No applications section generated');
+  if (!json.sectionSequence?.length) warnings.push('No sectionSequence — default order used');
+  const allText = JSON.stringify(json);
+  [/your brand/i, /we believe/i, /our mission/i, /the future of/i, /innovative solutions/i, /seamless experience/i].forEach(p => {
+    if (p.test(allText)) warnings.push(`Generic copy detected: "${p.source.replace(/\\/g, '')}"`);
+  });
+  // Check pillar distinctness — flag if any two titles share >50% of words
+  if (Array.isArray(pillars) && pillars.length >= 2) {
+    for (let i = 0; i < pillars.length; i++) {
+      const wordsA = new Set((pillars[i].title || '').toLowerCase().split(/\s+/));
+      for (let j = i + 1; j < pillars.length; j++) {
+        const wordsB = (pillars[j].title || '').toLowerCase().split(/\s+/);
+        const overlap = wordsB.filter(w => wordsA.has(w) && w.length > 3).length;
+        if (overlap >= Math.ceil(wordsA.size * 0.5)) warnings.push(`Pillars "${pillars[i].title}" and "${pillars[j].title}" may be too similar`);
+      }
+    }
+  }
+  return warnings;
+}
+
 function extractSelectedContent(outputMode, preview, selectedNodeId) {
   if (!preview) return null;
 
@@ -1693,6 +1777,14 @@ function buildPatchMessage({outputMode, plan, selectedNodeId, preview, instructi
   const selectionLabel = formatSelectionLabel(outputMode, selectedNodeId);
   const selectedContent = extractSelectedContent(outputMode, preview, selectedNodeId);
 
+  const feedback = {
+    revisionType: selectedNodeId && selectedNodeId !== 'root' ? 'section-edit' : 'full-rethink',
+    targetSection: selectedNodeId,
+    targetLabel: selectionLabel,
+    userInstruction: instruction,
+    previousContent: selectedContent || null,
+  };
+
   return [
     'Apply this follow-up revision to the existing structured output.',
     `Target output mode: ${outputMode}`,
@@ -1700,17 +1792,16 @@ function buildPatchMessage({outputMode, plan, selectedNodeId, preview, instructi
     'Keep the overall structure, approved plan, and all unaffected sections intact.',
     'Return the full updated JSON payload inside a single fenced ```json block.',
     '',
-    'Revision request:',
-    instruction,
-    '',
-    'Current focused content:',
-    selectedContent ? JSON.stringify(selectedContent, null, 2) : 'No focused content available.',
+    'Structured feedback:',
+    '```json',
+    JSON.stringify(feedback, null, 2),
+    '```',
     '',
     'Current full output:',
     JSON.stringify(preview, null, 2),
     '',
     'Approved assets in play:',
-    (plan?.selectedAssets || []).map((item) => `- ${item.title} (${item.categoryLabel})`).join('\n') || '- None',
+    (plan?.selectedAssets || []).map((item) => `- ${item.title} (${item.categoryLabel}, effect: ${item.effectMapping || 'unspecified'})`).join('\n') || '- None',
     ...(plan?.referenceIntelligence?.logoSignals?.length ? ['', 'Reference-led logo cues:', ...plan.referenceIntelligence.logoSignals.map((item) => `- ${item}`)] : []),
     ...(plan?.referenceIntelligence?.visualSignals?.length ? ['', 'Reference-led visual cues:', ...plan.referenceIntelligence.visualSignals.map((item) => `- ${item}`)] : []),
     '',
@@ -3070,6 +3161,81 @@ class PreviewErrorBoundary extends React.Component {
   }
 }
 
+function ConfigChip({ label, value, options, onChange, isOpen, onToggle }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) onToggle(null); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [isOpen, onToggle]);
+
+  return (
+    <div ref={ref} style={{position: 'relative'}}>
+      <button
+        onClick={() => onToggle(isOpen ? null : label)}
+        style={{
+          padding: '6px 12px',
+          borderRadius: 999,
+          border: isOpen ? '1px solid rgba(96,165,250,.32)' : '1px solid rgba(255,255,255,.10)',
+          background: isOpen ? 'rgba(37,99,235,.14)' : 'rgba(255,255,255,.04)',
+          color: '#E2E8F0',
+          fontSize: 12,
+          fontWeight: 500,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span style={{color: '#64748B', fontSize: 11}}>{label}</span>
+        {value}
+        <span style={{fontSize: 10, color: '#64748B', marginLeft: 2}}>▾</span>
+      </button>
+      {isOpen ? (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 6px)',
+          left: 0,
+          minWidth: 180,
+          maxHeight: 240,
+          overflowY: 'auto',
+          borderRadius: 14,
+          border: '1px solid rgba(255,255,255,.10)',
+          background: 'rgba(15,23,42,.96)',
+          backdropFilter: 'blur(16px)',
+          boxShadow: '0 16px 48px rgba(0,0,0,.5)',
+          padding: 6,
+          zIndex: 100,
+        }}>
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { onChange(opt.value); onToggle(null); }}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '9px 12px',
+                borderRadius: 10,
+                border: 'none',
+                background: opt.value === (options.find(o => o.label === value)?.value) ? 'rgba(37,99,235,.18)' : 'transparent',
+                color: '#E2E8F0',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function PortalEditorV2Page() {
   const previewCaptureRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -3078,6 +3244,8 @@ export default function PortalEditorV2Page() {
   const [provider, setProvider] = useState('anthropic');
   const [model, setModel] = useState(MODEL_OPTIONS.anthropic[0].value);
   const [styleMode, setStyleMode] = useState('cinematic');
+  const [openChipId, setOpenChipId] = useState(null);
+  const [qualityWarnings, setQualityWarnings] = useState([]);
   const [messages, setMessages] = useState([{role: 'assistant', content: MODE_INTRO.portal}]);
   const [input, setInput] = useState('');
   const [phase, setPhase] = useState('idle');
@@ -3324,6 +3492,28 @@ export default function PortalEditorV2Page() {
   useEffect(() => {
     setSelectedPreviewNode(getDefaultPreviewNode(outputMode));
   }, [outputMode]);
+
+  // Build with URL — extract params on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlPrompt = params.get('prompt');
+    const urlStyle = params.get('style');
+    const urlMode = params.get('mode');
+    const urlClient = params.get('client');
+    const autostart = params.get('autostart') === 'true';
+
+    if (urlPrompt) setInput(decodeURIComponent(urlPrompt));
+    if (urlStyle && STYLE_MODES.find(m => m.value === urlStyle)) setStyleMode(urlStyle);
+    if (urlMode && OUTPUT_MODES.find(m => m.value === urlMode)) handleModeChange(urlMode);
+    if (urlClient) handleClientChange(urlClient);
+    if (autostart && urlPrompt) {
+      setTimeout(() => submitPrompt(), 600);
+    }
+    // Clear URL params after extraction so refresh doesn't re-trigger
+    if (urlPrompt || autostart) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const nextSlug = selectedPortalRecord?.slug
@@ -3595,20 +3785,34 @@ export default function PortalEditorV2Page() {
     if (portal) setSelectedClient(String(portal.client_id));
   };
 
-  const handleAddReference = () => {
+  const handleAddReference = async () => {
     const value = window.prompt('Add a reference URL or note for the builder.');
     const nextValue = cleanText(value);
     if (!nextValue) return;
 
-    setReferences((current) => [
-      ...current,
-      {
-        id: `ref-${Date.now()}`,
-        label: nextValue.replace(/^https?:\/\//, '').slice(0, 60),
-        value: nextValue,
-      },
-    ]);
-    setToolNotice('Reference added to the builder context.');
+    const refEntry = {
+      id: `ref-${Date.now()}`,
+      label: nextValue.replace(/^https?:\/\//, '').slice(0, 60),
+      value: nextValue,
+    };
+
+    // Auto-fetch URL content if it looks like a URL
+    if (/^https?:\/\//i.test(nextValue)) {
+      setToolNotice('Fetching page content…');
+      try {
+        const scraped = await scrape.fetch(nextValue);
+        if (scraped) {
+          refEntry.scraped = scraped;
+          refEntry.label = scraped.title || refEntry.label;
+          setToolNotice(`Fetched: ${scraped.title || nextValue}`);
+        }
+      } catch {
+        setToolNotice('Reference added (could not fetch page content).');
+      }
+    }
+
+    setReferences((current) => [...current, refEntry]);
+    if (!refEntry.scraped) setToolNotice('Reference added to the builder context.');
     appendBuildEvent('Reference added', nextValue);
   };
 
@@ -3619,6 +3823,8 @@ export default function PortalEditorV2Page() {
     try {
       const nextAttachments = await Promise.all(files.map(async (file) => {
         let dataUrl = '';
+        let textContent = '';
+        let parsedBrief = null;
 
         if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
           try {
@@ -3626,9 +3832,22 @@ export default function PortalEditorV2Page() {
           } catch {
             dataUrl = '';
           }
+        } else if (TEXT_MIME_TYPES.some(t => file.type.startsWith(t)) || file.name.endsWith('.html') || file.name.endsWith('.txt') || file.name.endsWith('.md') || file.name.endsWith('.json')) {
+          try {
+            textContent = await readFileAsText(file);
+            if (textContent.length > 8000) textContent = textContent.slice(0, 8000);
+            if (file.type.includes('html') || file.name.endsWith('.html')) {
+              try { parsedBrief = parseCreativeBrief(textContent, {name: file.name, mimeType: file.type}); } catch {}
+            }
+          } catch {
+            textContent = '';
+          }
         }
 
-        return buildAttachmentRecord(file, dataUrl);
+        const record = buildAttachmentRecord(file, dataUrl);
+        if (textContent) record.textContent = textContent;
+        if (parsedBrief) record.parsedBrief = parsedBrief;
+        return record;
       }));
 
       setAttachments((current) => [
@@ -3884,6 +4103,7 @@ export default function PortalEditorV2Page() {
         }
 
         setExtractedJSON(json);
+        setQualityWarnings(outputMode === 'portal' ? validatePortalOutput(json) : []);
         setPhase('preview_ready');
         setShowInspectorPanel(false);
         addVersion({
@@ -4007,6 +4227,7 @@ export default function PortalEditorV2Page() {
       }
 
       setExtractedJSON(json);
+      setQualityWarnings(outputMode === 'portal' ? validatePortalOutput(json) : []);
       setPhase('preview_ready');
       setSelectedPreviewNode(getDefaultPreviewNode(outputMode));
       setShowInspectorPanel(false);
@@ -4102,188 +4323,118 @@ export default function PortalEditorV2Page() {
     }
   };
 
-  return (
-    <div style={{display: 'flex', flexDirection: isTablet ? 'column' : 'row', minHeight: '100vh', background: '#020617', color: '#E2E8F0', fontFamily: 'Inter, sans-serif'}}>
-      <aside style={{width: isTablet ? '100%' : collapseIdleRail ? 292 : 344, minWidth: isTablet ? 0 : collapseIdleRail ? 292 : 344, borderRight: isTablet ? 'none' : '1px solid rgba(255,255,255,.06)', borderBottom: isTablet ? '1px solid rgba(255,255,255,.06)' : 'none', background: 'linear-gradient(180deg, rgba(15,23,42,1) 0%, rgba(2,6,23,1) 100%)', display: 'flex', flexDirection: 'column', transition: 'width .24s ease, min-width .24s ease'}}>
-        <div style={{padding: '18px 18px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', display: 'grid', gap: 12}}>
-          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12}}>
-            <div>
-              <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.14em', color: '#64748B'}}>Envision</div>
-              <div style={{fontSize: 20, fontWeight: 800, color: '#F8FAFC', marginTop: 4}}>Builder v2</div>
+  // ── Idle: Lovable-style centered prompt-first layout ──
+  if (isIdleEmpty) {
+    const clientOptions = clients.map(c => ({value: c.id, label: c.name + (c.company ? ` — ${c.company}` : '')}));
+    const modelOptions = MODEL_OPTIONS[provider].map(o => ({value: o.value, label: o.label}));
+    const styleOptions = STYLE_MODES.map(m => ({value: m.value, label: m.label}));
+    const modeOptions = OUTPUT_MODES.map(m => ({value: m.value, label: m.label}));
+    const selectedClientLabel = clients.find(c => c.id === selectedClient)?.name || 'Client';
+    const selectedModelLabel = MODEL_OPTIONS[provider].find(o => o.value === model)?.label || 'Model';
+    const selectedStyleLabel = STYLE_MODES.find(m => m.value === styleMode)?.label || 'Style';
+    const selectedModeLabel = OUTPUT_MODES.find(m => m.value === outputMode)?.label || 'Portal';
+
+    return (
+      <div style={{minHeight: '100vh', background: 'radial-gradient(ellipse at 30% 20%, rgba(37,99,235,.12), transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(217,70,239,.08), transparent 50%), #09090B', color: '#E2E8F0', fontFamily: 'Inter, sans-serif', display: 'grid', placeItems: 'center', padding: 24}}>
+        <div style={{width: '100%', maxWidth: 640, display: 'grid', gap: 24, justifyItems: 'center', textAlign: 'center'}}>
+          <div style={{display: 'grid', gap: 10}}>
+            <div style={{fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 700, letterSpacing: '-.04em', color: '#F8FAFC', lineHeight: 1.1}}>
+              What should we build?
             </div>
-            <PhasePill phase={phase} />
+            <div style={{fontSize: 15, color: 'rgba(148,163,184,.8)', lineHeight: 1.6}}>
+              Describe the experience and the builder will generate a plan, motion system, and preview.
+            </div>
           </div>
 
-          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-            {OUTPUT_MODES.map((mode) => (
+          <div style={{width: '100%', borderRadius: 20, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', padding: 4}}>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitPrompt(); } }}
+              placeholder="Describe the portal, reference site, mood, and motion you want..."
+              rows={3}
+              style={{width: '100%', resize: 'none', padding: '16px 16px 8px', border: 'none', background: 'transparent', color: '#F8FAFC', fontSize: 15, lineHeight: 1.6, outline: 'none'}}
+            />
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px 8px'}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                <button
+                  type="button"
+                  onClick={() => handleToolMenuAction('attach')}
+                  style={{width: 32, height: 32, borderRadius: 999, border: 'none', background: 'rgba(255,255,255,.06)', color: '#94A3B8', fontSize: 16, cursor: 'pointer', display: 'grid', placeItems: 'center'}}
+                  title="Attach file"
+                >+</button>
+                <button
+                  type="button"
+                  onClick={() => handleToolMenuAction('reference')}
+                  style={{padding: '6px 10px', borderRadius: 999, border: 'none', background: 'transparent', color: '#64748B', fontSize: 11, fontWeight: 600, cursor: 'pointer'}}
+                >Add reference</button>
+              </div>
               <button
-                key={mode.value}
-                onClick={() => handleModeChange(mode.value)}
+                onClick={submitPrompt}
+                disabled={!cleanText(input)}
+                style={{width: 36, height: 36, borderRadius: 999, border: 'none', background: !cleanText(input) ? '#334155' : 'linear-gradient(180deg, #3B82F6, #14B8A6)', color: '#F8FAFC', fontSize: 16, fontWeight: 800, cursor: !cleanText(input) ? 'default' : 'pointer', display: 'grid', placeItems: 'center'}}
+              >↑</button>
+            </div>
+          </div>
+
+          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center'}}>
+            <ConfigChip label="" value={selectedModeLabel} options={modeOptions} onChange={(v) => handleModeChange(v)} isOpen={openChipId === 'mode'} onToggle={(id) => setOpenChipId(id === null ? null : 'mode')} />
+            <ConfigChip label="" value={selectedClientLabel} options={clientOptions} onChange={(v) => handleClientChange(v)} isOpen={openChipId === 'client'} onToggle={(id) => setOpenChipId(id === null ? null : 'client')} />
+            <ConfigChip label="" value={selectedStyleLabel} options={styleOptions} onChange={(v) => setStyleMode(v)} isOpen={openChipId === 'style'} onToggle={(id) => setOpenChipId(id === null ? null : 'style')} />
+            <ConfigChip label="" value={selectedModelLabel} options={modelOptions} onChange={(v) => setModel(v)} isOpen={openChipId === 'model'} onToggle={(id) => setOpenChipId(id === null ? null : 'model')} />
+          </div>
+
+          <input ref={fileInputRef} type="file" multiple onChange={handleFilesSelected} style={{display: 'none'}} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{display: 'flex', flexDirection: isTablet ? 'column' : 'row', minHeight: '100vh', background: '#020617', color: '#E2E8F0', fontFamily: 'Inter, sans-serif'}}>
+      <aside style={{width: isTablet ? '100%' : 300, minWidth: isTablet ? 0 : 300, borderRight: isTablet ? 'none' : '1px solid rgba(255,255,255,.06)', borderBottom: isTablet ? '1px solid rgba(255,255,255,.06)' : 'none', background: 'linear-gradient(180deg, rgba(15,23,42,1) 0%, rgba(2,6,23,1) 100%)', display: 'flex', flexDirection: 'column'}}>
+        <div style={{padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', display: 'grid', gap: 10}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+            <button
+              onClick={() => { setInput(''); setPhase('idle'); setPlan(null); setMessages([]); setExtractedJSON(null); setError(null); }}
+              style={{width: 30, height: 30, borderRadius: 10, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#94A3B8', fontSize: 14, cursor: 'pointer', display: 'grid', placeItems: 'center'}}
+              title="Back to start"
+            >←</button>
+            <div style={{fontSize: 12, color: '#94A3B8', flex: 1}}>
+              {chatStatusCopy}
+            </div>
+          </div>
+
+          <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+            <ConfigChip label="" value={OUTPUT_MODES.find(m => m.value === outputMode)?.label || 'Portal'} options={OUTPUT_MODES.map(m => ({value: m.value, label: m.label}))} onChange={(v) => handleModeChange(v)} isOpen={openChipId === 'mode'} onToggle={(id) => setOpenChipId(id === null ? null : 'mode')} />
+            <ConfigChip label="" value={clients.find(c => c.id === selectedClient)?.name || 'Client'} options={clients.map(c => ({value: c.id, label: c.name + (c.company ? ` — ${c.company}` : '')}))} onChange={(v) => handleClientChange(v)} isOpen={openChipId === 'client'} onToggle={(id) => setOpenChipId(id === null ? null : 'client')} />
+            <ConfigChip label="" value={STYLE_MODES.find(m => m.value === styleMode)?.label || 'Style'} options={STYLE_MODES.map(m => ({value: m.value, label: m.label}))} onChange={(v) => setStyleMode(v)} isOpen={openChipId === 'style'} onToggle={(id) => setOpenChipId(id === null ? null : 'style')} />
+          </div>
+
+          <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+            {[
+              {id: 'brief', label: 'Brief'},
+              {id: 'library', label: 'Library'},
+              {id: 'history', label: 'History'},
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setLeftRailMode(tab.id)}
                 style={{
-                  padding: '8px 12px',
+                  padding: '6px 10px',
                   borderRadius: 999,
-                  border: outputMode === mode.value ? '1px solid rgba(96,165,250,.28)' : '1px solid rgba(255,255,255,.08)',
-                  background: outputMode === mode.value ? 'rgba(37,99,235,.18)' : 'rgba(255,255,255,.03)',
-                  color: outputMode === mode.value ? '#DBEAFE' : '#CBD5E1',
-                  fontSize: 12,
-                  fontWeight: 700,
+                  border: leftRailMode === tab.id ? '1px solid rgba(96,165,250,.28)' : '1px solid rgba(255,255,255,.08)',
+                  background: leftRailMode === tab.id ? 'rgba(37,99,235,.14)' : 'transparent',
+                  color: leftRailMode === tab.id ? '#DBEAFE' : '#64748B',
+                  fontSize: 11,
+                  fontWeight: 600,
                   cursor: 'pointer',
                 }}
               >
-                {mode.label}
+                {tab.label}
               </button>
             ))}
           </div>
-
-          <div style={{display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10}}>
-            <label style={{display: 'grid', gap: 6}}>
-              <span style={{fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.08em'}}>Client</span>
-              <select
-                value={selectedClient}
-                onChange={(e) => handleClientChange(e.target.value)}
-                style={{width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13}}
-              >
-                <option value="">Select a client…</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id} style={{color: '#111827'}}>
-                    {client.name}{client.company ? ` — ${client.company}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={{display: 'grid', gap: 6}}>
-              <span style={{fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.08em'}}>Portal</span>
-              <select
-                value={selectedPortal}
-                onChange={(e) => handlePortalChange(e.target.value)}
-                style={{width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13}}
-              >
-                <option value="">Select a portal…</option>
-                {filteredPortals.map((portal) => (
-                  <option key={portal.id} value={portal.id} style={{color: '#111827'}}>
-                    {(portal.client_name || portal.slug)} ({portal.slug})
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div style={{display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 10}}>
-            <label style={{display: 'grid', gap: 6}}>
-              <span style={{fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.08em'}}>Provider</span>
-              <select
-                value={provider}
-                onChange={(e) => handleProviderChange(e.target.value)}
-                style={{width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13}}
-              >
-                {Object.keys(MODEL_OPTIONS).map((option) => (
-                  <option key={option} value={option} style={{color: '#111827'}}>
-                    {option.charAt(0).toUpperCase() + option.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={{display: 'grid', gap: 6}}>
-              <span style={{fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.08em'}}>Model</span>
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                style={{width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13}}
-              >
-                {MODEL_OPTIONS[provider].map((option) => (
-                  <option key={option.value} value={option.value} style={{color: '#111827'}}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={{display: 'grid', gap: 6}}>
-              <span style={{fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.08em'}}>Art direction</span>
-              <select
-                value={styleMode}
-                onChange={(e) => setStyleMode(e.target.value)}
-                style={{width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13}}
-              >
-                {STYLE_MODES.map((mode) => (
-                  <option key={mode.value} value={mode.value} style={{color: '#111827'}}>
-                    {mode.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {isIdleEmpty ? (
-            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 10px', borderRadius: 14, border: '1px solid rgba(255,255,255,.05)', background: 'rgba(255,255,255,.02)'}}>
-              <div style={{fontSize: 11, color: '#94A3B8', lineHeight: 1.5}}>
-                Ready for a prompt.
-              </div>
-              {builderDataChip ? (
-                <span style={{fontSize: 10, color: '#FDE68A', borderRadius: 999, padding: '4px 8px', background: 'rgba(120,53,15,.16)', border: '1px solid rgba(251,191,36,.16)'}}>
-                  {builderDataChip}
-                </span>
-              ) : null}
-            </div>
-          ) : (
-            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 16, border: error ? '1px solid rgba(248,113,113,.18)' : '1px solid rgba(255,255,255,.06)', background: error ? 'rgba(127,29,29,.10)' : 'rgba(255,255,255,.03)'}}>
-              <div style={{fontSize: 12, color: error ? '#FECACA' : '#CBD5E1', lineHeight: 1.5}}>
-                {chatStatusCopy}
-              </div>
-              <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
-                {builderDataChip ? (
-                  <span style={{fontSize: 10, color: '#FDE68A', borderRadius: 999, padding: '5px 9px', background: 'rgba(120,53,15,.18)', border: '1px solid rgba(251,191,36,.2)'}}>
-                    {builderDataChip}
-                  </span>
-                ) : null}
-                <span style={{fontSize: 10, color: '#E2E8F0', borderRadius: 999, padding: '5px 9px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)'}}>
-                  {STYLE_MODES.find((mode) => mode.value === styleMode)?.label}
-                </span>
-                {contextCount ? (
-                  <span style={{fontSize: 10, color: '#E2E8F0', borderRadius: 999, padding: '5px 9px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)'}}>
-                    {contextCount} source{contextCount === 1 ? '' : 's'}
-                  </span>
-                ) : null}
-                {builderDataNeedsRetry ? (
-                  <button
-                    onClick={loadBuilderData}
-                    style={{padding: '5px 10px', borderRadius: 999, border: '1px solid rgba(251,191,36,.24)', background: 'rgba(120,53,15,.2)', color: '#FDE68A', fontSize: 10, fontWeight: 700, cursor: 'pointer'}}
-                  >
-                    Retry data
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          )}
-
-          {showRailModes ? (
-            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-              {[
-                {id: 'brief', label: 'Brief'},
-                {id: 'library', label: 'Library'},
-                {id: 'history', label: 'History'},
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setLeftRailMode(tab.id)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 999,
-                    border: leftRailMode === tab.id ? '1px solid rgba(96,165,250,.28)' : '1px solid rgba(255,255,255,.08)',
-                    background: leftRailMode === tab.id ? 'rgba(37,99,235,.18)' : 'rgba(255,255,255,.03)',
-                    color: leftRailMode === tab.id ? '#DBEAFE' : '#CBD5E1',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
         </div>
 
         <div style={{flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, display: 'grid', gap: 14, alignContent: isIdleEmpty ? 'end' : 'start'}}>
@@ -4681,6 +4832,15 @@ export default function PortalEditorV2Page() {
             ) : null}
           </div>
         </header>
+
+        {qualityWarnings.length > 0 && normalizedPreview ? (
+          <div style={{padding: '8px 24px', borderBottom: '1px solid rgba(251,191,36,.14)', background: 'rgba(120,53,15,.08)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'}}>
+            <span style={{fontSize: 11, fontWeight: 700, color: '#FDE68A'}}>{qualityWarnings.length} quality note{qualityWarnings.length === 1 ? '' : 's'}</span>
+            {qualityWarnings.map((w, i) => (
+              <span key={i} style={{fontSize: 11, color: '#FCD34D', opacity: 0.8}}>· {w}</span>
+            ))}
+          </div>
+        ) : null}
 
         <div style={{flex: 1, minHeight: 0, display: 'flex', flexDirection: isTablet ? 'column' : 'row'}}>
           <div style={{flex: 1, minWidth: 0, padding: isMobile ? 16 : 24, overflow: 'auto'}}>

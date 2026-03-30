@@ -17,3 +17,8 @@ export const track = {
   event: (portalId, event_type, payload = {}) =>
     api.post(`/portals/${portalId}/events`, { event_type, payload }).catch(() => {}), // silent fail
 };
+
+export const portalAi = {
+  chat: (portalId, message, conversationId) =>
+    api.post(`/portals/${portalId}/ai/chat`, { message, conversationId }).then(r => r.data),
+};

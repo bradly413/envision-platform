@@ -1,0 +1,17 @@
+// SCENE: Opening Title — Full-screen video or animated gradient reveal
+// Use when: First scene. Sets the cinematic tone.
+// CONTENT to customize: video src (or remove video for gradient-only), background colors
+import { useInView } from "./useInView";
+
+export default function OpeningTitle() {
+  const { ref } = useInView(0.1);
+
+  return (
+    <section ref={ref} className="flow-section relative overflow-hidden p-0">
+      {/* CONTENT: Replace video src with client video, or remove <video> and use gradient background */}
+      <video autoPlay muted loop playsInline
+        className="absolute inset-0 w-full h-full object-cover"
+        src="/videos/logo-reveal.mp4" />
+    </section>
+  );
+}

@@ -1,0 +1,67 @@
+// SCENE: Color Direction — Swatch grid with hover 3D + gradient summary
+// Use when: Presenting the brand color palette.
+// CONTENT to customize: colors array, tagline, subtitle
+import { motion } from "framer-motion";
+import { useInView } from "./useInView";
+
+export default function ColorDirection() {
+  const { ref, isInView } = useInView(0.3);
+
+  /* CONTENT: Replace with client palette */
+  const colors = [
+    { name: "Deep Purple", hex: "#373440", hsl: "252° 10% 23%", role: "Primary dark" },
+    { name: "Blue", hex: "#1B70A6", hsl: "203° 72% 38%", role: "Primary accent" },
+    { name: "Slate", hex: "#3B3E40", hsl: "204° 4% 24%", role: "Card / Surface" },
+    { name: "Teal", hex: "#1C7FA6", hsl: "197° 71% 38%", role: "Secondary accent" },
+    { name: "Light Gray", hex: "#F2F2F2", hsl: "0° 0% 95%", role: "Foreground / Text" },
+    { name: "Deep BG", hex: "#1A1720", hsl: "252° 10% 12%", role: "Background" },
+  ];
+
+  return (
+    <section ref={ref} className="flow-section relative px-8">
+      <div className="max-w-5xl w-full relative z-10">
+        <motion.p className="font-sans text-xs tracking-[0.4em] uppercase text-primary/80 font-semibold mb-16 text-center"
+          initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}}
+          transition={{ duration: 0.8, delay: 0.2 }}>Color Direction</motion.p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+          {colors.map((color, i) => (
+            <motion.div key={i} className="group"
+              initial={{ opacity: 0, scale: 0.85, y: 25 }}
+              animate={isInView ? { opacity: 1, scale: 1, y: 0 } : {}}
+              transition={{ duration: 0.8, delay: 0.3 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}>
+              <motion.div className="rounded-xl h-32 md:h-40 border border-border/15 relative overflow-hidden"
+                style={{ background: color.hex, perspective: 600 }}
+                whileHover={{ scale: 1.04, rotateY: 3 }} transition={{ duration: 0.3 }}>
+                <div className="absolute bottom-3 left-3 right-3">
+                  <span className="font-mono text-[10px] px-2 py-1 rounded bg-background/70 backdrop-blur-sm text-foreground/70">{color.hex}</span>
+                </div>
+              </motion.div>
+              <div className="mt-3">
+                <p className="font-sans text-sm font-bold text-foreground/90">{color.name}</p>
+                <p className="font-sans text-xs text-muted-foreground/40 font-light">{color.role}</p>
+                <p className="font-mono text-xs text-muted-foreground/25 mt-1">{color.hsl}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+        <motion.div className="mt-16 rounded-xl overflow-hidden border border-border/15"
+          initial={{ opacity: 0, y: 30 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 1, delay: 1.1 }}>
+          <div className="p-8 md:p-12 flex items-center justify-between"
+            style={{ background: `linear-gradient(135deg, ${colors[1]?.hex || '#1B70A6'}18, ${colors[3]?.hex || '#1C7FA6'}0d)` }}>
+            <div>
+              {/* CONTENT: Replace tagline and subtitle */}
+              <p className="font-sans text-2xl md:text-3xl font-bold text-foreground/90">Cool precision.</p>
+              <p className="font-sans text-sm text-muted-foreground/40 mt-2 font-light">A palette built on depth — tech-forward, modern, and unmistakably intentional.</p>
+            </div>
+            <div className="flex gap-2">
+              {colors.slice(0, 4).map((c, i) => (
+                <div key={i} className="w-8 h-8 rounded-full border border-border/15" style={{ background: c.hex }} />
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </section>
+  );
+}

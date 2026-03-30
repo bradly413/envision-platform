@@ -783,52 +783,50 @@ function buildPortalContent(preview, plan, client, styleMode) {
     },
     brand: {
       eyebrow: content.brand?.eyebrow || '01 — Brand strategy',
-      headline: content.brand?.headline || structure[1] || 'The story behind the brand.',
-      positioning: brandBody,
+      headline: content.brand?.headline || '',
+      positioning: content.brand?.positioning || brandBody,
       pillars: Array.isArray(content.brand?.pillars) && content.brand.pillars.length
         ? content.brand.pillars
-        : (plan?.selectedAssets || []).slice(0, 3).map((item) => ({
-            title: item.title,
-            desc: item.rationale,
-          })),
+        : [],
       ...content.brand,
     },
     logo: {
       eyebrow: content.logo?.eyebrow || '02 — Logo system',
-      headline: content.logo?.headline || structure[3] || 'Identity direction',
-      rationale: content.logo?.rationale || cleanText(plan?.interactionThesis?.[0] || 'A mark system designed to scale across every touchpoint.'),
+      headline: content.logo?.headline || '',
+      rationale: content.logo?.rationale || '',
+      variants: content.logo?.variants || [],
+      clearance: content.logo?.clearance || '',
+      animation: content.logo?.animation || '',
       ...content.logo,
     },
     colors: {
       eyebrow: content.colors?.eyebrow || '03 — Color palette',
-      headline: content.colors?.headline || structure[5] || 'Color system',
+      headline: content.colors?.headline || '',
       palette: Array.isArray(content.colors?.palette) && content.colors.palette.length
         ? content.colors.palette
-        : referenceDirection.palette
-          ? referenceDirection.palette
-        : [
-            {name: 'Night', hex: '#090911', role: 'Base atmosphere'},
-            {name: 'Mist', hex: '#E5E7EB', role: 'Light contrast'},
-            {name: 'Accent', hex: '#60A5FA', role: 'Motion cue'},
-            {name: 'Warmth', hex: '#F59E0B', role: 'Editorial energy'},
-          ],
+        : [],
       ...content.colors,
     },
     typography: {
       eyebrow: content.typography?.eyebrow || '04 — Typography',
-      headline: content.typography?.headline || 'Type system',
+      headline: content.typography?.headline || '',
       fonts: Array.isArray(content.typography?.fonts) && content.typography.fonts.length
         ? content.typography.fonts
-        : [
-            {name: 'Display', typeface: 'Inter Tight', usage: 'Headlines and section titles'},
-            {name: 'Body', typeface: 'Inter', usage: 'Narrative copy and interface text'},
-          ],
+        : [],
+      scaleRatio: content.typography?.scaleRatio || '',
+      lineHeightGuidance: content.typography?.lineHeightGuidance || '',
       ...content.typography,
     },
+    applications: Array.isArray(content.applications) ? content.applications : [],
+    sectionSequence: Array.isArray(content.sectionSequence) && content.sectionSequence.length
+      ? content.sectionSequence
+      : ['hero', 'brand', 'logo', 'colors', 'typography', 'applications', 'cta'],
     cta: {
       eyebrow: content.cta?.eyebrow || 'Decision',
-      headline: content.cta?.headline || structure[structure.length - 1] || 'Ready for the next pass?',
-      body: content.cta?.body || 'Use the approved plan and generated preview as the basis for iteration, revision, and final delivery.',
+      headline: content.cta?.headline || '',
+      body: content.cta?.body || '',
+      secondaryButtonText: content.cta?.secondaryButtonText || '',
+      microcopy: content.cta?.microcopy || '',
       ...content.cta,
     },
   }
@@ -1189,121 +1187,111 @@ function PortalRenderedPreview({preview, plan, styleMode, client, selectedNodeId
           </div>
         </SelectableRegion>
 
-        <div style={{display: 'grid', gridTemplateColumns: direction.moduleColumns, gap: 18, alignItems: 'stretch'}}>
-          <PortalPreviewCard id="brand" label="Brand" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: styleMode === 'editorial' ? 360 : 300}}>
-            <PreviewSectionLabel eyebrow={content.brand?.eyebrow || '01 — Brand strategy'} accentColor={accentColor} />
-            <div style={{fontSize: styleMode === 'minimal' ? 28 : 34, lineHeight: 1.08, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 18}}>
-              {content.brand?.headline || structure[1] || 'The story behind the brand.'}
-            </div>
-            <div style={{display: 'grid', gridTemplateColumns: styleMode === 'luxury' ? '1fr' : '1.02fr 0.98fr', gap: 22, alignItems: 'start'}}>
-              <p style={{fontSize: 14, color: '#94A3B8', lineHeight: 1.8, margin: 0}}>
-                {content.brand?.positioning}
-              </p>
-              <PreviewBulletList items={pillars} accentColor={accentColor} compact={styleMode === 'minimal'} />
-            </div>
-          </PortalPreviewCard>
-
-          <PortalPreviewCard id="logo" label="Logo" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: styleMode === 'bold' ? 320 : 300}}>
-            <PreviewSectionLabel eyebrow={content.logo?.eyebrow || '02 — Logo system'} accentColor={accentColor} />
-            <div style={{fontSize: 30, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 18}}>
-              {content.logo?.headline || structure[2] || 'Identity direction'}
-            </div>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 18}}>
-              {['Wordmark', 'Symbol', 'Lockup'].map((item, index) => (
-                <div key={item} style={{minHeight: 104, borderRadius: 18, border: direction.cardBorder, background: index === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)', display: 'grid', placeItems: 'center', color: index === 0 ? '#F8FAFC' : '#CBD5E1', fontWeight: 700, fontSize: 13}}>
-                  {item}
+        {(content.sectionSequence || ['brand', 'logo', 'colors', 'typography', 'applications', 'cta']).filter(s => s !== 'hero').map((sectionKey) => {
+          if (sectionKey === 'brand') return (
+            <div key="brand" style={{display: 'grid', gridTemplateColumns: direction.moduleColumns, gap: 18, alignItems: 'stretch'}}>
+              <PortalPreviewCard id="brand" label="Brand" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: styleMode === 'editorial' ? 360 : 300}}>
+                <PreviewSectionLabel eyebrow={content.brand?.eyebrow || '01 — Brand strategy'} accentColor={accentColor} />
+                {content.brand?.headline ? (
+                  <div style={{fontSize: styleMode === 'minimal' ? 28 : 34, lineHeight: 1.08, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 18}}>{content.brand.headline}</div>
+                ) : null}
+                <div style={{display: 'grid', gridTemplateColumns: styleMode === 'luxury' ? '1fr' : '1.02fr 0.98fr', gap: 22, alignItems: 'start'}}>
+                  <p style={{fontSize: 14, color: '#94A3B8', lineHeight: 1.8, margin: 0}}>{content.brand?.positioning}</p>
+                  {pillars.length ? <PreviewBulletList items={pillars} accentColor={accentColor} compact={styleMode === 'minimal'} /> : null}
                 </div>
-              ))}
+              </PortalPreviewCard>
             </div>
-            <p style={{fontSize: 14, color: '#94A3B8', lineHeight: 1.75, margin: 0}}>
-              {content.logo?.rationale}
-            </p>
-          </PortalPreviewCard>
-        </div>
+          );
 
-        {styleMode === 'luxury' ? (
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 18}}>
-            <PortalPreviewCard id="colors" label="Colors" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: 250}}>
-              <PreviewSectionLabel eyebrow={content.colors?.eyebrow || '03 — Palette'} accentColor={accentColor} />
-              <div style={{display: 'grid', gap: 10}}>
-                {palette.map((color) => (
-                  <div key={color.hex} style={{display: 'grid', gridTemplateColumns: '64px 1fr', gap: 12, alignItems: 'center'}}>
-                    <div style={{height: 52, borderRadius: 16, background: color.hex, border: '1px solid rgba(255,255,255,0.08)'}} />
-                    <div>
-                      <div style={{fontSize: 13, fontWeight: 700, color: '#F8FAFC'}}>{color.name}</div>
-                      <div style={{fontSize: 12, color: '#94A3B8'}}>{color.role}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </PortalPreviewCard>
-            <PortalPreviewCard id="typography" label="Type" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: 250}}>
-              <PreviewSectionLabel eyebrow={content.typography?.eyebrow || '04 — Type'} accentColor={accentColor} />
-              {fonts.slice(0, 2).map((font, index) => (
-                <div key={`${font.name}-${index}`} style={{paddingBottom: index === 0 ? 18 : 0, marginBottom: index === 0 ? 18 : 0, borderBottom: index === 0 ? '1px solid rgba(255,255,255,0.08)' : 'none'}}>
-                  <div style={{fontSize: 11, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 8}}>{font.name}</div>
-                  <div style={{fontSize: index === 0 ? 34 : 24, lineHeight: 1.06, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 6}}>{font.typeface}</div>
-                  <div style={{fontSize: 12, color: '#94A3B8', lineHeight: 1.6}}>{font.usage}</div>
+          if (sectionKey === 'logo') return (
+            <div key="logo" style={{display: 'grid', gridTemplateColumns: direction.moduleColumns, gap: 18}}>
+              <PortalPreviewCard id="logo" label="Logo" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: 300}}>
+                <PreviewSectionLabel eyebrow={content.logo?.eyebrow || '02 — Logo system'} accentColor={accentColor} />
+                {content.logo?.headline ? (
+                  <div style={{fontSize: 30, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 18}}>{content.logo.headline}</div>
+                ) : null}
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 18}}>
+                  {(content.logo?.variants?.length ? content.logo.variants.map(v => v.type) : ['Wordmark', 'Symbol', 'Lockup']).map((item, index) => (
+                    <div key={item} style={{minHeight: 104, borderRadius: 18, border: direction.cardBorder, background: index === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)', display: 'grid', placeItems: 'center', color: index === 0 ? '#F8FAFC' : '#CBD5E1', fontWeight: 700, fontSize: 13}}>{item}</div>
+                  ))}
                 </div>
-              ))}
-            </PortalPreviewCard>
-            <PortalPreviewCard id="cta" label="Decision" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: 250, background: `linear-gradient(145deg, ${accentColor}18, rgba(255,255,255,0.02))`}}>
-              <PreviewSectionLabel eyebrow={content.cta?.eyebrow || 'Decision'} accentColor={accentColor} />
-              <div style={{fontSize: 28, lineHeight: 1.08, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 14}}>
-                {content.cta?.headline || structure[structure.length - 1] || 'Ready for the next pass?'}
-              </div>
-              <div style={{fontSize: 14, color: '#CBD5E1', lineHeight: 1.75}}>
-                {content.cta?.body}
-              </div>
-            </PortalPreviewCard>
-          </div>
-        ) : (
-          <div style={{display: 'grid', gridTemplateColumns: styleMode === 'bold' ? '0.88fr 1.12fr' : '1fr 1fr', gap: 18}}>
-            <PortalPreviewCard id="colors" label="Colors" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: 250}}>
-              <PreviewSectionLabel eyebrow={content.colors?.eyebrow || '03 — Palette'} accentColor={accentColor} />
-              <div style={{fontSize: 30, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 20}}>
-                {content.colors?.headline || structure[3] || 'Color system'}
-              </div>
-              <div style={{display: 'grid', gridTemplateColumns: `repeat(${Math.min(palette.length, styleMode === 'bold' ? 2 : 4)}, minmax(0, 1fr))`, gap: 12}}>
-                {palette.map((color) => (
-                  <div key={color.hex}>
-                    <div style={{height: styleMode === 'bold' ? 92 : 120, borderRadius: 18, background: color.hex, border: '1px solid rgba(255,255,255,0.08)', marginBottom: 10}} />
-                    <div style={{fontSize: 12, fontWeight: 700, color: '#F8FAFC'}}>{color.name}</div>
-                    <div style={{fontSize: 11, color: '#94A3B8'}}>{color.role}</div>
-                  </div>
-                ))}
-              </div>
-            </PortalPreviewCard>
+                {content.logo?.rationale ? <p style={{fontSize: 14, color: '#94A3B8', lineHeight: 1.75, margin: 0}}>{content.logo.rationale}</p> : null}
+              </PortalPreviewCard>
+            </div>
+          );
 
-            <div style={{display: 'grid', gap: 18}}>
+          if (sectionKey === 'colors') return (
+            <div key="colors" style={{display: 'grid', gridTemplateColumns: direction.moduleColumns, gap: 18}}>
+              <PortalPreviewCard id="colors" label="Colors" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: 250}}>
+                <PreviewSectionLabel eyebrow={content.colors?.eyebrow || '03 — Palette'} accentColor={accentColor} />
+                {content.colors?.headline ? (
+                  <div style={{fontSize: 30, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 20}}>{content.colors.headline}</div>
+                ) : null}
+                {palette.length ? (
+                  <div style={{display: 'grid', gridTemplateColumns: `repeat(${Math.min(palette.length, 4)}, minmax(0, 1fr))`, gap: 12}}>
+                    {palette.map((color) => (
+                      <div key={color.hex}>
+                        <div style={{height: 120, borderRadius: 18, background: color.hex, border: '1px solid rgba(255,255,255,0.08)', marginBottom: 10}} />
+                        <div style={{fontSize: 12, fontWeight: 700, color: '#F8FAFC'}}>{color.name}</div>
+                        <div style={{fontSize: 11, color: '#94A3B8'}}>{color.role}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p style={{fontSize: 13, color: '#64748B'}}>No color palette generated.</p>}
+              </PortalPreviewCard>
+            </div>
+          );
+
+          if (sectionKey === 'typography') return (
+            <div key="typography" style={{display: 'grid', gridTemplateColumns: direction.moduleColumns, gap: 18}}>
               <PortalPreviewCard id="typography" label="Type" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: 200}}>
                 <PreviewSectionLabel eyebrow={content.typography?.eyebrow || '04 — Typography'} accentColor={accentColor} />
-                <div style={{display: 'grid', gap: 16}}>
-                  {fonts.slice(0, 2).map((font, index) => (
-                    <div key={`${font.name}-${index}`} style={{display: 'grid', gridTemplateColumns: styleMode === 'minimal' ? '1fr' : '0.9fr 1.1fr', gap: 16, alignItems: 'baseline'}}>
-                      <div style={{fontSize: index === 0 ? 32 : 24, lineHeight: 1.04, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em'}}>
-                        {font.typeface}
+                {fonts.length ? (
+                  <div style={{display: 'grid', gap: 16}}>
+                    {fonts.slice(0, 3).map((font, index) => (
+                      <div key={`${font.name}-${index}`} style={{display: 'grid', gridTemplateColumns: '0.9fr 1.1fr', gap: 16, alignItems: 'baseline'}}>
+                        <div style={{fontSize: index === 0 ? 32 : 24, lineHeight: 1.04, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em'}}>{font.typeface}</div>
+                        <div style={{fontSize: 13, color: '#94A3B8', lineHeight: 1.65}}>{font.usage}{font.scale ? ` · ${font.scale}` : ''}</div>
                       </div>
-                      <div style={{fontSize: 13, color: '#94A3B8', lineHeight: 1.65}}>
-                        {font.usage}
-                      </div>
+                    ))}
+                  </div>
+                ) : <p style={{fontSize: 13, color: '#64748B'}}>No typography generated.</p>}
+                {content.typography?.scaleRatio ? <div style={{marginTop: 12, fontSize: 11, color: '#64748B'}}>Scale: {content.typography.scaleRatio}</div> : null}
+              </PortalPreviewCard>
+            </div>
+          );
+
+          if (sectionKey === 'applications' && content.applications?.length) return (
+            <div key="applications" style={{display: 'grid', gridTemplateColumns: direction.moduleColumns, gap: 18}}>
+              <PortalPreviewCard id="applications" label="Applications" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: 200}}>
+                <PreviewSectionLabel eyebrow="05 — Applications" accentColor={accentColor} />
+                <div style={{display: 'grid', gridTemplateColumns: `repeat(${Math.min(content.applications.length, 3)}, minmax(0, 1fr))`, gap: 14}}>
+                  {content.applications.map((app, i) => (
+                    <div key={i} style={{padding: 16, borderRadius: 18, border: direction.cardBorder, background: 'rgba(255,255,255,0.03)'}}>
+                      <div style={{fontSize: 13, fontWeight: 700, color: '#F8FAFC', marginBottom: 8}}>{app.context}</div>
+                      <div style={{fontSize: 12, color: '#94A3B8', lineHeight: 1.65}}>{app.description}</div>
                     </div>
                   ))}
                 </div>
               </PortalPreviewCard>
+            </div>
+          );
 
-              <PortalPreviewCard id="cta" label="Decision" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: styleMode === 'minimal' ? 180 : 220, background: styleMode === 'bold' ? `linear-gradient(145deg, ${accentColor}18, rgba(255,255,255,0.03))` : direction.cardBackground}}>
+          if (sectionKey === 'cta') return (
+            <div key="cta" style={{display: 'grid', gridTemplateColumns: direction.moduleColumns, gap: 18}}>
+              <PortalPreviewCard id="cta" label="Decision" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: 200, background: `linear-gradient(145deg, ${accentColor}18, rgba(255,255,255,0.02))`}}>
                 <PreviewSectionLabel eyebrow={content.cta?.eyebrow || 'Decision'} accentColor={accentColor} />
-                <div style={{fontSize: styleMode === 'minimal' ? 24 : 28, lineHeight: 1.08, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 12}}>
-                  {content.cta?.headline || structure[structure.length - 1] || 'Ready for the next pass?'}
-                </div>
-                <div style={{fontSize: 14, color: '#CBD5E1', lineHeight: 1.75}}>
-                  {content.cta?.body}
-                </div>
+                {content.cta?.headline ? (
+                  <div style={{fontSize: 28, lineHeight: 1.08, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 12}}>{content.cta.headline}</div>
+                ) : null}
+                {content.cta?.body ? <div style={{fontSize: 14, color: '#CBD5E1', lineHeight: 1.75}}>{content.cta.body}</div> : null}
+                {content.cta?.microcopy ? <div style={{marginTop: 10, fontSize: 11, color: '#64748B'}}>{content.cta.microcopy}</div> : null}
               </PortalPreviewCard>
             </div>
-          </div>
-        )}
+          );
+
+          return null;
+        })}
       </div>
     </motion.div>
   )

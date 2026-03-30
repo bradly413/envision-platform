@@ -1510,32 +1510,27 @@ function buildContextMessage({client, portal, plan}) {
 }
 
 function buildPlanMessage(plan) {
-  return [
-    `Approved plan: ${plan.title}`,
-    plan.summary,
-    '',
-    `Visual thesis: ${plan.visualThesis}`,
-    '',
-    'Interaction thesis:',
-    ...plan.interactionThesis.map((item) => `- ${item}`),
-    '',
-    'Visual direction:',
-    ...plan.visualDirection.map((item) => `- ${item}`),
-    '',
-    'Structure:',
-    ...plan.structure.map((item, index) => `${index + 1}. ${item}`),
-    '',
-    'Selected assets:',
-    ...plan.selectedAssets.map((item) => `- ${item.title} (${item.categoryLabel}, ${item.supportLabel}): ${item.rationale}`),
-    ...(plan.referenceIntelligence?.logoSignals?.length ? ['', 'Reference-led logo cues:', ...plan.referenceIntelligence.logoSignals.map((item) => `- ${item}`)] : []),
-    ...(plan.referenceIntelligence?.visualSignals?.length ? ['', 'Reference-led visual cues:', ...plan.referenceIntelligence.visualSignals.map((item) => `- ${item}`)] : []),
-    '',
-    'Logo guidance:',
-    ...(plan.logoGuidance || []).map((item) => `- ${item}`),
-    '',
-    'Design guardrails:',
-    ...(plan.designGuardrails || DESIGN_GUARDRAILS).map((item) => `- ${item}`),
-  ].join('\n');
+  const structured = {
+    title: plan.title,
+    summary: plan.summary,
+    visualThesis: plan.visualThesis,
+    interactionThesis: plan.interactionThesis,
+    visualDirection: plan.visualDirection,
+    structure: plan.structure,
+    selectedAssets: (plan.selectedAssets || []).map(a => ({
+      title: a.title, category: a.category, id: a.id,
+      effectMapping: a.effectMapping || null,
+      rationale: a.rationale,
+    })),
+    logoGuidance: plan.logoGuidance,
+    designGuardrails: plan.designGuardrails || DESIGN_GUARDRAILS,
+    referenceIntelligence: plan.referenceIntelligence ? {
+      logoSignals: plan.referenceIntelligence.logoSignals,
+      visualSignals: plan.referenceIntelligence.visualSignals,
+      summary: plan.referenceIntelligence.summary,
+    } : null,
+  };
+  return `Approved plan (structured):\n\`\`\`json\n${JSON.stringify(structured, null, 2)}\n\`\`\``;
 }
 
 function normalizeTextReply(reply = '') {
@@ -1709,6 +1704,34 @@ function formatSelectionLabel(outputMode, selectedNodeId) {
   return labels[selectedNodeId] || 'Selected section';
 }
 
+function validatePortalOutput(json) {
+  if (!json) return [];
+  const warnings = [];
+  const pillars = json.brand?.pillars;
+  if (Array.isArray(pillars) && pillars.length < 4) warnings.push(`Only ${pillars.length} pillar${pillars.length === 1 ? '' : 's'} (4–5 expected)`);
+  const palette = json.colors?.palette;
+  if (Array.isArray(palette) && palette.length < 4) warnings.push(`Only ${palette.length} color${palette.length === 1 ? '' : 's'} (4–5 expected)`);
+  if (!json.logo?.rationale || json.logo.rationale.length < 20) warnings.push('Logo rationale is thin');
+  if (!json.applications?.length) warnings.push('No applications section generated');
+  if (!json.sectionSequence?.length) warnings.push('No sectionSequence — default order used');
+  const allText = JSON.stringify(json);
+  [/your brand/i, /we believe/i, /our mission/i, /the future of/i, /innovative solutions/i, /seamless experience/i].forEach(p => {
+    if (p.test(allText)) warnings.push(`Generic copy detected: "${p.source.replace(/\\/g, '')}"`);
+  });
+  // Check pillar distinctness — flag if any two titles share >50% of words
+  if (Array.isArray(pillars) && pillars.length >= 2) {
+    for (let i = 0; i < pillars.length; i++) {
+      const wordsA = new Set((pillars[i].title || '').toLowerCase().split(/\s+/));
+      for (let j = i + 1; j < pillars.length; j++) {
+        const wordsB = (pillars[j].title || '').toLowerCase().split(/\s+/);
+        const overlap = wordsB.filter(w => wordsA.has(w) && w.length > 3).length;
+        if (overlap >= Math.ceil(wordsA.size * 0.5)) warnings.push(`Pillars "${pillars[i].title}" and "${pillars[j].title}" may be too similar`);
+      }
+    }
+  }
+  return warnings;
+}
+
 function extractSelectedContent(outputMode, preview, selectedNodeId) {
   if (!preview) return null;
 
@@ -1727,6 +1750,14 @@ function buildPatchMessage({outputMode, plan, selectedNodeId, preview, instructi
   const selectionLabel = formatSelectionLabel(outputMode, selectedNodeId);
   const selectedContent = extractSelectedContent(outputMode, preview, selectedNodeId);
 
+  const feedback = {
+    revisionType: selectedNodeId && selectedNodeId !== 'root' ? 'section-edit' : 'full-rethink',
+    targetSection: selectedNodeId,
+    targetLabel: selectionLabel,
+    userInstruction: instruction,
+    previousContent: selectedContent || null,
+  };
+
   return [
     'Apply this follow-up revision to the existing structured output.',
     `Target output mode: ${outputMode}`,
@@ -1734,17 +1765,16 @@ function buildPatchMessage({outputMode, plan, selectedNodeId, preview, instructi
     'Keep the overall structure, approved plan, and all unaffected sections intact.',
     'Return the full updated JSON payload inside a single fenced ```json block.',
     '',
-    'Revision request:',
-    instruction,
-    '',
-    'Current focused content:',
-    selectedContent ? JSON.stringify(selectedContent, null, 2) : 'No focused content available.',
+    'Structured feedback:',
+    '```json',
+    JSON.stringify(feedback, null, 2),
+    '```',
     '',
     'Current full output:',
     JSON.stringify(preview, null, 2),
     '',
     'Approved assets in play:',
-    (plan?.selectedAssets || []).map((item) => `- ${item.title} (${item.categoryLabel})`).join('\n') || '- None',
+    (plan?.selectedAssets || []).map((item) => `- ${item.title} (${item.categoryLabel}, effect: ${item.effectMapping || 'unspecified'})`).join('\n') || '- None',
     ...(plan?.referenceIntelligence?.logoSignals?.length ? ['', 'Reference-led logo cues:', ...plan.referenceIntelligence.logoSignals.map((item) => `- ${item}`)] : []),
     ...(plan?.referenceIntelligence?.visualSignals?.length ? ['', 'Reference-led visual cues:', ...plan.referenceIntelligence.visualSignals.map((item) => `- ${item}`)] : []),
     '',
@@ -3188,6 +3218,7 @@ export default function PortalEditorV2Page() {
   const [model, setModel] = useState(MODEL_OPTIONS.anthropic[0].value);
   const [styleMode, setStyleMode] = useState('cinematic');
   const [openChipId, setOpenChipId] = useState(null);
+  const [qualityWarnings, setQualityWarnings] = useState([]);
   const [messages, setMessages] = useState([{role: 'assistant', content: MODE_INTRO.portal}]);
   const [input, setInput] = useState('');
   const [phase, setPhase] = useState('idle');
@@ -4023,6 +4054,7 @@ export default function PortalEditorV2Page() {
         }
 
         setExtractedJSON(json);
+        setQualityWarnings(outputMode === 'portal' ? validatePortalOutput(json) : []);
         setPhase('preview_ready');
         setShowInspectorPanel(false);
         addVersion({
@@ -4146,6 +4178,7 @@ export default function PortalEditorV2Page() {
       }
 
       setExtractedJSON(json);
+      setQualityWarnings(outputMode === 'portal' ? validatePortalOutput(json) : []);
       setPhase('preview_ready');
       setSelectedPreviewNode(getDefaultPreviewNode(outputMode));
       setShowInspectorPanel(false);
@@ -4750,6 +4783,15 @@ export default function PortalEditorV2Page() {
             ) : null}
           </div>
         </header>
+
+        {qualityWarnings.length > 0 && normalizedPreview ? (
+          <div style={{padding: '8px 24px', borderBottom: '1px solid rgba(251,191,36,.14)', background: 'rgba(120,53,15,.08)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'}}>
+            <span style={{fontSize: 11, fontWeight: 700, color: '#FDE68A'}}>{qualityWarnings.length} quality note{qualityWarnings.length === 1 ? '' : 's'}</span>
+            {qualityWarnings.map((w, i) => (
+              <span key={i} style={{fontSize: 11, color: '#FCD34D', opacity: 0.8}}>· {w}</span>
+            ))}
+          </div>
+        ) : null}
 
         <div style={{flex: 1, minHeight: 0, display: 'flex', flexDirection: isTablet ? 'column' : 'row'}}>
           <div style={{flex: 1, minWidth: 0, padding: isMobile ? 16 : 24, overflow: 'auto'}}>

@@ -523,6 +523,9 @@ Approved section effects:
 - editorial-rise
 - magnetic-cta
 
+═══ ASSET ALIGNMENT ═══
+When the approved plan specifies selected assets, you MUST use at least 2 of them in experience.sectionEffects or experience.heroEffects. If you choose different effects, explain why in a brief note before the JSON.
+
 ═══ GOLD STANDARD EXAMPLE ═══
 Study this example for the quality bar. Match or exceed it.
 
@@ -545,7 +548,10 @@ When asked to create or update portal content, respond with a JSON object in thi
   "logo": {
     "headline": "",
     "logoUrl": "",
-    "rationale": ""
+    "rationale": "",
+    "variants": [{ "type": "primary|secondary|icon|reversed", "usage": "" }],
+    "clearance": "",
+    "animation": ""
   },
   "colors": {
     "headline": "",
@@ -553,13 +559,21 @@ When asked to create or update portal content, respond with a JSON object in thi
   },
   "typography": {
     "headline": "",
-    "fonts": [{ "name": "", "typeface": "", "usage": "", "stack": "" }]
+    "fonts": [{ "name": "", "typeface": "", "usage": "", "stack": "", "weight": "", "style": "", "scale": "" }],
+    "scaleRatio": "",
+    "lineHeightGuidance": ""
   },
+  "applications": [
+    { "context": "", "description": "" }
+  ],
   "cta": {
     "headline": "",
     "buttonText": "",
-    "email": ""
+    "secondaryButtonText": "",
+    "email": "",
+    "microcopy": ""
   },
+  "sectionSequence": ["hero", "brand", "logo", "colors", "typography", "applications", "cta"],
   "experience": {
     "preset": "cinematic-editorial",
     "motionLevel": "elevated",
@@ -579,6 +593,26 @@ When asked to create or update portal content, respond with a JSON object in thi
     }
   }
 }
+
+Logo section rules:
+- "variants" should list 2-4 logo usage contexts (primary lockup, secondary mark, icon/favicon, reversed for dark backgrounds) with a brief usage note for each.
+- "clearance" should describe minimum clear space rules in practical terms.
+- "animation" should describe how the logo might animate on reveal (e.g., "Draws from center outward over 0.8s with an ease-out curve").
+
+Typography section rules:
+- "scaleRatio" should specify the multiplier between type sizes (e.g., "1.25 major third" or "1.333 perfect fourth").
+- "lineHeightGuidance" should specify line-height per level (e.g., "Display: 0.95, Body: 1.65, Caption: 1.4").
+- Each font's "weight" and "style" fields describe the recommended weight range and any italic usage.
+- Each font's "scale" field describes its role in the type scale (e.g., "Display: 48-72px, Body: 16-18px").
+
+Applications section rules:
+- Generate 3-5 application contexts showing the brand in real-world use.
+- Each "context" names a specific artifact (business card, website header, signage, packaging, social media template, email signature, etc.).
+- Each "description" explains how the brand system applies to that artifact — materials, layout choices, and design details.
+
+Section sequence rules:
+- "sectionSequence" controls the order sections appear in the portal. Default is hero → brand → logo → colors → typography → applications → cta.
+- Reorder if the narrative calls for it. For example, a typography-led brand might put typography before colors.
 
 Choose the experience preset that best matches the brand. Keep the effect system tasteful and restrained.
 If the brief is for a cultural organization, school, real estate brand, aviation company, restaurant, law firm, or another distinct category, reflect that category directly in the language and creative system.

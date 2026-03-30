@@ -4542,15 +4542,6 @@ export default function PortalEditorV2Page() {
                 {showInspectorPanel ? 'Hide inspector' : 'Show inspector'}
               </button>
             ) : null}
-            {primaryHeaderAction === 'approve' ? (
-              <button
-                onClick={approveAndBuild}
-                disabled={loading || !plan}
-                style={{padding: '10px 16px', borderRadius: 12, border: 'none', background: loading ? '#334155' : '#2563EB', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: loading || !plan ? 'default' : 'pointer'}}
-              >
-                {loading ? 'Building…' : 'Approve & Build'}
-              </button>
-            ) : null}
             {primaryHeaderAction === 'save' ? (
               <button
                 onClick={() => setShowDeployPanel((current) => !current)}

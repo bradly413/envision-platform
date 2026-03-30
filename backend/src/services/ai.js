@@ -872,6 +872,38 @@ Scene guidance:
 Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
 }
 
+// Convert OpenAI-style image_url messages to Anthropic's image format
+function toAnthropicMessages(messages) {
+  return messages.map(msg => {
+    if (!Array.isArray(msg.content)) return msg;
+    return {
+      role: msg.role,
+      content: msg.content.map(block => {
+        if (block.type === 'image_url' && block.image_url?.url) {
+          const dataUrl = block.image_url.url;
+          const match = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+          if (match) {
+            return { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } };
+          }
+        }
+        return block;
+      }),
+    };
+  });
+}
+
+// Extract only text from multimodal messages for providers that don't support images
+function toTextOnlyMessages(messages) {
+  return messages.map(msg => {
+    if (!Array.isArray(msg.content)) return msg;
+    const text = msg.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('\n');
+    return { role: msg.role, content: text || '' };
+  });
+}
+
 async function generateWithAnthropic({ apiKey, model, system, messages, maxTokens = 1400 }) {
   if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
 
@@ -1035,7 +1067,7 @@ async function generateBuilderContent({
       : buildPortalEditorSystemPrompt({ styleMode, designSystem });
   const safeMessages = (messages || []).map(message => ({
     role: message.role,
-    content: String(message.content || ''),
+    content: message.content || '',
   }));
 
   let text;
@@ -1044,7 +1076,7 @@ async function generateBuilderContent({
       apiKey: process.env.ANTHROPIC_API_KEY,
       model: config.model,
       system,
-      messages: safeMessages,
+      messages: toAnthropicMessages(safeMessages),
       maxTokens,
     });
   } else if (config.provider === 'openai') {
@@ -1060,7 +1092,7 @@ async function generateBuilderContent({
       apiKey: process.env.GOOGLE_API_KEY,
       model: config.model,
       system,
-      messages: safeMessages,
+      messages: toTextOnlyMessages(safeMessages),
       maxTokens,
     });
   } else {

@@ -15,6 +15,7 @@ const agentRoutes = require('./routes/agents');
 const analyticsRoutes = require('./routes/analytics');
 const aiRoutes = require('./routes/ai');
 const designSystemRoutes = require('./routes/designSystems');
+const scrapeRoutes = require('./routes/scrape');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -53,6 +54,7 @@ app.use('/api/agents',    agentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/ai',        aiRoutes);
 app.use('/api/design-systems', designSystemRoutes);
+app.use('/api/scrape',         scrapeRoutes);
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));

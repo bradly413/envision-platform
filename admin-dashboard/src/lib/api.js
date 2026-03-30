@@ -72,6 +72,10 @@ export const ai = {
   generatePortalContent: (payload) => api.post('/ai/portal-editor', payload),
 };
 
+export const scrape = {
+  fetch: (url) => api.post('/scrape', { url }),
+};
+
 export const designSystems = {
   list: () => api.get('/design-systems'),
   create: (data) => api.post('/design-systems', data),

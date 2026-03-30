@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {toPng} from 'html-to-image';
-import {ai, clients as clientsApi, portals as portalsApi} from '../lib/api';
+import {ai, clients as clientsApi, portals as portalsApi, scrape} from '../lib/api';
 import {
   formatRegistryCategoryLabel,
   getRegistryOptionsForCategory,
@@ -18,6 +18,7 @@ import {
   saveReferenceLibrary,
 } from '../lib/referenceLibrary';
 import BuilderLivePreview from '../components/BuilderLivePreview';
+import {parseCreativeBrief, formatBriefForContext} from '../lib/briefParser';
 
 const MODEL_OPTIONS = {
   anthropic: [
@@ -219,6 +220,17 @@ function readFileAsDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error(`Failed to read ${file?.name || 'file'}`));
+    reader.readAsText(file);
+  });
+}
+
+const TEXT_MIME_TYPES = ['text/', 'application/json', 'application/xml', 'application/xhtml'];
 
 function hashValue(value = '') {
   let hash = 0;
@@ -1062,6 +1074,14 @@ function buildVisualReferenceMessage({client, portal, plan, references = [], att
 
   if (activeReferences.length) {
     lines.push(`References: ${activeReferences.map((item) => item.value || item.label).join(' | ')}`);
+    activeReferences.forEach((item) => {
+      if (item.scraped) {
+        lines.push(`\n--- Scraped from ${item.value} ---`);
+        if (item.scraped.title) lines.push(`Title: ${item.scraped.title}`);
+        if (item.scraped.description) lines.push(`Description: ${item.scraped.description}`);
+        if (item.scraped.text) lines.push(`Page content: ${item.scraped.text}`);
+      }
+    });
   }
 
   if (activeAttachments.length) {
@@ -1070,6 +1090,20 @@ function buildVisualReferenceMessage({client, portal, plan, references = [], att
       lines.push(`- ${item.name}${item.cues?.length ? ` — ${item.cues.join(', ')}` : ''}`);
     });
   }
+
+  // Include parsed brief content from HTML attachments
+  const briefAttachments = activeAttachments.filter(item => item.parsedBrief);
+  briefAttachments.forEach((item) => {
+    lines.push(`\n--- Parsed brief from ${item.name} ---`);
+    lines.push(formatBriefForContext(item.parsedBrief));
+  });
+
+  // Include raw text content from text/HTML/JSON attachments
+  const textAttachments = activeAttachments.filter(item => item.textContent && !item.parsedBrief);
+  textAttachments.forEach((item) => {
+    lines.push(`\n--- Content from ${item.name} ---`);
+    lines.push(item.textContent);
+  });
 
   if (plan?.referenceIntelligence?.logoSignals?.length) {
     lines.push(`Logo cues: ${plan.referenceIntelligence.logoSignals.join(' | ')}`);
@@ -3671,20 +3705,34 @@ export default function PortalEditorV2Page() {
     if (portal) setSelectedClient(String(portal.client_id));
   };
 
-  const handleAddReference = () => {
+  const handleAddReference = async () => {
     const value = window.prompt('Add a reference URL or note for the builder.');
     const nextValue = cleanText(value);
     if (!nextValue) return;
 
-    setReferences((current) => [
-      ...current,
-      {
-        id: `ref-${Date.now()}`,
-        label: nextValue.replace(/^https?:\/\//, '').slice(0, 60),
-        value: nextValue,
-      },
-    ]);
-    setToolNotice('Reference added to the builder context.');
+    const refEntry = {
+      id: `ref-${Date.now()}`,
+      label: nextValue.replace(/^https?:\/\//, '').slice(0, 60),
+      value: nextValue,
+    };
+
+    // Auto-fetch URL content if it looks like a URL
+    if (/^https?:\/\//i.test(nextValue)) {
+      setToolNotice('Fetching page content…');
+      try {
+        const scraped = await scrape.fetch(nextValue);
+        if (scraped) {
+          refEntry.scraped = scraped;
+          refEntry.label = scraped.title || refEntry.label;
+          setToolNotice(`Fetched: ${scraped.title || nextValue}`);
+        }
+      } catch {
+        setToolNotice('Reference added (could not fetch page content).');
+      }
+    }
+
+    setReferences((current) => [...current, refEntry]);
+    if (!refEntry.scraped) setToolNotice('Reference added to the builder context.');
     appendBuildEvent('Reference added', nextValue);
   };
 
@@ -3695,6 +3743,8 @@ export default function PortalEditorV2Page() {
     try {
       const nextAttachments = await Promise.all(files.map(async (file) => {
         let dataUrl = '';
+        let textContent = '';
+        let parsedBrief = null;
 
         if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
           try {
@@ -3702,9 +3752,22 @@ export default function PortalEditorV2Page() {
           } catch {
             dataUrl = '';
           }
+        } else if (TEXT_MIME_TYPES.some(t => file.type.startsWith(t)) || file.name.endsWith('.html') || file.name.endsWith('.txt') || file.name.endsWith('.md') || file.name.endsWith('.json')) {
+          try {
+            textContent = await readFileAsText(file);
+            if (textContent.length > 8000) textContent = textContent.slice(0, 8000);
+            if (file.type.includes('html') || file.name.endsWith('.html')) {
+              try { parsedBrief = parseCreativeBrief(textContent, {name: file.name, mimeType: file.type}); } catch {}
+            }
+          } catch {
+            textContent = '';
+          }
         }
 
-        return buildAttachmentRecord(file, dataUrl);
+        const record = buildAttachmentRecord(file, dataUrl);
+        if (textContent) record.textContent = textContent;
+        if (parsedBrief) record.parsedBrief = parsedBrief;
+        return record;
       }));
 
       setAttachments((current) => [

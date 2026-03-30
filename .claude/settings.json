@@ -5,12 +5,6 @@
         "matcher": "Bash",
         "hooks": [{ "type": "command", "command": "node scripts/pre-push-check.js" }]
       }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [{ "type": "command", "command": "npx prettier --write $CLAUDE_FILE_PATH" }]
-      }
     ]
   }
 }

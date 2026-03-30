@@ -2997,6 +2997,7 @@ function WorkflowPlanCard({plan, outputMode, styleMode, client, loading, phase, 
                 opacity: i === highlightIndex ? 1 : 0,
                 transform: i === highlightIndex ? 'translateY(0)' : 'translateY(8px)',
                 transition: 'opacity 0.5s ease, transform 0.5s ease',
+                pointerEvents: i === highlightIndex ? 'auto' : 'none',
               }}
             >
               {text}

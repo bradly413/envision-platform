@@ -433,16 +433,42 @@ function getPortalFallbackPalette(styleMode = 'cinematic') {
   return palettes[styleMode] || palettes.cinematic;
 }
 
+// Normalize non-standard AI field names to the expected schema
+function normalizeAIFieldNames(content) {
+  if (!content || typeof content !== 'object') return content;
+  const c = {...content};
+
+  // Hero: AI sometimes returns title/subtitle/description instead of headline/subheadline/intro
+  if (c.hero) {
+    c.hero = {...c.hero};
+    if (!c.hero.headline && c.hero.title) c.hero.headline = c.hero.title;
+    if (!c.hero.subheadline && c.hero.subtitle) c.hero.subheadline = c.hero.subtitle;
+    if (!c.hero.intro && c.hero.description) c.hero.intro = c.hero.description;
+  }
+
+  // Brand: AI sometimes returns name/tagline/description
+  if (c.brand) {
+    c.brand = {...c.brand};
+    if (!c.brand.headline && c.brand.tagline) c.brand.headline = c.brand.tagline;
+    if (!c.brand.positioning && c.brand.description) c.brand.positioning = c.brand.description;
+  }
+
+  // Logo: AI sometimes returns description instead of rationale
+  if (c.logo) {
+    c.logo = {...c.logo};
+    if (!c.logo.rationale && c.logo.description) c.logo.rationale = c.logo.description;
+  }
+
+  return c;
+}
+
 function hydratePortalContent(content = {}, {plan, client, styleMode}) {
-  const next = {...(content || {})};
+  const normalized = normalizeAIFieldNames(content);
+  const next = {...(normalized || {})};
   const company = cleanText(client?.company || client?.name || plan?.briefSubject || next.brand?.name || 'Brand');
   const structure = Array.isArray(plan?.structure) ? plan.structure : [];
   const logoSignals = plan?.referenceIntelligence?.logoSignals || [];
   const visualSignals = plan?.referenceIntelligence?.visualSignals || [];
-  const selectedAssets = Array.isArray(plan?.selectedAssets) ? plan.selectedAssets : [];
-  const textAsset = selectedAssets.find((item) => item.category === 'text-animations');
-  const componentAsset = selectedAssets.find((item) => item.category === 'components');
-  const animationAsset = selectedAssets.find((item) => item.category === 'animations');
   const conceptSummary = cleanText(plan?.summary || plan?.visualThesis || '');
 
   next.hero = {...(next.hero || {})};
@@ -503,13 +529,13 @@ function hydratePortalContent(content = {}, {plan, client, styleMode}) {
     next.typography.fonts = [
       {
         name: 'Display',
-        typeface: styleMode === 'luxury' ? 'Canela / Editorial Serif' : 'Inter Tight',
-        usage: cleanText(textAsset?.rationale || 'Headlines and dominant brand statements'),
+        typeface: styleMode === 'luxury' ? 'Canela' : 'Inter Tight',
+        usage: 'Headlines and dominant brand statements',
       },
       {
         name: 'Body',
-        typeface: styleMode === 'editorial' ? 'Inter / System Sans' : 'Inter',
-        usage: cleanText(componentAsset?.rationale || 'Narrative copy and supporting interface language'),
+        typeface: 'Inter',
+        usage: 'Narrative copy and supporting interface language',
       },
     ];
   }
@@ -520,9 +546,7 @@ function hydratePortalContent(content = {}, {plan, client, styleMode}) {
     next.cta.headline = structure[structure.length - 1] || 'Ready for rollout';
   }
   if (shouldReplacePortalCopy(next.cta.body)) {
-    next.cta.body = cleanText(
-      animationAsset?.rationale || plan?.summary || 'Approve this direction to move into refinement, production, and rollout.'
-    );
+    next.cta.body = 'Approve this direction to move into refinement, production, and rollout.';
   }
 
   return next;
@@ -4300,12 +4324,19 @@ export default function PortalEditorV2Page() {
 
     try {
       const rawPayload = normalizeBuilderPayload(outputMode, extractedJSON, {plan, client: selectedClientRecord, styleMode});
-      const payload = outputMode === 'presentation'
-        ? rawPayload
-        : withPortalMetadata(rawPayload, {
-            templateId: deployTemplateId || selectedPortalRecord?.template_id || 'brand-reveal-v1',
-            styleMode,
-          });
+      let payload;
+      if (outputMode === 'presentation') {
+        payload = rawPayload;
+      } else if (outputMode === 'cinematic-code') {
+        payload = rawPayload;
+      } else {
+        // Wrap portal content with mode marker so client portal detects it correctly
+        const portalContent = withPortalMetadata(rawPayload, {
+          templateId: deployTemplateId || selectedPortalRecord?.template_id || 'brand-reveal-v1',
+          styleMode,
+        });
+        payload = { mode: 'portal', portal: portalContent };
+      }
 
       const nextSlug = slugifyValue(deploySlug || selectedPortalRecord?.slug || selectedClientRecord?.name || 'portal');
       const updatePayload = {

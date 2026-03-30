@@ -7,7 +7,7 @@ router.use(requireAdmin);
 // Mode-aware token budgets — portal needs room for all 7 JSON sections,
 // cinematic-flow needs room for 6–10 scenes, presentations for 8–12 slides.
 const MODE_TOKEN_DEFAULTS = {
-  portal: 8192,
+  portal: 12288,
   presentation: 12288,
   'cinematic-flow': 16384,
   'cinematic-code': 24576,

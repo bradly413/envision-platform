@@ -621,14 +621,38 @@ function pickConceptProfile({prompt, outputMode, styleMode, client, referenceSit
   return pool[hashValue(seed) % pool.length] || profiles[0];
 }
 
+function isLogoRevealIdentityPrompt(text = '', attachments = []) {
+  const lower = cleanText(text).toLowerCase();
+  const attachmentText = attachments.map((item) => `${item?.name || ''} ${item?.type || ''}`).join(' ').toLowerCase();
+  return /(logo reveal|wordmark reveal|brand identity presentation|logo evolution|icon deconstruction|heavy lowercase|all lowercase|wordmark|rebrand)/.test(lower)
+    || /(logo-reveal|wordmark|brand-identity)/.test(attachmentText);
+}
+
 function createStructure(prompt, outputMode, concept, referenceIntelligence) {
   const text = cleanText(prompt).toLowerCase();
   const isInstitutional = referenceIntelligence?.isInstitutional;
   const isCampaign = /campaign|launch|rollout|activation|awareness/.test(text);
   const isIdentity = /brand|identity|logo|rebrand|wordmark|mark/.test(text);
   const isProposal = /proposal|sales|pitch|business development/.test(text);
+  const isLogoReveal = isLogoRevealIdentityPrompt(text);
 
   if (outputMode === 'presentation') {
+    if (isLogoReveal) {
+      return [
+        'Opening title',
+        'Wordmark reveal',
+        'Brand context',
+        'Brand philosophy',
+        'Logo evolution',
+        'Icon deconstruction',
+        'Logo system',
+        'Typography system',
+        'Color direction',
+        'Applications',
+        'Closing',
+      ];
+    }
+
     if (isCampaign) {
       return [
         'Opening statement',
@@ -686,6 +710,21 @@ function createStructure(prompt, outputMode, concept, referenceIntelligence) {
       'System',
       'Applications',
       'Recommendation',
+    ];
+  }
+
+  if (isLogoReveal) {
+    return [
+      'Hero statement',
+      'Wordmark reveal',
+      'Brand context',
+      'Logo evolution',
+      'Icon deconstruction',
+      'Logo system',
+      'Typography system',
+      'Color direction',
+      'Applications',
+      'Closing recommendation',
     ];
   }
 
@@ -1126,6 +1165,7 @@ function inferMotionStyle({outputMode, styleMode, prompt, referenceIntelligence}
   const text = cleanText(prompt).toLowerCase();
   const isCampaign = /campaign|launch|rollout|activation|awareness/.test(text);
   const isIdentity = /brand|identity|logo|rebrand|wordmark|mark/.test(text);
+  const isLogoReveal = isLogoRevealIdentityPrompt(text);
 
   const parts = [
     outputMode === 'presentation' ? 'measured slide pacing' : 'restrained scroll depth',
@@ -1139,6 +1179,7 @@ function inferMotionStyle({outputMode, styleMode, prompt, referenceIntelligence}
 
   if (referenceIntelligence?.isInstitutional) parts.push('credible, low-noise emphasis');
   else if (isCampaign) parts.push('stronger momentum between sections');
+  else if (isLogoReveal) parts.push('logo-reveal pacing with title transitions');
   else if (isIdentity) parts.push('headline-first sequencing');
 
   return parts.join(' • ');

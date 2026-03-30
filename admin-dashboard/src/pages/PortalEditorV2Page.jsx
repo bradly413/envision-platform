@@ -2339,8 +2339,6 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
   const theme = getPreviewTheme(styleMode, outputMode);
   const isEmpty = !plan;
   const waitingForApproval = Boolean(plan && phase === 'awaiting_approval');
-  const structurePreview = Array.isArray(plan?.structure) ? plan.structure.slice(0, 4) : [];
-  const motionPreview = plan?.interactionThesis?.slice(0, 2) || [];
   const focusLabel = cleanText(plan?.briefSubject || client?.name || client?.company || inferPromptSubject(plan?.prompt || '', outputMode) || 'This build');
   const stageTitle = waitingForApproval
     ? cleanText(plan?.title || `${focusLabel} ${outputMode === 'presentation' ? 'presentation' : 'portal'}`)
@@ -2363,74 +2361,48 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
 
   if (waitingForApproval) {
     return (
-      <div style={{display: 'grid', gap: 20}}>
-        <div style={{position: 'relative', overflow: 'hidden', borderRadius: 30, border: '1px solid rgba(255,255,255,.08)', background: theme.background, padding: 28}}>
-          <div style={{position: 'absolute', inset: 0, background: `radial-gradient(circle at 18% 18%, ${theme.glowA}, transparent 28%), radial-gradient(circle at 82% 22%, ${theme.glowB}, transparent 30%)`}} />
+      <div style={{maxWidth: 980, margin: '0 auto', minHeight: '100%', display: 'grid', placeItems: 'center'}}>
+        <div style={{width: '100%', maxWidth: 760, position: 'relative', overflow: 'hidden', borderRadius: 28, border: '1px solid rgba(255,255,255,.08)', background: 'linear-gradient(180deg, rgba(10,15,28,.92), rgba(7,11,22,.96))', padding: '28px 28px 24px'}}>
+          <div style={{position: 'absolute', inset: 0, background: `radial-gradient(circle at 18% 18%, ${theme.glowA}, transparent 28%), radial-gradient(circle at 82% 22%, ${theme.glowB}, transparent 30%)`, opacity: 0.7}} />
           <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: 18}}>
-            <div style={{display: 'grid', gap: 10}}>
+            <div style={{display: 'grid', gap: 8}}>
               <div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.16em', color: theme.accent}}>
                 Plan ready
               </div>
-              <div style={{fontSize: 'clamp(34px, 4vw, 58px)', lineHeight: .94, fontWeight: 800, letterSpacing: '-.05em', color: '#F8FAFC', maxWidth: 860}}>
+              <div style={{fontSize: 24, lineHeight: 1.05, fontWeight: 800, letterSpacing: '-.04em', color: '#F8FAFC'}}>
                 {stageTitle}
               </div>
-              <div style={{fontSize: 16, color: 'rgba(226,232,240,.84)', lineHeight: 1.8, maxWidth: 760}}>
-                {stageSummary}
+              <div style={{fontSize: 14, color: 'rgba(226,232,240,.78)', lineHeight: 1.75}}>
+                Review the brief in the left column, then either refine it or approve the build. The main canvas will stay clean until there’s a real preview to show.
               </div>
             </div>
 
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14}}>
-              <div style={{padding: '16px 18px', borderRadius: 22, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)'}}>
-                <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B', marginBottom: 10}}>
-                  What we're fixing
-                </div>
-                <div style={{fontSize: 14, lineHeight: 1.7, color: '#E2E8F0'}}>
-                  {cleanText(plan?.visualThesis || `Make ${focusLabel} feel more distinct, clearer, and more directed.`)}
-                </div>
-              </div>
-              <div style={{padding: '16px 18px', borderRadius: 22, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)'}}>
-                <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B', marginBottom: 10}}>
-                  What we'll build
-                </div>
-                <div style={{fontSize: 14, lineHeight: 1.7, color: '#E2E8F0'}}>
-                  {structurePreview.length ? structurePreview.join(' • ') : 'Hero statement • Brand context • Identity direction'}
-                </div>
-              </div>
-              <div style={{padding: '16px 18px', borderRadius: 22, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)'}}>
-                <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B', marginBottom: 10}}>
-                  How it will move
-                </div>
-                <div style={{fontSize: 14, lineHeight: 1.7, color: '#E2E8F0'}}>
-                  {motionPreview.length ? motionPreview.join(' ') : 'Restrained motion with a few stronger reveal moments.'}
-                </div>
-              </div>
+            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+              <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
+                {OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label}
+              </span>
+              <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
+                {STYLE_MODES.find((mode) => mode.value === styleMode)?.label || styleMode}
+              </span>
+              <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
+                {focusLabel}
+              </span>
             </div>
 
-            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap'}}>
-              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-                <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
-                  {OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label}
-                </span>
-                <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
-                  {STYLE_MODES.find((mode) => mode.value === styleMode)?.label || styleMode}
-                </span>
-                <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
-                  {focusLabel}
-                </span>
+            <div style={{display: 'grid', gap: 10}}>
+              <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
+                Next
               </div>
-              <div style={{display: 'flex', gap: 10, flexWrap: 'wrap'}}>
-                <button
-                  onClick={onEditPlan}
-                  style={{padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
-                >
-                  Edit plan
-                </button>
-                <button
-                  onClick={onApprove}
-                  style={{padding: '11px 16px', borderRadius: 12, border: 'none', background: '#2563EB', color: '#F8FAFC', fontSize: 12, fontWeight: 800, cursor: 'pointer'}}
-                >
-                  Approve & Build
-                </button>
+              <div style={{display: 'grid', gap: 8}}>
+                {[
+                  'Edit the prompt if the direction is close but needs adjustment.',
+                  'Approve & Build when the brief feels right.',
+                  'Use the built preview for visual review, not the plan itself.',
+                ].map((item) => (
+                  <div key={item} style={{fontSize: 13, color: '#CBD5E1', lineHeight: 1.65}}>
+                    {item}
+                  </div>
+                ))}
               </div>
             </div>
           </div>

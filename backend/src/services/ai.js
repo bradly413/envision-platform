@@ -632,6 +632,13 @@ Section sequence rules:
 - "sectionSequence" controls the order sections appear in the portal. Default is hero → brand → logo → colors → typography → applications → cta.
 - Reorder if the narrative calls for it. For example, a typography-led brand might put typography before colors.
 
+═══ MANDATORY FIELDS ═══
+You MUST include ALL of these in your JSON response — omitting any is a failure:
+- "applications": Generate 3-5 real-world brand application contexts. This field is REQUIRED.
+- "sectionSequence": Specify the section order. This field is REQUIRED.
+- "logo.variants": At least 2 logo variant entries. This field is REQUIRED.
+- All other fields shown in the schema above are REQUIRED.
+
 Choose the experience preset that best matches the brand. Keep the effect system tasteful and restrained.
 If the brief is for a cultural organization, school, real estate brand, aviation company, restaurant, law firm, or another distinct category, reflect that category directly in the language and creative system.
 Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;

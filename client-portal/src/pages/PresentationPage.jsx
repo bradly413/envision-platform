@@ -12,6 +12,7 @@ import MotionSection from '../components/Experience/MotionSection';
 import RevealPresentation from '../components/Presentation/RevealPresentation';
 import CinematicFlowRenderer from '../components/CinematicFlow/CinematicFlowRenderer';
 import CinematicCodeRenderer from '../components/CinematicCode/CinematicCodeRenderer';
+import PortalChatWidget from '../components/PortalChat/PortalChatWidget';
 import { resolveExperience, resolvePortalTheme } from '../lib/experience';
 
 export default function PresentationPage() {
@@ -91,6 +92,7 @@ export default function PresentationPage() {
           <ApprovalSection portalId={portal.id} clientName={portal.clientName} content={content.cta} theme={theme} />
         </MotionSection>
       </div>
+      <PortalChatWidget portalId={portal.id} />
     </div>
   );
 }

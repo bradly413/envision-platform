@@ -3475,6 +3475,28 @@ export default function PortalEditorV2Page() {
     setSelectedPreviewNode(getDefaultPreviewNode(outputMode));
   }, [outputMode]);
 
+  // Build with URL — extract params on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlPrompt = params.get('prompt');
+    const urlStyle = params.get('style');
+    const urlMode = params.get('mode');
+    const urlClient = params.get('client');
+    const autostart = params.get('autostart') === 'true';
+
+    if (urlPrompt) setInput(decodeURIComponent(urlPrompt));
+    if (urlStyle && STYLE_MODES.find(m => m.value === urlStyle)) setStyleMode(urlStyle);
+    if (urlMode && OUTPUT_MODES.find(m => m.value === urlMode)) handleModeChange(urlMode);
+    if (urlClient) handleClientChange(urlClient);
+    if (autostart && urlPrompt) {
+      setTimeout(() => submitPrompt(), 600);
+    }
+    // Clear URL params after extraction so refresh doesn't re-trigger
+    if (urlPrompt || autostart) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const nextSlug = selectedPortalRecord?.slug
       || slugifyValue(selectedClientRecord?.company || selectedClientRecord?.name || plan?.title || '');

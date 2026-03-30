@@ -1,6 +1,7 @@
 const { formatMotionKnowledgeBase } = require('../config/motionPatterns');
 const { formatGsapKnowledgeBase } = require('../config/gsapPatterns');
 const { buildCinematicCodeSystemPrompt } = require('../prompts/cinematic-code-prompt');
+const { resolveModel, getTaskForOutputMode } = require('../config/models');
 
 const PROVIDER_DEFAULTS = {
   anthropic: process.env.ANTHROPIC_PORTAL_EDITOR_MODEL || 'claude-sonnet-4-20250514',
@@ -1110,7 +1111,9 @@ async function generateBuilderContent({
   maxTokens,
   designSystem,
 }) {
-  const config = getProviderConfig(provider, model);
+  const config = (provider && model)
+    ? getProviderConfig(provider, model)
+    : resolveModel(getTaskForOutputMode(outputMode), model || provider);
   const system = outputMode === 'presentation'
     ? buildPresentationSystemPrompt({ styleMode, designSystem })
     : outputMode === 'cinematic-flow'

@@ -17,6 +17,11 @@ import {
   removeLibraryEntry,
   saveReferenceLibrary,
 } from '../lib/referenceLibrary';
+import {
+  createReferenceFromStarterTemplate,
+  pickStarterTemplateMatches,
+  STARTER_TEMPLATE_LIBRARY,
+} from '../lib/starterTemplateLibrary';
 import BuilderLivePreview from '../components/BuilderLivePreview';
 import {parseCreativeBrief, formatBriefForContext} from '../lib/briefParser';
 
@@ -1124,6 +1129,15 @@ function buildVisualReferenceMessage({client, portal, plan, references = [], att
   if (activeReferences.length) {
     lines.push(`References: ${activeReferences.map((item) => item.value || item.label).join(' | ')}`);
     activeReferences.forEach((item) => {
+      if (item.templateSummary || item.templateStructure?.length || item.templateMotion?.length) {
+        lines.push(`\n--- Template influence: ${item.label || item.value} ---`);
+        if (item.templateVibe) lines.push(`Vibe: ${item.templateVibe}`);
+        if (item.templateBestFor) lines.push(`Best for: ${item.templateBestFor}`);
+        if (item.templateSummary) lines.push(`Summary: ${item.templateSummary}`);
+        if (item.templateStructure?.length) lines.push(`Structure: ${item.templateStructure.join(' | ')}`);
+        if (item.templateMotion?.length) lines.push(`Motion: ${item.templateMotion.join(' | ')}`);
+      }
+
       if (item.scraped) {
         lines.push(`\n--- Scraped from ${item.value} (${item.scraped.source || 'basic'}) ---`);
         if (item.scraped.title) lines.push(`Title: ${item.scraped.title}`);
@@ -3493,6 +3507,13 @@ export default function PortalEditorV2Page() {
   const latestUserMessage = [...conversationMessages].reverse().find((message) => message.role === 'user');
   const briefSummary = useMemo(() => summarizeBriefForRail(latestUserMessage?.content || ''), [latestUserMessage?.content]);
   const promptForMatching = cleanText(input || latestUserMessage?.content || plan?.summary || '');
+  const matchedTemplateItems = useMemo(() => pickStarterTemplateMatches({
+    prompt: promptForMatching,
+    client: selectedClientRecord,
+    styleMode,
+    outputMode,
+    limit: 4,
+  }), [promptForMatching, selectedClientRecord, styleMode, outputMode]);
   const matchedLibraryItems = useMemo(() => getRecommendedLibraryItems({
     items: referenceLibrary,
     prompt: promptForMatching,
@@ -3501,10 +3522,19 @@ export default function PortalEditorV2Page() {
     outputMode,
     limit: 6,
   }), [referenceLibrary, promptForMatching, selectedClientRecord, styleMode, outputMode]);
+  const templateRuntimeContext = useMemo(() => (
+    matchedTemplateItems
+      .map((item) => createReferenceFromStarterTemplate(item))
+      .filter(Boolean)
+  ), [matchedTemplateItems]);
+  const matchedContextItems = useMemo(() => [
+    ...matchedTemplateItems,
+    ...matchedLibraryItems,
+  ], [matchedTemplateItems, matchedLibraryItems]);
   const libraryRuntimeContext = useMemo(() => libraryItemsToRuntimeContext(matchedLibraryItems), [matchedLibraryItems]);
   const effectiveReferences = useMemo(
-    () => mergeReferenceItems(references, libraryRuntimeContext.references),
-    [references, libraryRuntimeContext.references],
+    () => mergeReferenceItems(references, [...templateRuntimeContext, ...libraryRuntimeContext.references]),
+    [references, templateRuntimeContext, libraryRuntimeContext.references],
   );
   const effectiveAttachments = useMemo(
     () => mergeAttachmentItems(attachments, libraryRuntimeContext.attachments),
@@ -4073,7 +4103,7 @@ export default function PortalEditorV2Page() {
         client: selectedClientRecord,
         references: effectiveReferences,
         attachments: effectiveAttachments,
-        libraryMatches: matchedLibraryItems,
+        libraryMatches: matchedContextItems,
       });
 
       setMessages((current) => [
@@ -4188,7 +4218,7 @@ export default function PortalEditorV2Page() {
       client: selectedClientRecord,
       references: effectiveReferences,
       attachments: effectiveAttachments,
-      libraryMatches: matchedLibraryItems,
+      libraryMatches: matchedContextItems,
     });
 
     setMessages((current) => [
@@ -4586,9 +4616,77 @@ export default function PortalEditorV2Page() {
                   </div>
                 </div>
 
-                {!references.length && !attachments.length && !matchedLibraryItems.length ? (
+                {!references.length && !attachments.length && !matchedLibraryItems.length && !matchedTemplateItems.length ? (
                   <div style={{fontSize: 12, color: '#64748B', lineHeight: 1.7, padding: '2px 0 8px'}}>
                     Bring references, screenshots, motion clips, or project files in here and save the best ones into the library for future builds.
+                  </div>
+                ) : null}
+
+                {matchedTemplateItems.length ? (
+                  <div style={{display: 'grid', gap: 8}}>
+                    <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#475569'}}>Starter templates</div>
+                    <div style={{display: 'grid', gap: 8}}>
+                      {matchedTemplateItems.map((item) => {
+                        const templateRef = createReferenceFromStarterTemplate(item);
+                        const alreadyAdded = references.some((reference) => reference.id === templateRef?.id);
+
+                        return (
+                          <div
+                            key={`starter-${item.id}`}
+                            style={{
+                              padding: '12px 12px',
+                              borderRadius: 16,
+                              border: '1px solid rgba(56,189,248,.14)',
+                              background: 'linear-gradient(180deg, rgba(8,47,73,.26) 0%, rgba(15,23,42,.56) 100%)',
+                              display: 'grid',
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 10}}>
+                              <div style={{display: 'grid', gap: 4}}>
+                                <div style={{fontSize: 12, fontWeight: 700, color: '#E2E8F0'}}>{item.title}</div>
+                                <div style={{fontSize: 11, color: '#94A3B8', lineHeight: 1.5}}>{item.summary}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!templateRef || alreadyAdded) return;
+                                  setReferences((current) => mergeReferenceItems(current, [templateRef]));
+                                  setToolNotice(`${item.title} added as a template reference.`);
+                                  appendBuildEvent('Template applied', item.title);
+                                }}
+                                style={{
+                                  padding: '7px 10px',
+                                  borderRadius: 999,
+                                  border: alreadyAdded ? '1px solid rgba(255,255,255,.08)' : '1px solid rgba(20,184,166,.24)',
+                                  background: alreadyAdded ? 'rgba(255,255,255,.04)' : 'rgba(20,184,166,.12)',
+                                  color: alreadyAdded ? '#94A3B8' : '#99F6E4',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: alreadyAdded ? 'default' : 'pointer',
+                                }}
+                              >
+                                {alreadyAdded ? 'In build' : 'Use in build'}
+                              </button>
+                            </div>
+                            <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                              <span style={{padding: '5px 8px', borderRadius: 999, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)', color: '#CBD5E1', fontSize: 10, fontWeight: 700}}>
+                                {item.vibe}
+                              </span>
+                              <span style={{padding: '5px 8px', borderRadius: 999, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)', color: '#CBD5E1', fontSize: 10, fontWeight: 700}}>
+                                {item.bestFor}
+                              </span>
+                            </div>
+                            <div style={{fontSize: 11, color: '#94A3B8', lineHeight: 1.5}}>
+                              Structure: {item.structure.join(' • ')}
+                            </div>
+                            <div style={{fontSize: 11, color: '#67E8F9', lineHeight: 1.5}}>
+                              Motion: {item.motion.join(' • ')}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ) : null}
 
@@ -4619,8 +4717,8 @@ export default function PortalEditorV2Page() {
                 {references.length || attachments.length ? (
                   <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
                     {references.map((item) => (
-                      <span key={item.id} style={{padding: '6px 9px', borderRadius: 999, background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.18)', color: '#BAE6FD', fontSize: 11, fontWeight: 700}}>
-                        Ref · {item.label}
+                      <span key={item.id} style={{padding: '6px 9px', borderRadius: 999, background: item.libraryType === 'template' ? 'rgba(45,212,191,.12)' : 'rgba(56,189,248,.12)', border: item.libraryType === 'template' ? '1px solid rgba(45,212,191,.18)' : '1px solid rgba(56,189,248,.18)', color: item.libraryType === 'template' ? '#99F6E4' : '#BAE6FD', fontSize: 11, fontWeight: 700}}>
+                        {item.libraryType === 'template' ? 'Template' : 'Ref'} · {item.label}
                       </span>
                     ))}
                     {attachments.map((item) => (
@@ -4683,6 +4781,63 @@ export default function PortalEditorV2Page() {
                 {showLibrary && !referenceLibrary.length ? (
                   <div style={{fontSize: 12, color: '#64748B', lineHeight: 1.6}}>
                     Save a few references or files and they’ll show up here as reusable taste inputs for future builds.
+                  </div>
+                ) : null}
+
+                {showLibrary ? (
+                  <div style={{display: 'grid', gap: 8}}>
+                    <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#475569'}}>Template bank</div>
+                    <div style={{display: 'grid', gap: 8, maxHeight: 240, overflow: 'auto', paddingRight: 4}}>
+                      {STARTER_TEMPLATE_LIBRARY.map((item) => {
+                        const templateRef = createReferenceFromStarterTemplate(item);
+                        const alreadyAdded = references.some((reference) => reference.id === templateRef?.id);
+
+                        return (
+                          <div
+                            key={`template-bank-${item.id}`}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: 14,
+                              border: '1px solid rgba(255,255,255,.06)',
+                              background: 'rgba(255,255,255,.03)',
+                              display: 'grid',
+                              gap: 6,
+                            }}
+                          >
+                            <div style={{display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 10}}>
+                              <div style={{display: 'grid', gap: 4}}>
+                                <div style={{fontSize: 12, fontWeight: 700, color: '#E2E8F0'}}>{item.title}</div>
+                                <div style={{fontSize: 11, color: '#94A3B8', lineHeight: 1.45}}>
+                                  {item.vibe} • {item.bestFor}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!templateRef || alreadyAdded) return;
+                                  setReferences((current) => mergeReferenceItems(current, [templateRef]));
+                                  setToolNotice(`${item.title} added as a template reference.`);
+                                  appendBuildEvent('Template applied', item.title);
+                                }}
+                                style={{
+                                  padding: '5px 8px',
+                                  borderRadius: 999,
+                                  border: alreadyAdded ? '1px solid rgba(255,255,255,.08)' : '1px solid rgba(56,189,248,.18)',
+                                  background: alreadyAdded ? 'rgba(255,255,255,.04)' : 'rgba(56,189,248,.10)',
+                                  color: alreadyAdded ? '#94A3B8' : '#BAE6FD',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: alreadyAdded ? 'default' : 'pointer',
+                                }}
+                              >
+                                {alreadyAdded ? 'Added' : 'Use'}
+                              </button>
+                            </div>
+                            <div style={{fontSize: 11, color: '#94A3B8', lineHeight: 1.45}}>{item.summary}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ) : null}
               </div>

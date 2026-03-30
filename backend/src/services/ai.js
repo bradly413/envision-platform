@@ -1,4 +1,5 @@
 const { formatMotionKnowledgeBase } = require('../config/motionPatterns');
+const { formatGsapKnowledgeBase } = require('../config/gsapPatterns');
 
 const PROVIDER_DEFAULTS = {
   anthropic: process.env.ANTHROPIC_PORTAL_EDITOR_MODEL || 'claude-sonnet-4-20250514',
@@ -73,7 +74,9 @@ const CINEMATIC_SCENE_TYPES = [
   'typography-system',
   'color-direction',
   'applications-showcase',
+  'social-media-showcase',
   'collateral-showcase',
+  'business-cards-showcase',
   'quote-scene',
   'stats-scene',
   'full-bleed-media',
@@ -233,6 +236,7 @@ function buildPortalEditorSystemPrompt({ styleMode = 'cinematic' } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
   const stylePacket = STYLE_PACKETS[styleMode] || STYLE_PACKETS.cinematic;
   const motionKnowledge = formatMotionKnowledgeBase();
+  const gsapKnowledge = formatGsapKnowledgeBase();
 
   return `You are Envision Creative's senior creative director and portal content editor.
 You create client-facing presentation portal content that feels high-end, art directed, and strategically sharp.
@@ -259,6 +263,7 @@ Follow these rules:
 - Always prefer 2 to 4 signature motion ideas over gimmick overload.
 - Every motion choice must have a mobile fallback and a reduced-motion fallback in mind.
 - Use only the approved presets and effects listed below. Do not invent new effect names in the JSON.
+- If you choose GSAP-like motion, reserve it for a few high-value narrative beats like title sequences, pinned chapters, proof reveals, or panel handoffs.
 - If the builder context includes parsed creative briefs, treat those structured brief details as the source of truth for campaign theme, launch date, objectives, assets, spec sections, and brand signals.
 - When source material includes campaign deliverables or spec sheets, reflect that structure in the output instead of flattening it into generic brand copy.
 
@@ -267,6 +272,9 @@ ${motionKnowledge.engineBlock}
 
 Approved motion patterns for reference:
 ${motionKnowledge.patternsBlock}
+
+Approved GSAP / ScrollTrigger storytelling patterns:
+${gsapKnowledge}
 
 Approved experience presets:
 - cinematic-editorial
@@ -344,6 +352,7 @@ function buildPresentationSystemPrompt({ styleMode = 'cinematic' } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
   const stylePacket = STYLE_PACKETS[styleMode] || STYLE_PACKETS.cinematic;
   const motionKnowledge = formatMotionKnowledgeBase();
+  const gsapKnowledge = formatGsapKnowledgeBase();
 
   return `You are Envision Creative's senior presentation director and motion strategist.
 You create client-facing cinematic presentation specs that can be rendered with reveal.js.
@@ -362,6 +371,7 @@ Follow these rules:
 - Use only supported theme and transition values.
 - Keep custom CSS short, tasteful, and additive.
 - Use the motion knowledge base below to decide where Motion-style interaction, GSAP-like scrollytelling, or 3D hero concepts are appropriate conceptually, even if the render target is reveal.js.
+- If a GSAP-like pattern is referenced, use it conceptually for sequencing and pacing only. Do not imply unsupported runtime behavior in reveal.js.
 - Do not spec elaborate motion for every slide. Reserve higher-intensity motion for opening, pivotal proof, and closing moments.
 - The selected art direction must change the deck's theme, pacing, tone, and slide composition in a visible way.
 - If the builder context includes parsed creative briefs, use those structured fields as the source of truth for campaign framing, launch timing, asset inventory, and deliverable sections.
@@ -372,6 +382,9 @@ ${motionKnowledge.engineBlock}
 
 Approved motion patterns for reference:
 ${motionKnowledge.patternsBlock}
+
+Approved GSAP / ScrollTrigger storytelling patterns:
+${gsapKnowledge}
 
 Supported reveal themes:
 - ${PRESENTATION_THEMES.join('\n- ')}
@@ -469,6 +482,7 @@ function buildCinematicFlowSystemPrompt({ styleMode = 'cinematic' } = {}) {
   const styleDirective = STYLE_DIRECTIVES[styleMode] || STYLE_DIRECTIVES.cinematic;
   const stylePacket = STYLE_PACKETS[styleMode] || STYLE_PACKETS.cinematic;
   const motionKnowledge = formatMotionKnowledgeBase();
+  const gsapKnowledge = formatGsapKnowledgeBase();
 
   return `You are Envision Creative's senior cinematic experience director.
 You create scene-based brand presentation experiences for client reveals.
@@ -486,6 +500,7 @@ Follow these rules:
 - The selected art direction must change scene sequencing, typography feel, negative space, motion intensity, and visual rhythm in a visible way.
 - Use parsed creative briefs as source of truth when they are present.
 - Use Motion-style interaction as the default runtime mental model, and reserve bigger cinematic moments for opening, evolution, applications, and closing scenes.
+- Use GSAP-like scrollytelling concepts only when they add clear narrative value, especially for pinned chapters, title sequences, editorial image stacks, proof reveals, and scene handoffs.
 - Keep the shell elegant and consistent, but make the scenes themselves brand-specific.
 - Prefer 6 to 10 scenes by default.
 - Opening scenes should establish the emotional frame fast. Closing scenes should land with clarity.
@@ -495,6 +510,9 @@ ${motionKnowledge.engineBlock}
 
 Approved motion patterns for reference:
 ${motionKnowledge.patternsBlock}
+
+Approved GSAP / ScrollTrigger storytelling patterns:
+${gsapKnowledge}
 
 Approved scene types:
 - ${CINEMATIC_SCENE_TYPES.join('\n- ')}
@@ -563,7 +581,12 @@ Scene guidance:
 - Use closing-statement last.
 - Use logo-evolution only when there is a before/after identity story.
 - Use icon-deconstruction only if the symbol has real symbolic logic.
-- Use applications-showcase or collateral-showcase only when the brief includes real deliverables or asset references.
+- Use applications-showcase, social-media-showcase, collateral-showcase, or business-cards-showcase only when the brief includes real deliverables, mockups, or asset references.
+- For brand identity presentations, strongly prefer a scene arc like: opening-title or wordmark-reveal → brand-context → brand-philosophy → logo-evolution → icon-deconstruction and/or logo-system → typography-system → color-direction → collateral-showcase or business-cards-showcase → closing-statement.
+- For campaign presentations, strongly prefer a scene arc like: opening-title → brand-context → quote-scene or stats-scene → applications-showcase and/or social-media-showcase → embed-scene or full-bleed-media when references exist → cta-scene or closing-statement.
+- For cultural institutions, schools, and nonprofits, favor brand-context, brand-philosophy, color-direction, applications-showcase, and quote-scene over overly techy identity scenes unless the brief explicitly calls for them.
+- For luxury, real estate, hospitality, and premium service brands, favor wordmark-reveal, logo-evolution, typography-system, color-direction, business-cards-showcase, and collateral-showcase with more restraint and negative space.
+- If attached source material includes deliverable inventories or spec sheets, map them into scene types instead of summarizing them as generic brand copy.
 
 Return the full JSON block wrapped in triple backticks. You may include a very short explanation before the JSON, but do not omit the JSON or any keys.`;
 }

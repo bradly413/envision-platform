@@ -1184,6 +1184,85 @@ function createBuildProgress(structure = []) {
   }));
 }
 
+function createPlanArchitecture({outputMode, structure, styleMode, understanding}) {
+  const styleLabel = STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode;
+  const flowLabel = outputMode === 'presentation' ? 'scene-based presentation flow' : 'scroll-led portal flow';
+  const sectionLabel = `${structure.length || 0} ${outputMode === 'presentation' ? 'core scenes' : 'core sections'} arranged in a clear narrative sequence`;
+
+  return [
+    sectionLabel,
+    `${flowLabel} with ${understanding?.motionStyle || 'clear transitions and restrained motion'}`,
+    `${styleLabel} art direction anchored in ${understanding?.colorMood || 'a specific visual system'}`,
+  ].filter(Boolean);
+}
+
+function describeSectionFeature(section = '', index = 0, outputMode = 'portal') {
+  const lower = cleanText(section).toLowerCase();
+
+  if (/opening|hero/.test(lower)) return `${section} with a stronger first impression and cleaner entry pacing`;
+  if (/logo|wordmark|icon|identity/.test(lower)) return `${section} to explain the mark system and make the identity shift feel intentional`;
+  if (/color|palette/.test(lower)) return `${section} with a more explicit visual system and stronger contrast cues`;
+  if (/typography|type/.test(lower)) return `${section} to establish hierarchy, tone, and the core brand voice`;
+  if (/application|proof|service|deliverable/.test(lower)) return `${section} showing how the system performs in real touchpoints`;
+  if (/closing|decision|recommendation|next step/.test(lower)) return `${section} that closes the story and points to the rollout move`;
+
+  return outputMode === 'presentation'
+    ? `${section} to move the presentation story forward without breaking pacing`
+    : `${section} to deepen the portal story and keep the experience specific`;
+}
+
+function createSectionFeatures({outputMode, structure = []}) {
+  return structure.slice(0, 8).map((section, index) => describeSectionFeature(section, index, outputMode));
+}
+
+function createGlobalEffects({outputMode, styleMode, interactionThesis = [], selectedAssets = []}) {
+  const effects = [];
+
+  if (outputMode === 'presentation') {
+    effects.push('scene-to-scene title sequencing');
+    effects.push('immersive background transitions');
+  } else {
+    effects.push('scroll-led reveals');
+    effects.push('section-to-section handoffs');
+  }
+
+  if (styleMode === 'cinematic') effects.push('parallax depth');
+  if (styleMode === 'bold') effects.push('higher-contrast transitions');
+  if (styleMode === 'editorial') effects.push('headline-first motion');
+  if (styleMode === 'luxury') effects.push('slower premium pacing');
+  if (styleMode === 'minimal') effects.push('restrained movement');
+
+  if (selectedAssets.some((item) => item.category === 'animations')) effects.push('motion presets from the registry');
+  if (selectedAssets.some((item) => item.category === 'text-animations')) effects.push('title transitions');
+  if (selectedAssets.some((item) => item.category === 'components')) effects.push('signature layout components');
+
+  return uniq([
+    ...effects,
+    ...interactionThesis.map((item) => cleanText(item).toLowerCase()),
+  ]).slice(0, 6);
+}
+
+function createAssetsNeeded({referenceSite, attachments = [], selectedAssets = []}) {
+  const assets = [];
+
+  if (referenceSite) assets.push(`Reference site: ${referenceSite}`);
+
+  attachments.forEach((item) => {
+    const typeLabel = item?.type?.startsWith('video/')
+      ? 'Video'
+      : item?.type?.startsWith('image/')
+        ? 'Image'
+        : 'File';
+    assets.push(`${typeLabel}: ${item.name}`);
+  });
+
+  selectedAssets.forEach((item) => {
+    assets.push(`${item.categoryLabel}: ${item.title}`);
+  });
+
+  return uniq(assets).slice(0, 6);
+}
+
 function createVersionRecord({description, outputMode, plan, extractedJSON}) {
   return {
     id: `version-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -1246,6 +1325,11 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     referenceIntelligence,
     concept,
   });
+  const interactionThesis = createInteractionThesis({outputMode, styleMode, prompt, referenceIntelligence, concept});
+  const architecture = createPlanArchitecture({outputMode, structure, styleMode, understanding});
+  const sectionFeatures = createSectionFeatures({outputMode, structure});
+  const globalEffects = createGlobalEffects({outputMode, styleMode, interactionThesis, selectedAssets});
+  const assetsNeeded = createAssetsNeeded({referenceSite, attachments, selectedAssets});
 
   return {
     title: outputMode === 'presentation'
@@ -1256,8 +1340,12 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     conceptLabel: concept?.label || '',
     summary: createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept}),
     visualThesis: createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence}),
-    interactionThesis: createInteractionThesis({outputMode, styleMode, prompt, referenceIntelligence, concept}),
+    interactionThesis,
     contentPlan: createContentPlan(outputMode, structure),
+    architecture,
+    sectionFeatures,
+    globalEffects,
+    assetsNeeded,
     visualDirection: [
       concept?.mood ? `Creative territory: ${concept.mood}` : null,
       `Art direction: ${STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode}`,
@@ -2631,13 +2719,10 @@ function WorkflowPlanCard({plan, outputMode, styleMode, client, loading, phase, 
 
   const styleLabel = STYLE_MODES.find((mode) => mode.value === styleMode)?.label || styleMode;
   const clientLabel = cleanText(plan?.briefSubject || client?.name || client?.company || 'Selected client');
-  const structure = Array.isArray(plan?.structure) ? plan.structure.slice(0, 6) : [];
-  const motion = Array.isArray(plan?.interactionThesis) ? plan.interactionThesis.slice(0, 3) : [];
-  const assetLines = [
-    plan?.fetchedContext?.referenceSite ? `Reference site: ${plan.fetchedContext.referenceSite}` : '',
-    plan?.fetchedContext?.attachments ? `${plan.fetchedContext.attachments} uploaded file${plan.fetchedContext.attachments === 1 ? '' : 's'}` : '',
-    plan?.selectedAssets?.length ? `System cues: ${plan.selectedAssets.slice(0, 3).map((item) => item.title).join(' • ')}` : '',
-  ].filter(Boolean);
+  const architecture = Array.isArray(plan?.architecture) ? plan.architecture : [];
+  const features = Array.isArray(plan?.sectionFeatures) ? plan.sectionFeatures : [];
+  const effects = Array.isArray(plan?.globalEffects) ? plan.globalEffects : [];
+  const assetLines = Array.isArray(plan?.assetsNeeded) ? plan.assetsNeeded : [];
   const awaitingApproval = phase === 'awaiting_approval';
   const previewReady = phase === 'preview_ready';
   const building = phase === 'building';
@@ -2670,29 +2755,29 @@ function WorkflowPlanCard({plan, outputMode, styleMode, client, loading, phase, 
           </span>
         </div>
 
-        {structure.length ? (
+        {architecture.length ? (
           <div style={{display: 'grid', gap: 8}}>
             <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
-              Sections
+              Architecture
             </div>
             <div style={{display: 'grid', gap: 7}}>
-              {structure.map((section, index) => (
-                <div key={`${section}-${index}`} style={{fontSize: 12, color: '#E2E8F0', lineHeight: 1.55, display: 'flex', gap: 8}}>
+              {architecture.map((item, index) => (
+                <div key={`${item}-${index}`} style={{fontSize: 12, color: '#E2E8F0', lineHeight: 1.55, display: 'flex', gap: 8}}>
                   <span style={{color: '#64748B', minWidth: 14}}>{index + 1}.</span>
-                  <span>{section}</span>
+                  <span>{item}</span>
                 </div>
               ))}
             </div>
           </div>
         ) : null}
 
-        {motion.length ? (
+        {features.length ? (
           <div style={{display: 'grid', gap: 8}}>
             <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
-              Motion + effects
+              Sections + features
             </div>
             <div style={{display: 'grid', gap: 7}}>
-              {motion.map((item) => (
+              {features.map((item) => (
                 <div key={item} style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.55}}>
                   {item}
                 </div>
@@ -2701,10 +2786,25 @@ function WorkflowPlanCard({plan, outputMode, styleMode, client, loading, phase, 
           </div>
         ) : null}
 
+        {effects.length ? (
+          <div style={{display: 'grid', gap: 8}}>
+            <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
+              Global effects
+            </div>
+            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+              {effects.map((item) => (
+                <span key={item} style={{padding: '6px 9px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(2,6,23,.35)', fontSize: 11, color: '#E2E8F0'}}>
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {assetLines.length ? (
           <div style={{display: 'grid', gap: 8}}>
             <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
-              Assets + references
+              Assets needed
             </div>
             <div style={{display: 'grid', gap: 7}}>
               {assetLines.map((item) => (

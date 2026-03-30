@@ -1,0 +1,95 @@
+// SCENE: Business Cards — 3D mouse-tracking card mockups
+// Use when: Showing physical brand collateral (business cards, stationery).
+// CONTENT to customize: card text (name, title, email, website, brand name)
+import { motion } from "framer-motion";
+import { useInView } from "./useInView";
+import { useState } from "react";
+
+const ease = [0.22, 1, 0.36, 1];
+
+function Card3D({ children, delay, isInView, className = "" }) {
+  const [rotation, setRotation] = useState({ x: 0, y: 0 });
+  const [hovering, setHovering] = useState(false);
+
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientY - rect.top - rect.height / 2) / rect.height;
+    const y = -(e.clientX - rect.left - rect.width / 2) / rect.width;
+    setRotation({ x: x * 12, y: y * 12 });
+  };
+
+  return (
+    <motion.div className={`cursor-pointer ${className}`}
+      initial={{ opacity: 0, y: 60 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 1.2, delay, ease }}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => { setHovering(false); setRotation({ x: 0, y: 0 }); }}
+      style={{ perspective: 1200 }}>
+      <motion.div
+        animate={{ rotateX: rotation.x, rotateY: rotation.y, scale: hovering ? 1.03 : 1 }}
+        transition={{ type: "spring", stiffness: 200, damping: 20 }}
+        style={{ transformStyle: "preserve-3d" }}>
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+export default function BusinessCards() {
+  const { ref, isInView } = useInView(0.3);
+
+  return (
+    <section ref={ref} className="flow-section relative px-8">
+      <div className="max-w-5xl w-full relative z-10">
+        <motion.p className="font-sans text-xs tracking-[0.4em] uppercase text-primary/70 font-semibold mb-16 text-center"
+          initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}}
+          transition={{ duration: 0.8, delay: 0.2 }}>Collateral</motion.p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 justify-items-center">
+          {/* CONTENT: Card Front — dark variant */}
+          <Card3D delay={0.6} isInView={isInView}>
+            <div className="w-[340px] md:w-[420px] h-[204px] md:h-[252px] rounded-2xl border border-border/15 p-8 flex flex-col justify-between"
+              style={{ background: "linear-gradient(145deg, var(--brand-card-bg, hsl(252, 10%, 14%)), var(--brand-card-bg-alt, hsl(252, 10%, 8%)))" }}>
+              <div>
+                {/* CONTENT: Replace brand name */}
+                <span className="font-display text-lg font-bold text-foreground/90">brandname</span>
+                <span className="font-display text-lg font-light text-foreground/40 ml-2">descriptor</span>
+              </div>
+              <div>
+                {/* CONTENT: Replace contact details */}
+                <p className="font-sans text-sm font-semibold text-foreground/80">Jordan Mitchell</p>
+                <p className="font-sans text-xs text-muted-foreground/40 mt-1">Creative Director</p>
+                <p className="font-sans text-xs text-muted-foreground/30 mt-3">jordan@company.com</p>
+                <p className="font-sans text-xs text-muted-foreground/30">company.com</p>
+              </div>
+            </div>
+          </Card3D>
+          {/* CONTENT: Card Back — icon/accent variant */}
+          <Card3D delay={0.8} isInView={isInView}>
+            <div className="w-[340px] md:w-[420px] h-[204px] md:h-[252px] rounded-2xl border border-border/15 flex items-center justify-center"
+              style={{ background: "radial-gradient(circle at 50% 50%, var(--brand-primary-alpha, hsl(203, 72%, 38%, 0.15)), transparent 70%), var(--brand-card-bg, hsl(252, 10%, 10%))" }}>
+              {/* CONTENT: Replace with brand icon or symbol */}
+              <span className="font-display text-6xl font-black text-primary/30">✦</span>
+            </div>
+          </Card3D>
+          {/* CONTENT: Card Light — reversed variant */}
+          <Card3D delay={1.0} isInView={isInView}>
+            <div className="w-[340px] md:w-[420px] h-[204px] md:h-[252px] rounded-2xl border border-border/15 p-8 flex flex-col justify-between"
+              style={{ background: "hsl(0, 0%, 95%)" }}>
+              <div>
+                <span className="font-display text-lg font-bold" style={{ color: "hsl(252,10%,15%)" }}>brandname</span>
+                <span className="font-display text-lg font-light ml-2" style={{ color: "hsl(252,10%,45%)" }}>descriptor</span>
+              </div>
+              <div>
+                <p className="font-sans text-sm font-semibold" style={{ color: "hsl(252,10%,15%)" }}>Jordan Mitchell</p>
+                <p className="font-sans text-xs mt-1" style={{ color: "hsl(252,10%,45%)" }}>Creative Director</p>
+                <p className="font-sans text-xs mt-3" style={{ color: "hsl(252,10%,55%)" }}>jordan@company.com</p>
+              </div>
+            </div>
+          </Card3D>
+        </div>
+      </div>
+    </section>
+  );
+}

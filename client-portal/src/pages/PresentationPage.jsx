@@ -11,6 +11,7 @@ import AmbientBackground from '../components/Experience/AmbientBackground';
 import MotionSection from '../components/Experience/MotionSection';
 import RevealPresentation from '../components/Presentation/RevealPresentation';
 import CinematicFlowRenderer from '../components/CinematicFlow/CinematicFlowRenderer';
+import CinematicCodeRenderer from '../components/CinematicCode/CinematicCodeRenderer';
 import { resolveExperience, resolvePortalTheme } from '../lib/experience';
 
 export default function PresentationPage() {
@@ -20,6 +21,7 @@ export default function PresentationPage() {
   const isWrappedPortal = rawContent?.mode === 'portal' && rawContent?.portal;
   const isPresentationMode = rawContent?.mode === 'presentation' && rawContent?.presentation;
   const isCinematicFlowMode = rawContent?.mode === 'cinematic-flow' && rawContent?.cinematicFlow;
+  const isCinematicCodeMode = rawContent?.mode === 'cinematic-code' && rawContent?.cinematicCode?.files;
   const content = isWrappedPortal ? rawContent.portal : rawContent;
   const experience = resolveExperience(content.experience || {});
   const theme = resolvePortalTheme({ content, experience, portal });
@@ -63,6 +65,9 @@ export default function PresentationPage() {
   }
   if (isCinematicFlowMode) {
     return <CinematicFlowRenderer portalId={portal.id} cinematicFlow={rawContent.cinematicFlow} />;
+  }
+  if (isCinematicCodeMode) {
+    return <CinematicCodeRenderer files={rawContent.cinematicCode.files} />;
   }
 
   return (

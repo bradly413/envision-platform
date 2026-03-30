@@ -1,0 +1,14 @@
+// UTILITY — Always include. Customize gradient colors to match brand.
+import { motion } from "framer-motion";
+
+export default function ProgressBar({ current, total }) {
+  return (
+    <div className="fixed top-0 left-0 right-0 z-50 h-[2px] bg-white/5">
+      <motion.div className="h-full"
+        /* CONTENT: Replace gradient with brand primary → accent */
+        style={{ background: "linear-gradient(90deg, var(--brand-primary), var(--brand-accent))" }}
+        animate={{ width: `${((current + 1) / total) * 100}%` }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} />
+    </div>
+  );
+}

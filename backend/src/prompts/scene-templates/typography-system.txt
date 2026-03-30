@@ -1,0 +1,82 @@
+// SCENE: Typography System — Font showcase with character-by-character animation
+// Use when: Presenting the type system with display and body fonts.
+// CONTENT to customize: font names, descriptions, size scale, sample characters
+import { motion } from "framer-motion";
+import { useInView } from "./useInView";
+
+const ease = [0.22, 1, 0.36, 1];
+
+export default function TypographySystem() {
+  const { ref, isInView } = useInView(0.3);
+  /* CONTENT: Replace sample characters */
+  const chars = "Aa Bb Cc".split("");
+
+  /* CONTENT: Replace font data */
+  const primaryFont = { name: "Poppins", role: "Display", desc: "Geometric, clean, tech-forward. Used for headlines, section titles, and brand expressions." };
+  const secondaryFont = { name: "Inter", role: "Body", desc: "Neutral, highly legible, optimized for long-form reading and interface text." };
+  /* CONTENT: Replace size scale */
+  const sizes = ["48px — H1", "32px — H2", "24px — H3", "18px — H4"];
+  /* CONTENT: Replace weight scale */
+  const weights = ["Light 300", "Regular 400", "Medium 500", "Semibold 600"];
+
+  return (
+    <section ref={ref} className="flow-section relative px-8">
+      <div className="max-w-6xl w-full relative z-10">
+        <motion.p className="font-sans text-xs tracking-[0.4em] uppercase text-primary/70 font-semibold mb-16 text-center"
+          initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}}
+          transition={{ duration: 0.8, delay: 0.2 }}>Typography System</motion.p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
+          <div>
+            <motion.p className="text-xs tracking-[0.3em] uppercase text-primary/60 font-semibold mb-8"
+              initial={{ opacity: 0, x: -20 }} animate={isInView ? { opacity: 1, x: 0 } : {}}
+              transition={{ duration: 0.8, delay: 0.3 }}>Primary — {primaryFont.name}</motion.p>
+            <div className="flex flex-wrap mb-8">
+              {chars.map((c, i) => (
+                <div key={i} className="overflow-hidden">
+                  <motion.span className="inline-block font-display text-5xl md:text-7xl font-black text-foreground"
+                    initial={{ y: 80, opacity: 0, rotateX: 30 }}
+                    animate={isInView ? { y: 0, opacity: 1, rotateX: 0 } : {}}
+                    transition={{ duration: 0.8, delay: 0.5 + i * 0.05, ease }}>{c === " " ? "\u00A0" : c}</motion.span>
+                </div>
+              ))}
+            </div>
+            <motion.p className="text-sm text-muted-foreground/40 leading-relaxed font-light mb-8"
+              initial={{ opacity: 0, y: 15 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.8, delay: 1 }}>{primaryFont.desc}</motion.p>
+            <div className="space-y-3">
+              {sizes.map((s, i) => (
+                <motion.div key={i} className="flex items-baseline gap-4"
+                  initial={{ opacity: 0, x: -15 }} animate={isInView ? { opacity: 1, x: 0 } : {}}
+                  transition={{ duration: 0.6, delay: 1.2 + i * 0.1, ease }}>
+                  <span className="font-mono text-[10px] text-muted-foreground/30 w-20">{s}</span>
+                  <span className="font-display font-bold text-foreground/70" style={{ fontSize: parseInt(s) * 0.5 }}>Sample</span>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <motion.p className="text-xs tracking-[0.3em] uppercase text-primary/60 font-semibold mb-8"
+              initial={{ opacity: 0, x: 20 }} animate={isInView ? { opacity: 1, x: 0 } : {}}
+              transition={{ duration: 0.8, delay: 0.3 }}>Secondary — {secondaryFont.name}</motion.p>
+            <motion.p className="text-2xl md:text-3xl text-foreground/80 leading-relaxed font-light mb-8"
+              initial={{ opacity: 0, y: 20 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 1, delay: 0.6 }}>The quick brown fox jumps over the lazy dog</motion.p>
+            <motion.p className="text-sm text-muted-foreground/40 leading-relaxed font-light mb-8"
+              initial={{ opacity: 0, y: 15 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.8, delay: 1 }}>{secondaryFont.desc}</motion.p>
+            <div className="space-y-3">
+              {weights.map((w, i) => (
+                <motion.div key={i} className="flex items-baseline gap-4"
+                  initial={{ opacity: 0, x: 15 }} animate={isInView ? { opacity: 1, x: 0 } : {}}
+                  transition={{ duration: 0.6, delay: 1.2 + i * 0.1, ease }}>
+                  <span className="font-mono text-[10px] text-muted-foreground/30 w-24">{w}</span>
+                  <span className="text-foreground/60" style={{ fontWeight: parseInt(w) }}>Body sample text</span>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

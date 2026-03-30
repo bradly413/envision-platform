@@ -1,5 +1,6 @@
 const { formatMotionKnowledgeBase } = require('../config/motionPatterns');
 const { formatGsapKnowledgeBase } = require('../config/gsapPatterns');
+const { buildCinematicCodeSystemPrompt } = require('../prompts/cinematic-code-prompt');
 
 const PROVIDER_DEFAULTS = {
   anthropic: process.env.ANTHROPIC_PORTAL_EDITOR_MODEL || 'claude-sonnet-4-20250514',
@@ -353,6 +354,22 @@ function extractStructuredJson(text = '') {
   }
 
   return null;
+}
+
+function extractCodeFiles(text = '') {
+  const source = String(text || '').trim();
+  if (!source) return null;
+
+  const files = {};
+  const pattern = /```file:([^\n]+)\n([\s\S]*?)```/g;
+  let match;
+  while ((match = pattern.exec(source)) !== null) {
+    const filename = match[1].trim();
+    const content = match[2].trim();
+    if (filename && content) files[filename] = content;
+  }
+
+  return Object.keys(files).length > 0 ? files : null;
 }
 
 function getJsonContract(outputMode = 'portal') {
@@ -1098,7 +1115,9 @@ async function generateBuilderContent({
     ? buildPresentationSystemPrompt({ styleMode, designSystem })
     : outputMode === 'cinematic-flow'
       ? buildCinematicFlowSystemPrompt({ styleMode, designSystem })
-      : buildPortalEditorSystemPrompt({ styleMode, designSystem });
+      : outputMode === 'cinematic-code'
+        ? buildCinematicCodeSystemPrompt({ styleMode, designSystem })
+        : buildPortalEditorSystemPrompt({ styleMode, designSystem });
   const safeMessages = (messages || []).map(message => ({
     role: message.role,
     content: message.content || '',
@@ -1135,6 +1154,19 @@ async function generateBuilderContent({
 
   if (!text) {
     throw new Error('No response text returned from AI provider');
+  }
+
+  // Cinematic-code mode: extract file blocks instead of JSON
+  if (outputMode === 'cinematic-code') {
+    const files = extractCodeFiles(text);
+    const fileCount = files ? Object.keys(files).length : 0;
+    return {
+      provider: config.provider,
+      model: config.model,
+      text,
+      structured: files ? { mode: 'cinematic-code', cinematicCode: { files, metadata: { sceneCount: fileCount, styleMode, generatedAt: new Date().toISOString() } } } : null,
+      outputMode,
+    };
   }
 
   let structured = extractStructuredJson(text);

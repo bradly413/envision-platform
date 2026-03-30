@@ -1,0 +1,79 @@
+// INDEX PAGE — Main assembly component. Always include.
+// The AI should customize: SECTIONS array labels, which Scene components to import/render, scene order.
+import { useCallback, useEffect, useRef, useState } from "react";
+import ProgressBar from "./ProgressBar";
+import SectionIndicator from "./SectionIndicator";
+import FloatingAtmosphere from "./FloatingAtmosphere";
+/* CONTENT: Import each scene component generated for this client */
+import OpeningTitle from "./Scene_01_OpeningTitle";
+import WordmarkReveal from "./Scene_02_WordmarkReveal";
+import BrandContext from "./Scene_03_BrandContext";
+import BrandPhilosophy from "./Scene_04_BrandPhilosophy";
+import LogoEvolution from "./Scene_05_LogoEvolution";
+import IconDeconstruction from "./Scene_06_IconDeconstruction";
+import LogoSystem from "./Scene_07_LogoSystem";
+import TypographySystem from "./Scene_08_TypographySystem";
+import ColorDirection from "./Scene_09_ColorDirection";
+import Applications from "./Scene_10_Applications";
+import BusinessCards from "./Scene_11_BusinessCards";
+import Closing from "./Scene_12_Closing";
+
+/* CONTENT: Replace section labels to match scene titles */
+const SECTIONS = [
+  "Opening", "Wordmark", "Context", "Philosophy",
+  "Evolution", "Icon", "System", "Typography",
+  "Color", "Applications", "Cards", "Closing",
+];
+
+export default function Index() {
+  const containerRef = useRef(null);
+  const [currentSection, setCurrentSection] = useState(0);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const index = Math.round(container.scrollTop / container.clientHeight);
+      setCurrentSection(Math.min(index, SECTIONS.length - 1));
+    };
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "ArrowDown" || e.key === " ") { e.preventDefault(); navigateTo(Math.min(currentSection + 1, SECTIONS.length - 1)); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); navigateTo(Math.max(currentSection - 1, 0)); }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentSection]);
+
+  const navigateTo = useCallback((index) => {
+    containerRef.current?.scrollTo({ top: index * containerRef.current.clientHeight, behavior: "smooth" });
+  }, []);
+
+  return (
+    <div className="relative">
+      <FloatingAtmosphere />
+      <div className="grain-overlay" />
+      <ProgressBar current={currentSection} total={SECTIONS.length} />
+      <SectionIndicator current={currentSection} total={SECTIONS.length} labels={SECTIONS} onNavigate={navigateTo} />
+      <div ref={containerRef} className="flow-container">
+        {/* CONTENT: Render scenes in the order that serves the narrative */}
+        <OpeningTitle />
+        <WordmarkReveal />
+        <BrandContext />
+        <BrandPhilosophy />
+        <LogoEvolution />
+        <IconDeconstruction />
+        <LogoSystem />
+        <TypographySystem />
+        <ColorDirection />
+        <Applications />
+        <BusinessCards />
+        <Closing />
+      </div>
+    </div>
+  );
+}

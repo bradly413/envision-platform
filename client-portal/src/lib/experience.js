@@ -154,3 +154,15 @@ export function resolveExperience(experience = {}) {
     presetLabel: preset.label,
   };
 }
+
+export function resolvePortalTheme({ content = {}, experience = {}, portal = {} } = {}) {
+  const bg = experience.background || {};
+  return {
+    base: bg.base || '#090911',
+    textPrimary: '#F2F2F2',
+    textSecondary: '#94A3B8',
+    accent: bg.gradientA || '#3B82F6',
+    surface: bg.gradientC || 'rgba(255,255,255,0.04)',
+    border: 'rgba(255,255,255,0.08)',
+  };
+}

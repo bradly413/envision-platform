@@ -10,6 +10,7 @@ const MODE_TOKEN_DEFAULTS = {
   portal: 8192,
   presentation: 12288,
   'cinematic-flow': 16384,
+  'cinematic-code': 24576,
 };
 
 async function handleBuilder(req, res) {

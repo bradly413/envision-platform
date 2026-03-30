@@ -1,0 +1,52 @@
+// SCENE: Brand Philosophy — Large word reveal with orbital rings
+// Use when: Establishing the brand's core values or design principles.
+// CONTENT to customize: philosophy words, subtitle text
+import { motion } from "framer-motion";
+import { useInView } from "./useInView";
+
+export default function BrandPhilosophy() {
+  const { ref, isInView } = useInView(0.3);
+  /* CONTENT: Replace with 3 brand philosophy words */
+  const words = ["Strategic.", "Modern.", "Memorable."];
+
+  return (
+    <section ref={ref} className="flow-section relative overflow-hidden">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none perspective-container">
+        {[...Array(5)].map((_, i) => (
+          <motion.div key={i} className="absolute rounded-full border"
+            style={{ width: 300 + i * 60, height: 300 + i * 60,
+              borderColor: `var(--brand-ring-alpha, hsla(203, 72%, 38%, ${0.02 + i * 0.008}))` }}
+            animate={isInView ? { rotateX: [i * 15, i * 15 + 360], rotateY: [i * 20, i * 20 - 360] } : {}}
+            transition={{ duration: 40 + i * 5, repeat: Infinity, ease: "linear" }} />
+        ))}
+      </div>
+      <div className="relative z-10 flex flex-col items-center px-8">
+        <motion.p className="font-sans text-xs tracking-[0.4em] uppercase text-primary/70 font-semibold mb-16"
+          initial={{ opacity: 0, y: -20 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 1, delay: 0.2 }}>Brand Philosophy</motion.p>
+        <div className="flex flex-col items-center gap-2">
+          {words.map((word, i) => (
+            <div key={i} className="overflow-hidden perspective-container">
+              <motion.h2 className="font-display text-5xl md:text-7xl lg:text-[6rem] font-black text-foreground"
+                initial={{ y: 140, opacity: 0, rotateX: 60, scale: 0.8 }}
+                animate={isInView ? { y: 0, opacity: 1, rotateX: 0, scale: 1 } : {}}
+                transition={{ duration: 1.1, delay: 0.5 + i * 0.3, ease: [0.22, 1, 0.36, 1] }}
+                style={{ transformOrigin: "bottom center" }}>{word}</motion.h2>
+            </div>
+          ))}
+        </div>
+        <motion.div className="mt-12 h-[1px] rounded-full"
+          style={{ background: "linear-gradient(90deg, transparent, var(--brand-primary-alpha, hsl(203, 72%, 38%, 0.4)), transparent)" }}
+          initial={{ width: 0 }} animate={isInView ? { width: 180 } : {}}
+          transition={{ duration: 1.5, delay: 1.8, ease: [0.22, 1, 0.36, 1] }} />
+        {/* CONTENT: Replace subtitle */}
+        <motion.p className="mt-8 font-sans text-base md:text-lg text-muted-foreground/50 max-w-lg text-center leading-relaxed font-light"
+          initial={{ opacity: 0, y: 20, filter: "blur(6px)" }}
+          animate={isInView ? { opacity: 1, y: 0, filter: "blur(0px)" } : {}}
+          transition={{ duration: 1.2, delay: 2 }}>
+          A brand that commands attention without demanding it. Confident enough to be quiet. Bold enough to be remembered.
+        </motion.p>
+      </div>
+    </section>
+  );
+}

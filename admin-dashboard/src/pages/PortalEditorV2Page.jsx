@@ -45,6 +45,7 @@ const STYLE_MODES = [
 const OUTPUT_MODES = [
   {value: 'portal', label: 'Portal'},
   {value: 'presentation', label: 'Presentation'},
+  {value: 'cinematic-code', label: 'Cinematic'},
 ];
 
 const TEMPLATE_OPTIONS = [
@@ -79,6 +80,7 @@ const FALLBACK_PORTALS = [
 const MODE_INTRO = {
   portal: 'Build an immersive portal by describing the story, visual territory, and motion language you want. I will create a plan first, then generate the portal after approval.',
   presentation: 'Build an interactive presentation by describing the narrative, audience, and desired motion system. I will create a plan first, then generate the presentation after approval.',
+  'cinematic-code': 'Build a cinematic brand identity presentation with full-viewport scroll scenes, Framer Motion animations, and atmospheric effects. I will create a plan first, then generate the complete React code after approval.',
 };
 
 const CONCEPT_PROFILES = {
@@ -580,6 +582,13 @@ function createFallbackStructuredOutput({outputMode, plan, client, styleMode}) {
 
 function normalizeBuilderPayload(outputMode, json, options = {}) {
   if (!json) return null;
+
+  if (outputMode === 'cinematic-code') {
+    if (json.mode === 'cinematic-code' && json.cinematicCode) return json;
+    if (json.cinematicCode) return {mode: 'cinematic-code', cinematicCode: json.cinematicCode};
+    if (json.files) return {mode: 'cinematic-code', cinematicCode: {files: json.files, metadata: json.metadata || {}}};
+    return json;
+  }
 
   if (outputMode === 'presentation') {
     if (json.mode === 'presentation' && json.presentation) return json;

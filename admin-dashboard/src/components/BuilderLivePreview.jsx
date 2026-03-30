@@ -2387,5 +2387,42 @@ export default function BuilderLivePreview({outputMode, preview, plan, styleMode
     return <PresentationRenderedPreview preview={preview} plan={plan} client={client} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} />
   }
 
+  if (outputMode === 'cinematic-code') {
+    const files = preview?.cinematicCode?.files || preview?.files || {}
+    const fileNames = Object.keys(files)
+    const [activeFile, setActiveFile] = React.useState(fileNames[0] || '')
+    return (
+      <motion.div
+        initial={{opacity: 0, y: 18}} animate={{opacity: 1, y: 0}}
+        transition={{duration: 0.42, ease: [0.22, 1, 0.36, 1]}}
+        style={{borderRadius: 24, border: '1px solid rgba(255,255,255,0.08)', background: '#0a0a12', overflow: 'hidden'}}>
+        <div style={{padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+            <span style={{fontSize: 12, fontWeight: 700, color: '#A78BFA'}}>Cinematic Code</span>
+            <span style={{fontSize: 11, color: '#64748B'}}>{fileNames.length} files generated</span>
+          </div>
+        </div>
+        <div style={{display: 'flex', minHeight: 500}}>
+          <div style={{width: 180, borderRight: '1px solid rgba(255,255,255,0.06)', padding: '8px 0', overflowY: 'auto'}}>
+            {fileNames.map(name => (
+              <button key={name} onClick={() => setActiveFile(name)}
+                style={{display: 'block', width: '100%', textAlign: 'left', padding: '7px 14px', fontSize: 11,
+                  color: activeFile === name ? '#E2E8F0' : '#64748B', fontWeight: activeFile === name ? 600 : 400,
+                  background: activeFile === name ? 'rgba(255,255,255,0.04)' : 'transparent',
+                  border: 'none', cursor: 'pointer', fontFamily: 'monospace'}}>
+                {name}
+              </button>
+            ))}
+          </div>
+          <div style={{flex: 1, padding: 16, overflowY: 'auto', maxHeight: 600}}>
+            <pre style={{fontSize: 11, lineHeight: 1.6, color: '#CBD5E1', fontFamily: 'monospace', whiteSpace: 'pre-wrap', margin: 0}}>
+              {files[activeFile] || '// Select a file'}
+            </pre>
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
+
   return <PortalRenderedPreview preview={preview} plan={plan} styleMode={styleMode} client={client} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} />
 }

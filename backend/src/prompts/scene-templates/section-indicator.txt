@@ -1,0 +1,21 @@
+// UTILITY — Always include. Shows dot navigation on the right edge.
+import { motion } from "framer-motion";
+
+export default function SectionIndicator({ current, total, labels, onNavigate }) {
+  return (
+    <div className="fixed right-6 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3">
+      {Array.from({ length: total }).map((_, i) => (
+        <button key={i} onClick={() => onNavigate(i)}
+          className="group relative flex items-center justify-end" title={labels[i]}>
+          <span className="absolute right-5 opacity-0 group-hover:opacity-100 transition-opacity font-sans text-[10px] text-foreground/40 whitespace-nowrap tracking-wider uppercase">
+            {labels[i]}
+          </span>
+          <motion.div className="rounded-full"
+            animate={{ width: i === current ? 16 : 6, height: 6,
+              backgroundColor: i === current ? "var(--brand-primary, hsl(203, 72%, 38%))" : "hsla(0,0%,100%,0.15)" }}
+            transition={{ duration: 0.3 }} />
+        </button>
+      ))}
+    </div>
+  );
+}

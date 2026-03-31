@@ -1,7 +1,7 @@
 const { formatMotionKnowledgeBase } = require('../config/motionPatterns');
 const { formatGsapKnowledgeBase } = require('../config/gsapPatterns');
 const { buildCinematicCodeSystemPrompt } = require('../prompts/cinematic-code-prompt');
-const { resolveModel, getTaskForOutputMode } = require('../config/models');
+const { MODEL_REGISTRY, resolveModel, getTaskForOutputMode } = require('../config/models');
 
 const PROVIDER_DEFAULTS = {
   anthropic: process.env.ANTHROPIC_PORTAL_EDITOR_MODEL || 'claude-sonnet-4-20250514',
@@ -469,7 +469,20 @@ function wrapJsonReply(structured) {
 
 function getProviderConfig(provider, model) {
   const normalizedProvider = (provider || 'anthropic').toLowerCase();
-  const resolvedModel = model || PROVIDER_DEFAULTS[normalizedProvider];
+  let resolvedModel = model || PROVIDER_DEFAULTS[normalizedProvider];
+
+  if (resolvedModel && MODEL_REGISTRY[resolvedModel]) {
+    const registryEntry = MODEL_REGISTRY[resolvedModel];
+    if (registryEntry.provider !== normalizedProvider) {
+      throw new Error(`Model ${resolvedModel} does not belong to provider ${normalizedProvider}`);
+    }
+    resolvedModel = registryEntry.model;
+  } else if (resolvedModel) {
+    const registryEntry = Object.values(MODEL_REGISTRY).find((entry) => entry.model === resolvedModel);
+    if (registryEntry && registryEntry.provider !== normalizedProvider) {
+      throw new Error(`Model ${resolvedModel} does not belong to provider ${normalizedProvider}`);
+    }
+  }
 
   if (!resolvedModel) {
     throw new Error(`Unsupported AI provider: ${provider}`);

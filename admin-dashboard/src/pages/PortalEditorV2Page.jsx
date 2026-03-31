@@ -1022,8 +1022,137 @@ function buildAttachmentRecord(file, dataUrl = '') {
     size: file.size,
     cues: uniq(cues),
     keywords: uniq(keywords),
+    tags: [],
     dataUrl: type.startsWith('image/') || type.startsWith('video/') ? dataUrl : '',
     previewUrl: type.startsWith('image/') || type.startsWith('video/') ? dataUrl : '',
+  };
+}
+
+function parseHtmlTemplateAttachment(raw = '', {name = '', mimeType = ''} = {}) {
+  const text = String(raw || '');
+  const normalized = cleanText(
+    text
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+  );
+
+  if (!normalized || normalized.length < 180) return null;
+
+  const briefSignals = /(spec sheet|campaign launch|launch date|deliverables?|media mix|objective|creative brief|production notes)/i;
+  if (briefSignals.test(normalized)) return null;
+
+  const titleMatch = text.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const headingMatches = [...text.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)]
+    .map((match) => cleanText(match[1].replace(/<[^>]+>/g, ' ')))
+    .filter((item) => item.length > 2 && item.length < 90);
+  const anchorMatches = [...text.matchAll(/href=["'\x27]#([^"'\x27]+)["'\x27]/gi)]
+    .map((match) => cleanText(match[1].replace(/[-_]+/g, ' ')))
+    .filter((item) => item.length > 2 && item.length < 60);
+
+  const sections = uniq([...headingMatches, ...anchorMatches]).slice(0, 8);
+  const lower = `${text} ${normalized} ${name} ${mimeType}`.toLowerCase();
+  const motion = uniq([
+    /parallax/.test(lower) ? 'Layered parallax' : '',
+    /scrolltrigger|scroll trigger|scroll-based|scroll animation|scrollspy|scroll/.test(lower) ? 'Scroll-led reveals' : '',
+    /gsap|timeline/.test(lower) ? 'Timeline sequencing' : '',
+    /swiper|carousel|slider/.test(lower) ? 'Slider transitions' : '',
+    /video|background video/.test(lower) ? 'Video-led hero moments' : '',
+    /\b3d\b|perspective|tilt/.test(lower) ? '3D depth accents' : '',
+    /portfolio|gallery|masonry/.test(lower) ? 'Gallery pacing' : '',
+  ]);
+
+  const tags = uniq([
+    /parallax/.test(lower) ? 'parallax' : '',
+    /portfolio/.test(lower) ? 'portfolio' : '',
+    /editorial|magazine|journal/.test(lower) ? 'editorial' : '',
+    /agency|studio|creative/.test(lower) ? 'creative' : '',
+    /luxury|premium/.test(lower) ? 'luxury' : '',
+    /one page|onepage|single page/.test(lower) ? 'one-page' : '',
+    /presentation|deck|slide/.test(lower) ? 'presentation' : '',
+    motion.length ? 'motion' : '',
+    'html-template',
+  ]);
+
+  const vibe = /luxury|premium/.test(lower)
+    ? 'Luxury'
+    : /editorial|magazine|journal/.test(lower)
+      ? 'Editorial'
+      : /portfolio|agency|studio|creative/.test(lower)
+        ? 'Creative portfolio'
+        : /parallax|cinematic|video/.test(lower)
+          ? 'Cinematic'
+          : 'Structured premium';
+
+  const bestFor = /presentation|deck|slide/.test(lower)
+    ? 'Presentation builds, brand reveal decks, cinematic scene flows'
+    : /portfolio|agency|studio|creative/.test(lower)
+      ? 'Creative studios, portfolios, editorial brand stories'
+      : /parallax|campaign|launch/.test(lower)
+        ? 'One-page portals, campaign microsites, motion-heavy landing pages'
+        : 'Premium portals, case studies, and modular brand storytelling';
+
+  const summaryParts = [
+    sections.length ? `Section flow includes ${sections.slice(0, 4).join(', ')}` : '',
+    motion.length ? `Motion cues suggest ${motion.slice(0, 3).join(', ').toLowerCase()}` : '',
+  ].filter(Boolean);
+
+  if (!sections.length && !motion.length && tags.length < 2) return null;
+
+  const title = cleanText(titleMatch?.[1] || name.replace(/\.[a-z0-9]+$/i, '') || 'Imported HTML template');
+  const idBase = cleanText(title || name || 'template')
+    .toLowerCase()
+    .replace(/[\u2019\x27]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+
+  return {
+    id: `uploaded-template-${idBase || 'template'}`,
+    title,
+    summary: summaryParts.join('. ') || 'Imported HTML template with reusable section structure and motion cues.',
+    vibe,
+    bestFor,
+    structure: sections,
+    motion,
+    tags,
+    sourceLabel: name || 'uploaded html template',
+  };
+}
+
+function slugifyLibraryValue(value = '') {
+  return cleanText(value)
+    .toLowerCase()
+    .replace(/[\u2019\x27]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+}
+
+function createLibraryTemplateEntryFromAttachment(attachment, client = null) {
+  const template = attachment?.parsedTemplate;
+  if (!template) return null;
+
+  return {
+    id: `library-template-${template.id}-${slugifyLibraryValue(client?.name || client?.company || 'global')}`,
+    label: template.title,
+    value: `${template.title} — ${template.summary}`,
+    sourceType: 'upload',
+    libraryType: 'template',
+    clientId: client?.id || '',
+    clientName: client?.name || client?.company || '',
+    tags: uniq(template.tags || []),
+    cues: uniq([
+      ...(template.structure || []).map((item) => `section: ${item}`),
+      ...(template.motion || []).map((item) => `motion: ${item}`),
+      template.bestFor ? `best for: ${template.bestFor}` : '',
+    ]),
+    templateSummary: template.summary || '',
+    templateStructure: template.structure || [],
+    templateMotion: template.motion || [],
+    templateVibe: template.vibe || '',
+    templateBestFor: template.bestFor || '',
+    templateSource: attachment?.name || template.sourceLabel || '',
   };
 }
 
@@ -1179,8 +1308,19 @@ function buildVisualReferenceMessage({client, portal, plan, references = [], att
     lines.push(formatBriefForContext(item.parsedBrief));
   });
 
+  const templateAttachments = activeAttachments.filter((item) => item.parsedTemplate);
+  templateAttachments.forEach((item) => {
+    lines.push(`\n--- Parsed template from ${item.name} ---`);
+    lines.push(`Title: ${item.parsedTemplate.title}`);
+    if (item.parsedTemplate.vibe) lines.push(`Vibe: ${item.parsedTemplate.vibe}`);
+    if (item.parsedTemplate.bestFor) lines.push(`Best for: ${item.parsedTemplate.bestFor}`);
+    if (item.parsedTemplate.summary) lines.push(`Summary: ${item.parsedTemplate.summary}`);
+    if (item.parsedTemplate.structure?.length) lines.push(`Structure: ${item.parsedTemplate.structure.join(' | ')}`);
+    if (item.parsedTemplate.motion?.length) lines.push(`Motion: ${item.parsedTemplate.motion.join(' | ')}`);
+  });
+
   // Include raw text content from text/HTML/JSON attachments
-  const textAttachments = activeAttachments.filter(item => item.textContent && !item.parsedBrief);
+  const textAttachments = activeAttachments.filter(item => item.textContent && !item.parsedBrief && !item.parsedTemplate);
   textAttachments.forEach((item) => {
     lines.push(`\n--- Content from ${item.name} ---`);
     lines.push(item.textContent);
@@ -3912,6 +4052,7 @@ export default function PortalEditorV2Page() {
         let dataUrl = '';
         let textContent = '';
         let parsedBrief = null;
+        let parsedTemplate = null;
 
         if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
           try {
@@ -3925,6 +4066,7 @@ export default function PortalEditorV2Page() {
             if (textContent.length > 8000) textContent = textContent.slice(0, 8000);
             if (file.type.includes('html') || file.name.endsWith('.html')) {
               try { parsedBrief = parseCreativeBrief(textContent, {name: file.name, mimeType: file.type}); } catch {}
+              try { parsedTemplate = parseHtmlTemplateAttachment(textContent, {name: file.name, mimeType: file.type}); } catch {}
             }
           } catch {
             textContent = '';
@@ -3934,6 +4076,17 @@ export default function PortalEditorV2Page() {
         const record = buildAttachmentRecord(file, dataUrl);
         if (textContent) record.textContent = textContent;
         if (parsedBrief) record.parsedBrief = parsedBrief;
+        if (parsedTemplate) {
+          record.parsedTemplate = parsedTemplate;
+          record.libraryType = 'template';
+          record.tags = uniq([...(record.tags || []), ...(parsedTemplate.tags || [])]);
+          record.keywords = uniq([...(record.keywords || []), ...(parsedTemplate.tags || [])]);
+          record.cues = uniq([
+            ...(record.cues || []),
+            ...(parsedTemplate.structure || []).slice(0, 4).map((item) => `section: ${item}`),
+            ...(parsedTemplate.motion || []).map((item) => `motion: ${item}`),
+          ]);
+        }
         return record;
       }));
 
@@ -3954,20 +4107,24 @@ export default function PortalEditorV2Page() {
       attachments,
       client: selectedClientRecord,
     });
+    const templateEntries = attachments
+      .map((item) => createLibraryTemplateEntryFromAttachment(item, selectedClientRecord))
+      .filter(Boolean);
+    const combinedEntries = [...entries, ...templateEntries];
 
-    if (!entries.length) {
+    if (!combinedEntries.length) {
       setToolNotice('Add a few references or files first, then save them to the library.');
       return;
     }
 
     const beforeCount = referenceLibrary.length;
-    const nextLibrary = mergeLibraryEntries(referenceLibrary, entries);
+    const nextLibrary = mergeLibraryEntries(referenceLibrary, combinedEntries);
     setReferenceLibrary(nextLibrary);
     const addedCount = Math.max(nextLibrary.length - beforeCount, 0);
     setShowLibrary(true);
     setLeftRailMode('library');
     setToolNotice(addedCount ? `${addedCount} source${addedCount === 1 ? '' : 's'} saved to the reference library.` : 'Those sources are already in the reference library.');
-    appendBuildEvent('Library updated', `${entries.length} source${entries.length === 1 ? '' : 's'} saved for future builds.`);
+    appendBuildEvent('Library updated', `${combinedEntries.length} source${combinedEntries.length === 1 ? '' : 's'} saved for future builds.`);
   };
 
   const handleRemoveLibraryItem = (itemId) => {

@@ -408,6 +408,9 @@ function extractJSON(text) {
 }
 
 const GENERIC_PORTAL_COPY = new Set([
+  'brand',
+  'portal',
+  'brand portal',
   'evolving your brand vision',
   'the story behind the brand.',
   'your mark.',
@@ -4178,6 +4181,14 @@ export default function PortalEditorV2Page() {
   ], [matchedTemplateItems, matchedLibraryItems]);
 
   useEffect(() => {
+    setQualityWarnings(
+      outputMode === 'portal' && normalizedPreview
+        ? validatePortalOutput(normalizedPreview)
+        : []
+    );
+  }, [outputMode, normalizedPreview]);
+
+  useEffect(() => {
     if (phase !== 'preview_ready' || !normalizedPreview) return;
 
     const frame = window.requestAnimationFrame(() => {
@@ -4946,7 +4957,6 @@ export default function PortalEditorV2Page() {
           references: effectiveReferences,
           attachments: effectiveAttachments,
         }),
-        ...messages,
         {role: 'assistant', content: buildPlanMessage(plan)},
       ].filter(Boolean);
 

@@ -467,6 +467,20 @@ function wrapJsonReply(structured) {
   return `\`\`\`json\n${JSON.stringify(structured, null, 2)}\n\`\`\``;
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldRetryProviderError(status, message = '') {
+  const normalized = String(message || '').toLowerCase();
+  return [429, 500, 502, 503, 504, 529].includes(Number(status))
+    || normalized.includes('overloaded')
+    || normalized.includes('rate limit')
+    || normalized.includes('temporarily unavailable')
+    || normalized.includes('try again')
+    || normalized.includes('timeout');
+}
+
 function getProviderConfig(provider, model) {
   const normalizedProvider = (provider || 'anthropic').toLowerCase();
   let resolvedModel = model || PROVIDER_DEFAULTS[normalizedProvider];
@@ -1027,54 +1041,80 @@ function toTextOnlyMessages(messages) {
 async function generateWithAnthropic({ apiKey, model, system, messages, maxTokens = 1400 }) {
   if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      system,
-      messages,
-    }),
-  });
+  const maxAttempts = 3;
+  let lastError = null;
 
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.error?.message || data?.error || 'Anthropic request failed');
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        system,
+        messages,
+      }),
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return data?.content?.map(part => part?.text || '').join('\n').trim();
+    }
+
+    const message = data?.error?.message || data?.error || 'Anthropic request failed';
+    lastError = new Error(message);
+    if (attempt < maxAttempts && shouldRetryProviderError(response.status, message)) {
+      await delay(1000 * attempt);
+      continue;
+    }
+    throw lastError;
   }
 
-  return data?.content?.map(part => part?.text || '').join('\n').trim();
+  throw lastError || new Error('Anthropic request failed');
 }
 
 async function generateWithOpenAI({ apiKey, model, system, messages, maxTokens = 1400 }) {
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY');
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: system },
-        ...messages,
-      ],
-      max_completion_tokens: maxTokens,
-    }),
-  });
+  const maxAttempts = 3;
+  let lastError = null;
 
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.error?.message || 'OpenAI request failed');
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: system },
+          ...messages,
+        ],
+        max_completion_tokens: maxTokens,
+      }),
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return data?.choices?.[0]?.message?.content?.trim();
+    }
+
+    const message = data?.error?.message || 'OpenAI request failed';
+    lastError = new Error(message);
+    if (attempt < maxAttempts && shouldRetryProviderError(response.status, message)) {
+      await delay(1000 * attempt);
+      continue;
+    }
+    throw lastError;
   }
 
-  return data?.choices?.[0]?.message?.content?.trim();
+  throw lastError || new Error('OpenAI request failed');
 }
 
 async function generateWithGoogle({ apiKey, model, system, messages, maxTokens = 1400 }) {
@@ -1095,23 +1135,36 @@ async function generateWithGoogle({ apiKey, model, system, messages, maxTokens =
     });
   }
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      generationConfig: {
-        maxOutputTokens: maxTokens,
-      },
-    }),
-  });
+  const maxAttempts = 3;
+  let lastError = null;
 
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.error?.message || 'Google AI request failed');
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        generationConfig: {
+          maxOutputTokens: maxTokens,
+        },
+      }),
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('\n').trim();
+    }
+
+    const message = data?.error?.message || 'Google AI request failed';
+    lastError = new Error(message);
+    if (attempt < maxAttempts && shouldRetryProviderError(response.status, message)) {
+      await delay(1000 * attempt);
+      continue;
+    }
+    throw lastError;
   }
 
-  return data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('\n').trim();
+  throw lastError || new Error('Google AI request failed');
 }
 
 async function repairStructuredResponse({ provider, model, outputMode, originalText }) {

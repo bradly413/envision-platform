@@ -198,6 +198,23 @@ function cleanText(value = '') {
   return String(value || '').replace(/\s+/g, ' ').trim()
 }
 
+function isIdentityOpeningPlan(plan) {
+  const text = cleanText(`${plan?.prompt || ''} ${plan?.title || ''} ${plan?.visualThesis || ''}`).toLowerCase()
+  return /(brand identity|logo reveal|wordmark reveal|logo evolution|icon deconstruction|rebrand|editorial brand)/.test(text)
+}
+
+function getOpeningMediaAttachment(attachments = [], plan = null) {
+  const items = Array.isArray(attachments) ? attachments : []
+  const namedAsset = items.find((item) => /logo[- ]?reveal|wordmark|hero|opening/i.test(item?.name || ''))
+  const videoAsset = namedAsset?.type?.startsWith('video/') ? namedAsset : items.find((item) => item?.type?.startsWith('video/'))
+  if (videoAsset?.previewUrl) return videoAsset
+  const imageAsset = namedAsset?.type?.startsWith('image/') ? namedAsset : items.find((item) => item?.type?.startsWith('image/'))
+  if (imageAsset?.previewUrl) return imageAsset
+
+  const selectedAssets = Array.isArray(plan?.selectedAssets) ? plan.selectedAssets : []
+  return selectedAssets.find((item) => item?.previewUrl) || null
+}
+
 function normalizeAssetKey(value = '') {
   return cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
@@ -1060,7 +1077,7 @@ function PreviewDecisionSection({content = {}}) {
   )
 }
 
-function PortalRenderedPreview({preview, plan, styleMode, client, selectedNodeId, onSelectNode}) {
+function PortalRenderedPreview({preview, plan, styleMode, client, attachments, selectedNodeId, onSelectNode}) {
   const content = {
     ...buildPortalContent(preview, plan, client, styleMode),
     __selectedAssets: plan?.selectedAssets || [],
@@ -1076,6 +1093,8 @@ function PortalRenderedPreview({preview, plan, styleMode, client, selectedNodeId
   const palette = (content.colors?.palette || []).slice(0, styleMode === 'luxury' ? 5 : 4)
   const pillars = Array.isArray(content.brand?.pillars) ? content.brand.pillars : []
   const fonts = Array.isArray(content.typography?.fonts) ? content.typography.fonts : []
+  const immersiveOpening = isIdentityOpeningPlan(plan) && outputSupportsImmersiveOpening(styleMode)
+  const openingMedia = getOpeningMediaAttachment(attachments, plan)
   const previewKey = [
     content.hero?.headline,
     content.brand?.headline,
@@ -1088,7 +1107,7 @@ function PortalRenderedPreview({preview, plan, styleMode, client, selectedNodeId
       initial={{opacity: 0, y: 18}}
       animate={{opacity: 1, y: 0}}
       transition={{duration: 0.42, ease: [0.22, 1, 0.36, 1]}}
-      style={{height: 780, overflow: 'auto', position: 'relative', borderRadius: 32, border: '1px solid rgba(255,255,255,0.08)', background: experience.background?.base || '#090911'}}
+      style={{height: immersiveOpening ? 840 : 780, overflow: 'auto', position: 'relative', borderRadius: 32, border: '1px solid rgba(255,255,255,0.08)', background: experience.background?.base || '#090911'}}
     >
       <div
         aria-hidden="true"
@@ -1108,15 +1127,15 @@ function PortalRenderedPreview({preview, plan, styleMode, client, selectedNodeId
         <SelectableRegion id="hero" label="Hero" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode}>
           <div
             style={{
-              minHeight: direction.heroMinHeight,
+              minHeight: immersiveOpening ? Math.max(direction.heroMinHeight + 120, 560) : direction.heroMinHeight,
               borderRadius: direction.heroRadius,
               border: direction.shellBorder,
               background: direction.shellBackground,
-              padding: styleMode === 'minimal' ? '28px 32px 34px' : '34px',
+              padding: immersiveOpening ? '40px' : styleMode === 'minimal' ? '28px 32px 34px' : '34px',
               position: 'relative',
               overflow: 'hidden',
               display: 'grid',
-              gridTemplateColumns: direction.heroColumns,
+              gridTemplateColumns: immersiveOpening ? (openingMedia ? '1.1fr 0.9fr' : '1fr') : direction.heroColumns,
               gap: 24,
               alignItems: styleMode === 'bold' || styleMode === 'minimal' ? 'start' : 'end',
             }}
@@ -1138,7 +1157,7 @@ function PortalRenderedPreview({preview, plan, styleMode, client, selectedNodeId
             >
               {styleMode === 'luxury' ? 'atelier' : styleMode === 'bold' ? 'impact' : styleMode === 'minimal' ? 'calm' : 'vision'}
             </div>
-            <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: 14, alignContent: 'space-between'}}>
+            <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: immersiveOpening ? 22 : 14, alignContent: 'space-between'}}>
               <div>
                 <PreviewSectionLabel eyebrow={content.hero?.eyebrow || `Builder preview · ${plan?.outputMode || 'portal'}`} accentColor={accentColor} />
                 {company ? (
@@ -1146,27 +1165,81 @@ function PortalRenderedPreview({preview, plan, styleMode, client, selectedNodeId
                     {company}
                   </div>
                 ) : null}
-                <h1 style={{fontSize: direction.titleSize, lineHeight: 0.94, fontWeight: 800, color: '#F8FAFC', margin: '0 0 14px', letterSpacing: '-0.05em', maxWidth: styleMode === 'bold' ? 980 : 760}}>
+                <h1 style={{fontSize: immersiveOpening ? 'clamp(56px, 8vw, 108px)' : direction.titleSize, lineHeight: immersiveOpening ? 0.88 : 0.94, fontWeight: 800, color: '#F8FAFC', margin: '0 0 14px', letterSpacing: '-0.06em', maxWidth: immersiveOpening ? 920 : styleMode === 'bold' ? 980 : 760}}>
                   {content.hero?.headline || clientName}
                 </h1>
-                <div style={{fontSize: direction.subSize, lineHeight: 1.04, fontWeight: styleMode === 'minimal' ? 600 : 700, color: styleMode === 'luxury' ? '#FDE68A' : '#CBD5E1', marginBottom: 18, maxWidth: 720}}>
+                <div style={{fontSize: immersiveOpening ? 'clamp(28px, 3vw, 42px)' : direction.subSize, lineHeight: immersiveOpening ? 1 : 1.04, fontWeight: styleMode === 'minimal' ? 600 : 700, color: styleMode === 'luxury' ? '#FDE68A' : '#CBD5E1', marginBottom: 18, maxWidth: immersiveOpening ? 820 : 720}}>
                   {content.hero?.subheadline || plan?.visualThesis || 'A stronger, more directed portal composition.'}
                 </div>
-                <p style={{fontSize: 15, lineHeight: 1.8, color: '#94A3B8', maxWidth: direction.descriptionMaxWidth, margin: 0}}>
+                <p style={{fontSize: immersiveOpening ? 16 : 15, lineHeight: immersiveOpening ? 1.75 : 1.8, color: '#94A3B8', maxWidth: immersiveOpening ? 760 : direction.descriptionMaxWidth, margin: 0}}>
                   {content.hero?.intro || plan?.summary || 'The preview should feel like a real composition system, not the same template with a new background.'}
                 </p>
               </div>
-              <AnimatedAssetStrip
-                items={selectedAssets}
-                tone={{
-                  background: 'rgba(2,6,23,0.64)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#E2E8F0',
-                }}
-              />
+              {immersiveOpening ? (
+                <div style={{display: 'flex', gap: 10, flexWrap: 'wrap'}}>
+                  {[
+                    plan?.understanding?.portalType || structure[0] || 'Brand reveal portal',
+                    plan?.understanding?.motionStyle || 'Logo-reveal pacing',
+                    'Opening cinematic frame',
+                  ].filter(Boolean).map((item) => (
+                    <div key={item} style={{padding: '10px 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#E2E8F0', fontSize: 11, fontWeight: 700}}>
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <AnimatedAssetStrip
+                  items={selectedAssets}
+                  tone={{
+                    background: 'rgba(2,6,23,0.64)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#E2E8F0',
+                  }}
+                />
+              )}
             </div>
-            <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: 14, alignContent: styleMode === 'bold' ? 'start' : 'end'}}>
-              {styleMode === 'bold' ? (
+            <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: 14, alignContent: immersiveOpening ? 'stretch' : styleMode === 'bold' ? 'start' : 'end'}}>
+              {immersiveOpening ? (
+                <div style={{display: 'grid', gap: 14, alignContent: 'stretch'}}>
+                  {openingMedia?.previewUrl ? (
+                    openingMedia.type?.startsWith('video/') ? (
+                      <video
+                        src={openingMedia.previewUrl}
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        style={{width: '100%', minHeight: 320, objectFit: 'cover', borderRadius: 24, border: direction.cardBorder, background: 'rgba(255,255,255,0.03)', boxShadow: `0 18px 50px ${rgba(accentColor, 0.18)}`}}
+                      />
+                    ) : (
+                      <img
+                        src={openingMedia.previewUrl}
+                        alt={openingMedia.name || 'Opening reference'}
+                        style={{width: '100%', minHeight: 320, objectFit: 'cover', borderRadius: 24, border: direction.cardBorder, background: 'rgba(255,255,255,0.03)', boxShadow: `0 18px 50px ${rgba(accentColor, 0.18)}`}}
+                      />
+                    )
+                  ) : (
+                    <div style={{minHeight: 320, borderRadius: 24, border: direction.cardBorder, background: `linear-gradient(145deg, ${rgba(accentColor, 0.2)}, rgba(255,255,255,0.03))`, display: 'grid', placeItems: 'center', padding: 26}}>
+                      <div style={{display: 'grid', gap: 10, textAlign: 'left', width: '100%'}}>
+                        <div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.14em', color: '#94A3B8'}}>Opening frame</div>
+                        <div style={{fontSize: 28, lineHeight: 1.02, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.05em'}}>Wordmark reveal</div>
+                        <div style={{fontSize: 13, color: '#CBD5E1', lineHeight: 1.7}}>The first frame should feel like a directed title sequence with logo-reveal pacing, not a dashboard card.</div>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12}}>
+                    {[
+                      ['Portal type', plan?.understanding?.portalType || structure[0] || 'Brand reveal'],
+                      ['Motion', plan?.understanding?.motionStyle || 'Scroll-led pacing'],
+                    ].map(([label, value]) => (
+                      <div key={label} style={{padding: '16px 18px', borderRadius: direction.cardRadius - 6, border: direction.cardBorder, background: 'rgba(255,255,255,0.03)'}}>
+                        <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B', marginBottom: 8}}>{label}</div>
+                        <div style={{fontSize: 17, fontWeight: 700, color: '#F8FAFC', lineHeight: 1.35}}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : styleMode === 'bold' ? (
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10}}>
                   {(content.brand?.pillars || []).slice(0, 4).map((item, index) => (
                     <div key={`${item.title}-${index}`} style={{padding: '18px 16px', borderRadius: 20, background: index % 2 === 0 ? `${accentColor}20` : 'rgba(255,255,255,0.04)', border: direction.cardBorder}}>
@@ -1318,6 +1391,10 @@ function shouldUseCinematicPreview(outputMode, plan, preview) {
   if (preview?.mode === 'cinematic-flow' && preview?.cinematicFlow) return true
   // Portal mode uses the standard card-based renderer for reliability
   return false
+}
+
+function outputSupportsImmersiveOpening(styleMode) {
+  return ['cinematic', 'editorial', 'minimal', 'luxury'].includes(styleMode)
 }
 
 function getCinematicTheme(styleMode, palette = []) {
@@ -2424,5 +2501,5 @@ export default function BuilderLivePreview({outputMode, preview, plan, styleMode
     )
   }
 
-  return <PortalRenderedPreview preview={preview} plan={plan} styleMode={styleMode} client={client} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} />
+  return <PortalRenderedPreview preview={preview} plan={plan} styleMode={styleMode} client={client} attachments={attachments} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} />
 }

@@ -4002,6 +4002,7 @@ export default function PortalEditorV2Page() {
     {label: 'Builder ready', detail: 'Start with a prompt and I will plan before building.'},
   ]);
   const buildProgressTimerRef = useRef(null);
+  const previewViewportRef = useRef(null);
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -4175,6 +4176,18 @@ export default function PortalEditorV2Page() {
     ...matchedTemplateItems,
     ...matchedLibraryItems,
   ], [matchedTemplateItems, matchedLibraryItems]);
+
+  useEffect(() => {
+    if (phase !== 'preview_ready' || !normalizedPreview) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      if (previewViewportRef.current) {
+        previewViewportRef.current.scrollTo({top: 0, behavior: 'smooth'});
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [phase, normalizedPreview, outputMode]);
   const libraryRuntimeContext = useMemo(() => libraryItemsToRuntimeContext(matchedLibraryItems), [matchedLibraryItems]);
   const effectiveReferences = useMemo(
     () => mergeReferenceItems(references, [...templateRuntimeContext, ...libraryRuntimeContext.references]),
@@ -5802,7 +5815,7 @@ export default function PortalEditorV2Page() {
         ) : null}
 
         <div style={{flex: 1, minHeight: 0, display: 'flex', flexDirection: isTablet ? 'column' : 'row'}}>
-          <div style={{flex: 1, minWidth: 0, padding: isMobile ? 16 : 24, overflow: 'auto'}}>
+          <div ref={previewViewportRef} style={{flex: 1, minWidth: 0, padding: isMobile ? 16 : 24, overflow: 'auto'}}>
             <div ref={previewCaptureRef} style={{maxWidth: showInspector ? 1320 : 1480, margin: '0 auto', minHeight: '100%', display: 'grid', gap: 20, transition: 'max-width .22s ease'}}>
               {normalizedPreview ? (
                 <PreviewErrorBoundary resetKey={previewBoundaryKey}>

@@ -423,9 +423,18 @@ const GENERIC_PORTAL_COPY = new Set([
   'contemporary creative portfolio where space, light, and story converge',
 ]);
 
+const GENERIC_PORTAL_PATTERNS = [
+  /\b(cinematic|immersive|editorial|minimal|luxury|institutional)\s+portal(?:\s+experience)?\b/i,
+  /\b(sophisticated|premium|modern)\s+(educational|brand|digital)?\s*journey\b/i,
+  /\binstitutional credibility with modern sophistication\b/i,
+  /\bbuild\. review\. deploy\.\b/i,
+  /\bapprove to build\b/i,
+  /\breview your configuration\b/i,
+];
+
 function shouldReplacePortalCopy(value = '') {
   const text = cleanText(value).toLowerCase();
-  return !text || GENERIC_PORTAL_COPY.has(text);
+  return !text || GENERIC_PORTAL_COPY.has(text) || GENERIC_PORTAL_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 function getPortalFallbackPalette(styleMode = 'cinematic') {
@@ -678,6 +687,64 @@ function buildFallbackApplications({prompt = '', company = 'Brand', referenceInt
   return presets[category] || presets.generic;
 }
 
+function normalizeApplicationCopy(applications = [], company = 'Brand') {
+  return (Array.isArray(applications) ? applications : []).map((item) => ({
+    ...item,
+    context: cleanText(item?.context || ''),
+    description: cleanText(String(item?.description || '')
+      .replace(/\bBrand's\b/g, `${company}'s`)
+      .replace(/\bbrand's\b/g, `${company}'s`)
+      .replace(/\bthe brand's\b/g, `${company}'s`)),
+  }));
+}
+
+function buildFallbackHeroSubheadline({prompt = '', company = 'Brand', referenceIntelligence = null} = {}) {
+  const category = inferBrandCategory({prompt, referenceIntelligence});
+  const lower = cleanText(prompt).toLowerCase();
+
+  if (category === 'education') {
+    if (/logo reveal|wordmark|icon/.test(lower)) {
+      return `${company} needs an identity that feels established on first glance and admissions-ready in motion.`;
+    }
+    return `An editorial school identity system that balances trust, clarity, and a stronger first impression.`;
+  }
+
+  if (category === 'culture') return `A more atmospheric identity system built to carry programming, place, and public recognition.`;
+  if (category === 'legal') return `An identity system with more authority, precision, and client-facing confidence from the first frame.`;
+  if (category === 'real-estate') return `A more personal, premium identity built to hold trust across listings, presentations, and local recognition.`;
+  if (category === 'aviation') return `A sharper brand system that signals discretion, precision, and premium control from the opening reveal.`;
+  if (category === 'healthcare') return `A calmer, clearer identity system designed to communicate trust and care without default clinical sameness.`;
+  if (category === 'technology') return `A stronger product-facing identity built to feel distinct, credible, and more memorable on first contact.`;
+
+  if (/logo reveal|wordmark|icon/.test(lower)) {
+    return `A cinematic identity system where the wordmark, icon logic, and opening reveal all work as one directed first impression.`;
+  }
+
+  return `A more directed identity system with a stronger first impression, cleaner hierarchy, and real-world brand readiness.`;
+}
+
+function buildFallbackHeroIntro({prompt = '', company = 'Brand', plan = null, referenceIntelligence = null} = {}) {
+  const category = inferBrandCategory({prompt, referenceIntelligence});
+  const lower = cleanText(prompt).toLowerCase();
+  const summary = cleanText(plan?.summary || plan?.visualThesis || '');
+
+  if (category === 'education') {
+    return `The opening sequence should make ${company} feel credible, contemporary, and enrollment-ready, using stronger typography, a clearer mark system, and motion that feels composed rather than flashy.`;
+  }
+
+  if (/logo reveal|wordmark|icon/.test(lower)) {
+    return `The first frame should behave like a directed title sequence, using the wordmark, icon logic, and motion pacing to make the identity shift feel intentional instead of templated.`;
+  }
+
+  return summary || `The opening frame should establish ${company} as a more distinct, better organized, and more memorable brand system from the first scroll.`;
+}
+
+function shouldUseSubjectLedHero({prompt = '', referenceIntelligence = null} = {}) {
+  const lower = cleanText(prompt).toLowerCase();
+  return Boolean(referenceIntelligence?.isInstitutional)
+    || /(brand identity|logo reveal|wordmark reveal|rebrand|icon deconstruction|editorial brand)/.test(lower);
+}
+
 function mapStructureItemToPortalSectionKey(value = '') {
   const lower = cleanText(value).toLowerCase();
   if (!lower) return null;
@@ -746,12 +813,17 @@ function buildFallbackLogoRationale({existing = '', plan = null, company = 'Bran
 function hydratePortalContent(content = {}, {plan, client, styleMode}) {
   const normalized = normalizeAIFieldNames(content);
   const next = {...(normalized || {})};
-  const company = getAuthoritativeSubject({
-    prompt: plan?.prompt || '',
-    outputMode: plan?.outputMode || 'portal',
-    client,
-    fallback: plan?.briefSubject || next.brand?.name || 'Brand',
-  });
+  const company = cleanText(
+    plan?.briefSubject
+    || extractPromptCompanyName(plan?.prompt || '')
+    || inferPromptSubject(plan?.prompt || '', plan?.outputMode || 'portal')
+    || getAuthoritativeSubject({
+      prompt: plan?.prompt || '',
+      outputMode: plan?.outputMode || 'portal',
+      client,
+      fallback: next.brand?.name || 'Brand',
+    })
+  ) || 'Brand';
   const structure = Array.isArray(plan?.structure) ? plan.structure : [];
   const logoSignals = plan?.referenceIntelligence?.logoSignals || [];
   const visualSignals = plan?.referenceIntelligence?.visualSignals || [];
@@ -766,14 +838,23 @@ function hydratePortalContent(content = {}, {plan, client, styleMode}) {
   next.applications = Array.isArray(next.applications) ? next.applications : [];
   next.sectionSequence = Array.isArray(next.sectionSequence) ? next.sectionSequence : [];
 
-  if (shouldReplacePortalCopy(next.hero.headline)) {
+  if (shouldReplacePortalCopy(next.hero.headline) || (shouldUseSubjectLedHero({prompt: plan?.prompt || '', referenceIntelligence: plan?.referenceIntelligence || null}) && !cleanText(next.hero.headline).toLowerCase().includes(company.toLowerCase()))) {
     next.hero.headline = company;
   }
   if (shouldReplacePortalCopy(next.hero.subheadline)) {
-    next.hero.subheadline = cleanText(plan?.visualThesis || plan?.summary || 'Brand evolution, redefined.');
+    next.hero.subheadline = buildFallbackHeroSubheadline({
+      prompt: plan?.prompt || '',
+      company,
+      referenceIntelligence: plan?.referenceIntelligence || null,
+    });
   }
   if (shouldReplacePortalCopy(next.hero.intro)) {
-    next.hero.intro = cleanText([conceptSummary, visualSignals[0]].filter(Boolean).join(' '));
+    next.hero.intro = buildFallbackHeroIntro({
+      prompt: plan?.prompt || '',
+      company,
+      plan,
+      referenceIntelligence: plan?.referenceIntelligence || null,
+    });
   }
   if (shouldReplacePortalCopy(next.brand.headline)) {
     next.brand.headline = structure[1] || 'Why this identity now';
@@ -863,6 +944,7 @@ function hydratePortalContent(content = {}, {plan, client, styleMode}) {
       referenceIntelligence: plan?.referenceIntelligence || null,
     });
   }
+  next.applications = normalizeApplicationCopy(next.applications, company);
   if (!next.sectionSequence.length) {
     next.sectionSequence = buildFallbackSectionSequence({
       structure,

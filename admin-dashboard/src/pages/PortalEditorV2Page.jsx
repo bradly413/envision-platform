@@ -694,15 +694,178 @@ function isLogoRevealIdentityPrompt(text = '', attachments = []) {
     || /(logo-reveal|wordmark|brand-identity)/.test(attachmentText);
 }
 
-function createStructure(prompt, outputMode, concept, referenceIntelligence) {
+function getTemplateKnowledge(item) {
+  if (!item) return null;
+
+  const structure = item.templateStructure || item.structure || [];
+  const motion = item.templateMotion || item.motion || [];
+  const tags = item.tags || [];
+  const title = item.title || item.label || '';
+  const vibe = item.templateVibe || item.vibe || '';
+  const bestFor = item.templateBestFor || item.bestFor || '';
+
+  if (!structure.length && !motion.length && !title) return null;
+
+  return {
+    title,
+    vibe,
+    bestFor,
+    structure,
+    motion,
+    tags,
+  };
+}
+
+function pickPrimaryTemplateKnowledge(libraryMatches = [], {prompt = '', styleMode = '', outputMode = 'portal', referenceIntelligence = null} = {}) {
+  const text = cleanText(prompt).toLowerCase();
+  const isInstitutional = Boolean(referenceIntelligence?.isInstitutional);
+  const isIdentity = /brand|identity|logo|rebrand|wordmark|mark/.test(text);
+  const wantsEditorial = styleMode === 'editorial' || /editorial|poster|brand story/.test(text);
+  const wantsParallax = /parallax|one page|one-page|scroll/.test(text);
+
+  const ranked = libraryMatches
+    .map((item) => getTemplateKnowledge(item))
+    .filter(Boolean)
+    .map((template) => {
+      const haystack = `${template.title} ${template.vibe} ${template.bestFor} ${template.tags.join(' ')} ${template.structure.join(' ')} ${template.motion.join(' ')}`.toLowerCase();
+      let score = 0;
+
+      if (wantsEditorial && /editorial|poster|magazine/.test(haystack)) score += 18;
+      if (isInstitutional && /institution|trust|school|academy|college/.test(haystack)) score += 18;
+      if (isIdentity && /identity|logo|brand|typography|color/.test(haystack)) score += 14;
+      if (wantsParallax && /parallax|scroll|slider/.test(haystack)) score += 12;
+      if (outputMode === 'presentation' && /presentation|deck|slide/.test(haystack)) score += 10;
+      if (outputMode === 'portal' && /portal|one-page|landing|microsite/.test(haystack)) score += 10;
+      if (styleMode && haystack.includes(styleMode)) score += 8;
+
+      score += Math.min(template.structure.length, 8);
+      score += Math.min(template.motion.length, 4);
+
+      return {template, score};
+    })
+    .sort((a, b) => b.score - a.score || a.template.title.localeCompare(b.template.title));
+
+  return ranked[0]?.template || null;
+}
+
+function createTemplateDrivenStructure({outputMode, template, isInstitutional, isIdentity, isLogoReveal, isCampaign, isProposal, wantsEditorial}) {
+  if (!template) return null;
+
+  if (outputMode === 'presentation') {
+    if (isInstitutional && wantsEditorial) {
+      return [
+        'Opening title',
+        'Institutional context',
+        'Brand philosophy',
+        'Trust and credibility problem',
+        'Identity direction',
+        'Seal or logo system',
+        'Typography system',
+        'Color direction',
+        'Applications',
+        'Recommendation',
+      ];
+    }
+
+    if (isLogoReveal && wantsEditorial) {
+      return [
+        'Opening title',
+        'Wordmark reveal',
+        'Brand context',
+        'Brand philosophy',
+        'Logo evolution',
+        'Icon deconstruction',
+        'Logo system',
+        'Typography system',
+        'Color direction',
+        'Applications',
+        'Closing',
+      ];
+    }
+
+    if (template.structure?.length) {
+      return uniq(template.structure.map((item) => {
+        const lower = cleanText(item).toLowerCase();
+        if (/hero|opening|launch|poster/.test(lower)) return 'Opening title';
+        if (/manifesto|philosophy/.test(lower)) return 'Brand philosophy';
+        if (/context|about|story|positioning/.test(lower)) return isInstitutional ? 'Institutional context' : 'Brand context';
+        if (/identity|system/.test(lower)) return isInstitutional ? 'Identity direction' : 'Logo system';
+        if (/typography|type/.test(lower)) return 'Typography system';
+        if (/color|palette/.test(lower)) return 'Color direction';
+        if (/portfolio|gallery|proof|application|showcase|work/.test(lower)) return 'Applications';
+        if (/cta|contact|close|closing|recommendation/.test(lower)) return outputMode === 'presentation' ? 'Closing' : 'Closing recommendation';
+        return cleanText(item);
+      })).slice(0, 10);
+    }
+  }
+
+  if (outputMode === 'portal') {
+    if (isLogoReveal && wantsEditorial) {
+      return [
+        'Hero statement',
+        'Wordmark reveal',
+        'Brand context',
+        'Brand philosophy',
+        'Logo evolution',
+        'Logo system',
+        'Typography system',
+        'Color direction',
+        'Applications',
+        'Closing recommendation',
+      ];
+    }
+
+    if (isInstitutional && wantsEditorial) {
+      return [
+        'Hero statement',
+        'Institutional context',
+        'Brand philosophy',
+        'Identity challenge',
+        'Seal or logo system',
+        'Typography and color',
+        'Applications',
+        'Decision and next step',
+      ];
+    }
+
+    if (isCampaign && /parallax|slider|gallery/i.test(`${template.motion.join(' ')} ${template.title}`)) {
+      return [
+        'Hero statement',
+        'Campaign context',
+        'Big idea',
+        'Channel moments',
+        'Proof and deliverables',
+        'Call to action',
+      ];
+    }
+  }
+
+  return null;
+}
+
+function createStructure(prompt, outputMode, concept, referenceIntelligence, {styleMode = '', libraryMatches = []} = {}) {
   const text = cleanText(prompt).toLowerCase();
   const isInstitutional = referenceIntelligence?.isInstitutional;
   const isCampaign = /campaign|launch|rollout|activation|awareness/.test(text);
   const isIdentity = /brand|identity|logo|rebrand|wordmark|mark/.test(text);
   const isProposal = /proposal|sales|pitch|business development/.test(text);
   const isLogoReveal = isLogoRevealIdentityPrompt(text);
+  const templateKnowledge = pickPrimaryTemplateKnowledge(libraryMatches, {prompt, styleMode, outputMode, referenceIntelligence});
+  const wantsEditorial = styleMode === 'editorial' || /editorial|poster|brand story/.test(`${templateKnowledge?.title || ''} ${templateKnowledge?.vibe || ''}`);
+  const templateDrivenStructure = createTemplateDrivenStructure({
+    outputMode,
+    template: templateKnowledge,
+    isInstitutional,
+    isIdentity,
+    isLogoReveal,
+    isCampaign,
+    isProposal,
+    wantsEditorial,
+  });
 
   if (outputMode === 'presentation') {
+    if (templateDrivenStructure?.length) return templateDrivenStructure;
+
     if (isLogoReveal) {
       return [
         'Opening title',
@@ -778,6 +941,8 @@ function createStructure(prompt, outputMode, concept, referenceIntelligence) {
       'Recommendation',
     ];
   }
+
+  if (templateDrivenStructure?.length) return templateDrivenStructure;
 
   if (isLogoReveal) {
     return [
@@ -879,24 +1044,26 @@ function inferBriefFocus({prompt, client, referenceIntelligence, outputMode}) {
   return `a portal with stronger hierarchy, clearer messaging, and a more specific client point of view`;
 }
 
-function createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept}) {
+function createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept, templateInfluence = null}) {
   const styleLabel = STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode;
   const clientLabel = client?.name || client?.company || inferPromptSubject(prompt, outputMode) || 'the client';
   const focus = inferBriefFocus({prompt, client, referenceIntelligence, outputMode});
   const mood = cleanText(concept?.mood || '');
   const medium = outputMode === 'presentation' ? 'presentation' : 'portal';
+  const templatePhrase = templateInfluence?.title ? `, using structure cues from ${templateInfluence.title}` : '';
 
-  return `${styleLabel} ${medium} for ${clientLabel}, centered on ${focus}${mood ? `, with ${mood}.` : '.'}`;
+  return `${styleLabel} ${medium} for ${clientLabel}, centered on ${focus}${templatePhrase}${mood ? `, with ${mood}.` : '.'}`;
 }
 
-function createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence}) {
+function createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence, templateInfluence = null}) {
   const styleLabel = STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode;
   const clientLabel = client?.name || client?.company || 'the client';
   const focus = inferBriefFocus({prompt, client, referenceIntelligence, outputMode});
   const mood = cleanText(concept?.mood || 'clear hierarchy, stronger typography, and more deliberate pacing');
   const medium = outputMode === 'presentation' ? 'presentation' : 'portal';
+  const templatePhrase = templateInfluence?.title ? ` borrowing from the ${templateInfluence.title} structure` : '';
 
-  return `${styleLabel} ${medium} for ${clientLabel}, built around ${focus} with ${mood}.`;
+  return `${styleLabel} ${medium} for ${clientLabel}, built around ${focus}${templatePhrase} with ${mood}.`;
 }
 
 function createInteractionThesis({outputMode, styleMode, prompt, referenceIntelligence, concept}) {
@@ -1511,7 +1678,7 @@ function createSectionFeatures({outputMode, structure = []}) {
   return structure.slice(0, 8).map((section, index) => describeSectionFeature(section, index, outputMode));
 }
 
-function createGlobalEffects({outputMode, styleMode, interactionThesis = [], selectedAssets = []}) {
+function createGlobalEffects({outputMode, styleMode, interactionThesis = [], selectedAssets = [], templateInfluence = null}) {
   const effects = [];
 
   if (outputMode === 'presentation') {
@@ -1531,6 +1698,7 @@ function createGlobalEffects({outputMode, styleMode, interactionThesis = [], sel
   if (selectedAssets.some((item) => item.category === 'animations')) effects.push('motion presets from the registry');
   if (selectedAssets.some((item) => item.category === 'text-animations')) effects.push('title transitions');
   if (selectedAssets.some((item) => item.category === 'components')) effects.push('signature layout components');
+  if (templateInfluence?.motion?.length) effects.push(...templateInfluence.motion.slice(0, 3).map((item) => cleanText(item).toLowerCase()));
 
   return uniq([
     ...effects,
@@ -1599,6 +1767,12 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     client,
     referenceSite,
   });
+  const templateInfluence = pickPrimaryTemplateKnowledge(libraryMatches, {
+    prompt,
+    styleMode,
+    outputMode,
+    referenceIntelligence,
+  });
   // Prefer company name from prompt over the dropdown selection
   const promptSubject = inferPromptSubject(prompt, outputMode);
   const isFallbackClient = !client?.name || client?.name === 'Draft workspace' || client?.name === 'Test Client';
@@ -1611,7 +1785,10 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     limit: 4,
     variationSeed: `${client?.name || ''}|${client?.company || ''}|${prompt}|${styleMode}|${outputMode}|${concept?.id || ''}`,
   });
-  const structure = createStructure(prompt, outputMode, concept, referenceIntelligence);
+  const structure = createStructure(prompt, outputMode, concept, referenceIntelligence, {
+    styleMode,
+    libraryMatches,
+  });
   const titleSeed = briefSubject || (outputMode === 'presentation' ? 'Presentation' : 'Portal');
   const designGuardrails = buildDesignGuardrails({outputMode, styleMode});
   const logoGuidance = buildLogoGuidance({prompt, client, references, attachments});
@@ -1629,7 +1806,7 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
   const interactionThesis = createInteractionThesis({outputMode, styleMode, prompt, referenceIntelligence, concept});
   const architecture = createPlanArchitecture({outputMode, structure, styleMode, understanding});
   const sectionFeatures = createSectionFeatures({outputMode, structure});
-  const globalEffects = createGlobalEffects({outputMode, styleMode, interactionThesis, selectedAssets});
+  const globalEffects = createGlobalEffects({outputMode, styleMode, interactionThesis, selectedAssets, templateInfluence});
   const assetsNeeded = createAssetsNeeded({referenceSite, attachments, selectedAssets});
 
   return {
@@ -1639,8 +1816,8 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     briefSubject,
     outputMode,
     conceptLabel: concept?.label || '',
-    summary: createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept}),
-    visualThesis: createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence}),
+    summary: createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept, templateInfluence}),
+    visualThesis: createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence, templateInfluence}),
     interactionThesis,
     contentPlan: createContentPlan(outputMode, structure),
     architecture,
@@ -1660,6 +1837,7 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     ].filter(Boolean),
     structure,
     understanding,
+    templateInfluence,
     selectedAssets,
     concept,
     designGuardrails,
@@ -1671,6 +1849,7 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
       references: references.length,
       attachments: attachments.length,
       libraryMatches,
+      templateInfluence: templateInfluence?.title || '',
       referenceItems: references,
       attachmentItems: attachments.map((item) => ({name: item.name, type: item.type})),
       output: outputMode,

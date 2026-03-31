@@ -491,6 +491,255 @@ function normalizeAIFieldNames(content) {
   return c;
 }
 
+function inferBrandCategory({prompt = '', referenceIntelligence = null} = {}) {
+  const text = cleanText(`${prompt} ${referenceIntelligence?.summary || ''}`).toLowerCase();
+  if (/(school|academy|charter|student|campus|education)/.test(text) || referenceIntelligence?.isInstitutional) return 'education';
+  if (/(jazz|museum|arts|venue|culture|theater|theatre|festival|nonprofit)/.test(text)) return 'culture';
+  if (/(real estate|realtor|brokerage|listing|property|home)/.test(text)) return 'real-estate';
+  if (/(law|legal|attorney|firm|litigation|counsel)/.test(text)) return 'legal';
+  if (/(restaurant|food|dining|hospitality|hotel|bar|cafe|café)/.test(text)) return 'hospitality';
+  if (/(aviation|charter|flight|aircraft|jet|hangar)/.test(text)) return 'aviation';
+  if (/(health|medical|clinic|wellness|hospital|care)/.test(text)) return 'healthcare';
+  if (/(tech|software|saas|platform|digital product|product)/.test(text)) return 'technology';
+  return 'generic';
+}
+
+function buildFallbackApplications({prompt = '', company = 'Brand', referenceIntelligence = null} = {}) {
+  const category = inferBrandCategory({prompt, referenceIntelligence});
+
+  const presets = {
+    education: [
+      {
+        context: 'Admissions microsite',
+        description: `A streamlined enrollment landing experience that uses ${company}'s updated wordmark, confident headlines, and calmer navigation to help parents move from first impression to inquiry without friction.`,
+      },
+      {
+        context: 'Parent information guide',
+        description: `A printable and digital guide that applies the identity system to tuition, calendar, and mission messaging, balancing editorial hierarchy with approachable school-facing clarity.`,
+      },
+      {
+        context: 'Campus wayfinding and signage',
+        description: `Exterior and interior signage that gives the school a more established public presence, using the stronger mark and palette for recognition, orientation, and trust.`,
+      },
+      {
+        context: 'Enrollment social templates',
+        description: `A repeatable social system for open house promotion, student stories, and application deadlines, using motion-safe headline treatments and clear calls to action.`,
+      },
+    ],
+    culture: [
+      {
+        context: 'Season announcement campaign',
+        description: `A launch system for season reveals and featured programming, using the identity palette and typography to create anticipation across digital, print, and venue surfaces.`,
+      },
+      {
+        context: 'Event landing page',
+        description: `A scroll-led page that translates the brand into ticketing moments, artist storytelling, and sponsor visibility without losing editorial atmosphere.`,
+      },
+      {
+        context: 'Poster and street graphics',
+        description: `Large-format print applications that let the mark, type system, and color accents carry energy from the venue into the city in a recognizable way.`,
+      },
+      {
+        context: 'Member or donor materials',
+        description: `Invitation and stewardship pieces that use the brand system to feel elevated, culturally credible, and distinct from generic nonprofit collateral.`,
+      },
+    ],
+    'real-estate': [
+      {
+        context: 'Listing presentation',
+        description: `A high-trust presentation system that applies the identity to property storytelling, neighborhood positioning, and market confidence with a more premium cadence.`,
+      },
+      {
+        context: 'Property landing page',
+        description: `A detail-rich property or brokerage page that uses the refined mark and editorial hierarchy to make listings feel personal, polished, and conversion-ready.`,
+      },
+      {
+        context: 'Yard signs and print collateral',
+        description: `Physical applications that turn the identity into stronger on-site recognition, with clearer hierarchy and more memorable brand presence in local markets.`,
+      },
+      {
+        context: 'Agent social toolkit',
+        description: `Templates for new listings, open houses, and sold moments that keep the brand consistent while still letting individual properties feel distinct.`,
+      },
+    ],
+    legal: [
+      {
+        context: 'Firm website header system',
+        description: `A more authoritative digital front door where the refined identity carries trust, clarity, and seriousness across practice pages and attorney profiles.`,
+      },
+      {
+        context: 'Proposal and credentials deck',
+        description: `A presentation format that uses the brand system to support case studies, team credibility, and service differentiation without default corporate sameness.`,
+      },
+      {
+        context: 'Office signage',
+        description: `Environmental applications that make the mark feel established and durable in reception, conference spaces, and building directories.`,
+      },
+      {
+        context: 'Stationery and intake materials',
+        description: `Letterhead, correspondence, and client-facing forms that use the typography and color system to feel polished, legible, and quietly confident.`,
+      },
+    ],
+    hospitality: [
+      {
+        context: 'Restaurant or venue homepage',
+        description: `A mood-led landing experience that uses the visual system to frame atmosphere, menu or experience cues, and reservation intent in a more cinematic way.`,
+      },
+      {
+        context: 'Menu or service collateral',
+        description: `Printed and digital collateral that translates the identity into tactile brand moments with stronger hierarchy, pacing, and material contrast.`,
+      },
+      {
+        context: 'Social launch templates',
+        description: `Campaign-ready layouts for openings, features, and seasonal pushes that keep the brand recognizable while allowing flexible storytelling.`,
+      },
+      {
+        context: 'Exterior signage',
+        description: `Street-facing brand applications where the refined mark, palette, and lighting logic create stronger recognition from a distance.`,
+      },
+    ],
+    aviation: [
+      {
+        context: 'Booking or inquiry portal',
+        description: `A premium conversion surface that uses the identity to communicate discretion, precision, and control from first impression through inquiry.`,
+      },
+      {
+        context: 'Aircraft livery or hangar graphics',
+        description: `Large-scale applications that let the mark system feel engineered and durable, with enough restraint to signal premium service rather than spectacle.`,
+      },
+      {
+        context: 'Member or passenger welcome materials',
+        description: `A brand system for itineraries, welcome books, and service documents that makes every touchpoint feel considered and high-trust.`,
+      },
+      {
+        context: 'Sales presentation deck',
+        description: `A business development presentation that applies the identity to service positioning, fleet proof, and charter experience storytelling.`,
+      },
+    ],
+    healthcare: [
+      {
+        context: 'Care or services homepage',
+        description: `A clearer digital front door that balances trust, calm, and legibility while using the identity system to guide patients through critical information.`,
+      },
+      {
+        context: 'Patient onboarding materials',
+        description: `Forms, guides, and appointment communications that apply the brand with more empathy, order, and confidence than generic clinic paperwork.`,
+      },
+      {
+        context: 'Facility signage',
+        description: `Wayfinding and departmental graphics that make the environment feel more coherent and reassuring for patients and families.`,
+      },
+      {
+        context: 'Recruitment and employer brand assets',
+        description: `Digital and print materials that help the organization attract clinicians and staff while keeping the identity system unified across audiences.`,
+      },
+    ],
+    technology: [
+      {
+        context: 'Product landing page',
+        description: `A sharper digital entry point that translates the identity into clearer product positioning, stronger hierarchy, and a more memorable first impression.`,
+      },
+      {
+        context: 'Sales or investor deck',
+        description: `A presentation system that uses the mark, palette, and type system to frame proof points, roadmap language, and market differentiation with more authority.`,
+      },
+      {
+        context: 'Social launch toolkit',
+        description: `Templates for launches, feature announcements, and product education that keep the brand system tight while supporting fast-moving campaign needs.`,
+      },
+      {
+        context: 'App or dashboard branding',
+        description: `Interface surfaces where the visual language becomes more than marketing, carrying through into navigation, empty states, and key product moments.`,
+      },
+    ],
+    generic: [
+      {
+        context: 'Website hero and landing system',
+        description: `A digital front door that applies the identity across headline hierarchy, navigation, and calls to action so the brand feels more deliberate from the first scroll.`,
+      },
+      {
+        context: 'Business cards and stationery',
+        description: `Physical brand basics where the mark, palette, and type system prove they can hold up in tactile, everyday use with more confidence and clarity.`,
+      },
+      {
+        context: 'Social media toolkit',
+        description: `A modular set of post and story templates that carries the identity into ongoing campaigns without flattening everything into one repeated layout.`,
+      },
+      {
+        context: 'Presentation or proposal deck',
+        description: `A client-facing narrative format that uses the same visual system to support persuasion, proof, and decision-making in a more memorable way.`,
+      },
+    ],
+  };
+
+  return presets[category] || presets.generic;
+}
+
+function mapStructureItemToPortalSectionKey(value = '') {
+  const lower = cleanText(value).toLowerCase();
+  if (!lower) return null;
+  if (/(hero|opening|launch|poster|statement)/.test(lower)) return 'hero';
+  if (/(brand|context|philosophy|positioning|challenge|story|institutional)/.test(lower)) return 'brand';
+  if (/(logo|wordmark|icon|identity|seal)/.test(lower)) return 'logo';
+  if (/(color|palette)/.test(lower)) return 'colors';
+  if (/(typography|type|font)/.test(lower)) return 'typography';
+  if (/(application|deliverable|proof|showcase|collateral|business card|channel|services)/.test(lower)) return 'applications';
+  if (/(cta|close|closing|decision|recommendation|next step)/.test(lower)) return 'cta';
+  return null;
+}
+
+function buildFallbackSectionSequence({structure = [], content = {}} = {}) {
+  const mapped = uniq(
+    (Array.isArray(structure) ? structure : [])
+      .map((item) => mapStructureItemToPortalSectionKey(item))
+      .filter(Boolean)
+  );
+
+  const sequence = mapped.length ? [...mapped] : [];
+
+  if (!sequence.includes('hero')) sequence.unshift('hero');
+  if (!sequence.includes('brand') && (content.brand || structure.length)) sequence.push('brand');
+  if (!sequence.includes('logo') && content.logo) sequence.push('logo');
+  if (!sequence.includes('colors') && content.colors) sequence.push('colors');
+  if (!sequence.includes('typography') && content.typography) sequence.push('typography');
+  if (!sequence.includes('applications')) sequence.push('applications');
+  if (!sequence.includes('cta')) sequence.push('cta');
+
+  return uniq(sequence).filter(Boolean);
+}
+
+function buildFallbackLogoRationale({existing = '', plan = null, company = 'Brand', prompt = ''} = {}) {
+  const existingText = cleanText(existing);
+  if (existingText.length >= 80 && !shouldReplacePortalCopy(existingText)) return existingText;
+
+  const lower = cleanText(prompt).toLowerCase();
+  const logoSignals = plan?.referenceIntelligence?.logoSignals || [];
+  const summary = cleanText(plan?.summary || plan?.visualThesis || '');
+  const notes = [];
+
+  if (/lowercase/.test(lower) || /all lowercase/.test(lower)) {
+    notes.push(`The identity moves ${company} away from a thinner all-caps expression toward a heavier lowercase wordmark that feels more current, confident, and human at first glance.`);
+  }
+
+  if (/\bicon\b/.test(lower) || /\bmark\b/.test(lower) || /\bwordmark\b/.test(lower)) {
+    if (/\b3\b/.test(lower) && /\b8\b/.test(lower) && /\be\b/.test(lower)) {
+      notes.push('The abstract icon folds the lowercase e together with the 3 and 8 references so the mark feels proprietary rather than decorative, giving the system a memory hook that is specific to the brand.');
+    } else {
+      notes.push('The mark is designed to work as both a headline presence and a compact recognizer, so the system can scale from cinematic reveal moments down to small digital touchpoints without losing character.');
+    }
+  }
+
+  if (logoSignals.length) {
+    notes.push(cleanText(logoSignals.join(' ')));
+  } else if (summary) {
+    notes.push(summary);
+  } else {
+    notes.push(`The refreshed mark gives ${company} more visual weight and recognition, turning the identity into a stronger system for web, presentation, and real-world brand applications.`);
+  }
+
+  return cleanText(uniq(notes).join(' '));
+}
+
 function hydratePortalContent(content = {}, {plan, client, styleMode}) {
   const normalized = normalizeAIFieldNames(content);
   const next = {...(normalized || {})};
@@ -511,6 +760,8 @@ function hydratePortalContent(content = {}, {plan, client, styleMode}) {
   next.colors = {...(next.colors || {})};
   next.typography = {...(next.typography || {})};
   next.cta = {...(next.cta || {})};
+  next.applications = Array.isArray(next.applications) ? next.applications : [];
+  next.sectionSequence = Array.isArray(next.sectionSequence) ? next.sectionSequence : [];
 
   if (shouldReplacePortalCopy(next.hero.headline)) {
     next.hero.headline = company;
@@ -543,15 +794,35 @@ function hydratePortalContent(content = {}, {plan, client, styleMode}) {
         title: 'Motion language',
         desc: cleanText(plan?.interactionThesis?.[0] || 'Movement used to create hierarchy and atmosphere, not filler.'),
       },
+      {
+        title: 'Application readiness',
+        desc: cleanText(plan?.visualDirection?.[1] || 'A flexible system designed to hold together across campaign, digital, and physical brand touchpoints.'),
+      },
     ];
   }
   if (shouldReplacePortalCopy(next.logo.headline)) {
     next.logo.headline = structure[3] || 'Identity system';
   }
-  if (shouldReplacePortalCopy(next.logo.rationale)) {
-    next.logo.rationale = cleanText(
-      logoSignals.join(' ') || plan?.interactionThesis?.[0] || 'A mark designed to scale across every touchpoint with more confidence and presence.'
-    );
+  if (shouldReplacePortalCopy(next.logo.rationale) || cleanText(next.logo.rationale).length < 80) {
+    next.logo.rationale = buildFallbackLogoRationale({
+      existing: next.logo.rationale,
+      plan,
+      company,
+      prompt: plan?.prompt || '',
+    });
+  }
+  if (!Array.isArray(next.logo.variants) || next.logo.variants.length < 2) {
+    next.logo.variants = [
+      {type: 'primary', usage: 'Primary wordmark lockup for headlines, covers, and main brand moments.'},
+      {type: 'icon', usage: 'Compact symbol for favicon, social avatar, and motion-led reveal beats.'},
+      {type: 'reversed', usage: 'High-contrast lockup for dark fields, overlays, and cinematic presentation surfaces.'},
+    ];
+  }
+  if (shouldReplacePortalCopy(next.logo.clearance) || !cleanText(next.logo.clearance)) {
+    next.logo.clearance = 'Maintain clear space around the mark equal to roughly the height of the lowercase e so the system always reads with confidence.';
+  }
+  if (shouldReplacePortalCopy(next.logo.animation) || !cleanText(next.logo.animation)) {
+    next.logo.animation = 'Reveal the mark with a restrained title transition and icon-first build, then let the full lockup settle in with a short ease-out.';
   }
   if (!Array.isArray(next.colors.palette) || !next.colors.palette.length) {
     next.colors.palette = getPortalFallbackPalette(styleMode);
@@ -575,6 +846,25 @@ function hydratePortalContent(content = {}, {plan, client, styleMode}) {
   }
   if (shouldReplacePortalCopy(next.typography.headline)) {
     next.typography.headline = structure[5] || 'Typography system';
+  }
+  if (shouldReplacePortalCopy(next.typography.scaleRatio) || !cleanText(next.typography.scaleRatio)) {
+    next.typography.scaleRatio = '1.25 major third';
+  }
+  if (shouldReplacePortalCopy(next.typography.lineHeightGuidance) || !cleanText(next.typography.lineHeightGuidance)) {
+    next.typography.lineHeightGuidance = 'Display: 0.95-1.0, Body: 1.55-1.7, Caption: 1.35-1.45';
+  }
+  if (!next.applications.length) {
+    next.applications = buildFallbackApplications({
+      prompt: plan?.prompt || '',
+      company,
+      referenceIntelligence: plan?.referenceIntelligence || null,
+    });
+  }
+  if (!next.sectionSequence.length) {
+    next.sectionSequence = buildFallbackSectionSequence({
+      structure,
+      content: next,
+    });
   }
   if (shouldReplacePortalCopy(next.cta.headline)) {
     next.cta.headline = structure[structure.length - 1] || 'Ready for rollout';

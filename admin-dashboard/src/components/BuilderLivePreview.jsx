@@ -155,14 +155,24 @@ const ANIMATION_EFFECT_OVERRIDES = {
   },
 }
 
+function isPlaceholderClient(client) {
+  const name = cleanText(client?.name || '').toLowerCase()
+  const company = cleanText(client?.company || '').toLowerCase()
+  return !name
+    || name === 'draft workspace'
+    || name === 'test client'
+    || company === 'draft workspace'
+    || company === 'test client'
+}
+
+function getPreferredClientSubject(plan, client) {
+  if (plan?.briefSubject) return cleanText(plan.briefSubject)
+  if (client && !isPlaceholderClient(client)) return cleanText(client.name || client.company || '')
+  return cleanText(plan?.fetchedContext?.client || '')
+}
+
 function getPlanSubject(plan, client) {
-  return cleanText(
-    client?.name ||
-    client?.company ||
-    plan?.briefSubject ||
-    plan?.fetchedContext?.client ||
-    ''
-  )
+  return cleanText(getPreferredClientSubject(plan, client) || '')
 }
 
 const TEXT_EFFECT_OVERRIDES = {
@@ -1057,8 +1067,8 @@ function PortalRenderedPreview({preview, plan, styleMode, client, selectedNodeId
     __plan: plan || null,
   }
   const experience = buildPortalExperience(content, styleMode)
-  const clientName = client?.name || 'Selected client'
-  const company = client?.company || ''
+  const clientName = getPreferredClientSubject(plan, client) || 'Selected client'
+  const company = !isPlaceholderClient(client) ? (client?.company || '') : ''
   const structure = Array.isArray(plan?.structure) ? plan.structure : []
   const accentColor = resolvePreviewAccent(content, experience)
   const direction = getPortalPreviewDirection(styleMode, accentColor)
@@ -1680,7 +1690,7 @@ function buildPresentation(preview, plan, client) {
       }))
 
   return {
-    title: cleanText(deck.title) || plan?.title || `${client?.name || 'Presentation'} preview`,
+    title: cleanText(deck.title) || plan?.title || `${getPreferredClientSubject(plan, client) || 'Presentation'} preview`,
     theme: deck.theme || backgroundOverride.deckTheme || textOverride.deckTheme || animationOverride.deckTheme || 'black',
     transition: deck.transition || 'slide',
     slides,

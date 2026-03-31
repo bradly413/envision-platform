@@ -226,6 +226,30 @@ function inferPromptSubject(prompt = '', outputMode = 'portal') {
     : leading || (outputMode === 'presentation' ? 'Presentation' : 'Brand');
 }
 
+function isPlaceholderClient(client) {
+  const name = cleanText(client?.name || '').toLowerCase();
+  const company = cleanText(client?.company || '').toLowerCase();
+  return !name
+    || name === 'draft workspace'
+    || name === 'test client'
+    || company === 'draft workspace'
+    || company === 'test client';
+}
+
+function getAuthoritativeSubject({prompt = '', outputMode = 'portal', client = null, fallback = ''} = {}) {
+  const promptSubject = inferPromptSubject(prompt, outputMode);
+  const extractedCompany = extractPromptCompanyName(prompt);
+  const useClient = client && !isPlaceholderClient(client);
+
+  return cleanText(
+    extractedCompany
+      || promptSubject
+      || (useClient ? client?.name || client?.company : '')
+      || fallback
+      || (outputMode === 'presentation' ? 'Presentation' : 'Brand')
+  );
+}
+
 function slugifyValue(value = '') {
   return cleanText(value)
     .toLowerCase()
@@ -470,7 +494,12 @@ function normalizeAIFieldNames(content) {
 function hydratePortalContent(content = {}, {plan, client, styleMode}) {
   const normalized = normalizeAIFieldNames(content);
   const next = {...(normalized || {})};
-  const company = cleanText(client?.company || client?.name || plan?.briefSubject || next.brand?.name || 'Brand');
+  const company = getAuthoritativeSubject({
+    prompt: plan?.prompt || '',
+    outputMode: plan?.outputMode || 'portal',
+    client,
+    fallback: plan?.briefSubject || next.brand?.name || 'Brand',
+  });
   const structure = Array.isArray(plan?.structure) ? plan.structure : [];
   const logoSignals = plan?.referenceIntelligence?.logoSignals || [];
   const visualSignals = plan?.referenceIntelligence?.visualSignals || [];
@@ -588,7 +617,12 @@ function createFallbackStructuredOutput({outputMode, plan, client, styleMode}) {
     };
   }
 
-  const company = cleanText(client?.company || client?.name || plan?.briefSubject || 'Brand');
+  const company = getAuthoritativeSubject({
+    prompt: plan?.prompt || '',
+    outputMode,
+    client,
+    fallback: plan?.briefSubject || 'Brand',
+  });
   const structure = Array.isArray(plan.structure) ? plan.structure : [];
   const draft = hydratePortalContent({
     hero: {
@@ -1019,7 +1053,7 @@ function pickAsset(plan, category) {
 
 function inferBriefFocus({prompt, client, referenceIntelligence, outputMode}) {
   const text = cleanText(prompt).toLowerCase();
-  const clientLabel = client?.name || client?.company || 'the client';
+  const clientLabel = getAuthoritativeSubject({prompt, outputMode, client, fallback: 'the client'});
 
   if (referenceIntelligence?.isInstitutional) {
     return `a more credible and distinctive institutional identity for ${clientLabel}`;
@@ -1046,7 +1080,7 @@ function inferBriefFocus({prompt, client, referenceIntelligence, outputMode}) {
 
 function createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept}) {
   const styleLabel = STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode;
-  const clientLabel = client?.name || client?.company || inferPromptSubject(prompt, outputMode) || 'the client';
+  const clientLabel = getAuthoritativeSubject({prompt, outputMode, client, fallback: 'the client'});
   const focus = inferBriefFocus({prompt, client, referenceIntelligence, outputMode});
   const mood = cleanText(concept?.mood || '');
   const medium = outputMode === 'presentation' ? 'presentation' : 'portal';
@@ -1056,7 +1090,7 @@ function createPlanSummary({outputMode, styleMode, client, prompt, referenceInte
 
 function createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence}) {
   const styleLabel = STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode;
-  const clientLabel = client?.name || client?.company || 'the client';
+  const clientLabel = getAuthoritativeSubject({prompt, outputMode, client, fallback: 'the client'});
   const focus = inferBriefFocus({prompt, client, referenceIntelligence, outputMode});
   const mood = cleanText(concept?.mood || 'clear hierarchy, stronger typography, and more deliberate pacing');
   const medium = outputMode === 'presentation' ? 'presentation' : 'portal';
@@ -1626,7 +1660,7 @@ function createUnderstanding({prompt, outputMode, styleMode, client, structure, 
 
   return {
     portalType: inferPortalType({prompt, outputMode, referenceIntelligence}),
-    client: client?.name || 'No client selected',
+    client: getAuthoritativeSubject({prompt, outputMode, client, fallback: 'No client selected'}),
     artDirection: STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode,
     sections: structure,
     motionStyle: inferMotionStyle({outputMode, styleMode, prompt, referenceIntelligence}),
@@ -1771,12 +1805,7 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     outputMode,
     referenceIntelligence,
   });
-  // Prefer company name from prompt over the dropdown selection
-  const promptSubject = inferPromptSubject(prompt, outputMode);
-  const isFallbackClient = !client?.name || client?.name === 'Draft workspace' || client?.name === 'Test Client';
-  const briefSubject = cleanText(
-    (isFallbackClient ? promptSubject : null) || extractPromptCompanyName(prompt) || client?.name || client?.company || promptSubject
-  );
+  const briefSubject = getAuthoritativeSubject({prompt, outputMode, client});
   const selectedAssets = pickRegistryRecommendations({
     prompt: `${prompt} ${referenceContext} ${styleMode} ${outputMode} ${(concept?.assetHints || []).join(' ')}`,
     outputMode,
@@ -1841,7 +1870,7 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     logoGuidance,
     referenceIntelligence,
     fetchedContext: {
-      client: client ? `${client.name}${client.company ? ` — ${client.company}` : ''}` : 'No client selected',
+      client: briefSubject || (client ? `${client.name}${client.company ? ` — ${client.company}` : ''}` : 'No client selected'),
       referenceSite: referenceSite || '',
       references: references.length,
       attachments: attachments.length,
@@ -1861,10 +1890,20 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
 
 function buildContextMessage({client, portal, plan}) {
   const lines = [];
+  const approvedSubject = getAuthoritativeSubject({
+    prompt: plan?.prompt || '',
+    outputMode: plan?.outputMode || 'portal',
+    client,
+    fallback: plan?.briefSubject || '',
+  });
 
-  if (client) {
+  if (client && !isPlaceholderClient(client)) {
     lines.push(`Selected client: ${client.name}${client.company ? ` — ${client.company}` : ''}`);
     if (client.stage) lines.push(`Pipeline stage: ${client.stage}`);
+  }
+
+  if (approvedSubject) {
+    lines.push(`Approved subject: ${approvedSubject}`);
   }
 
   if (portal) {

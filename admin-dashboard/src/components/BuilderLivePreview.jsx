@@ -1077,7 +1077,7 @@ function PreviewDecisionSection({content = {}}) {
   )
 }
 
-function PortalRenderedPreview({preview, plan, styleMode, client, attachments, selectedNodeId, onSelectNode}) {
+function PortalRenderedPreview({preview, plan, styleMode, client, attachments, selectedNodeId, onSelectNode, disableMotion = false}) {
   const content = {
     ...buildPortalContent(preview, plan, client, styleMode),
     __selectedAssets: plan?.selectedAssets || [],
@@ -1104,11 +1104,20 @@ function PortalRenderedPreview({preview, plan, styleMode, client, attachments, s
   return (
     <motion.div
       key={previewKey}
-      initial={{opacity: 0, y: 18}}
-      animate={{opacity: 1, y: 0}}
-      transition={{duration: 0.42, ease: [0.22, 1, 0.36, 1]}}
+      initial={disableMotion ? false : {opacity: 0, y: 18}}
+      animate={disableMotion ? undefined : {opacity: 1, y: 0}}
+      transition={disableMotion ? undefined : {duration: 0.42, ease: [0.22, 1, 0.36, 1]}}
       style={{height: immersiveOpening ? 840 : 780, overflow: 'auto', position: 'relative', borderRadius: 32, border: '1px solid rgba(255,255,255,0.08)', background: experience.background?.base || '#090911'}}
     >
+      {disableMotion ? (
+        <style>{`
+          *, *::before, *::after {
+            animation: none !important;
+            transition: none !important;
+            scroll-behavior: auto !important;
+          }
+        `}</style>
+      ) : null}
       <div
         aria-hidden="true"
         style={{
@@ -1384,11 +1393,17 @@ function getPresentationTheme(themeName = 'black') {
   return PRESENTATION_THEMES[themeName] || PRESENTATION_THEMES.black
 }
 
-function shouldUseCinematicPreview(outputMode, plan, preview) {
+function shouldUseCinematicPreview(outputMode, plan, preview, styleMode) {
   // Only use cinematic preview for presentation mode or explicit cinematic-flow content
   if (outputMode === 'presentation') return true
   if (outputMode === 'cinematic-flow') return true
   if (preview?.mode === 'cinematic-flow' && preview?.cinematicFlow) return true
+  const text = cleanText(`${plan?.prompt || ''} ${plan?.title || ''} ${(plan?.structure || []).join(' ')}`).toLowerCase()
+  if (
+    outputMode === 'portal'
+    && ['editorial', 'cinematic', 'minimal'].includes(styleMode)
+    && /(editorial|brand identity|logo|wordmark|rebrand|institutional|school|charter|presentation)/.test(text)
+  ) return true
   // Portal mode uses the standard card-based renderer for reliability
   return false
 }
@@ -1783,21 +1798,30 @@ function getSlideBackground(slide = {}, theme) {
   return `linear-gradient(145deg, ${theme.background} 0%, rgba(37,99,235,0.22) 100%)`
 }
 
-function PresentationRenderedPreview({preview, plan, client, selectedNodeId, onSelectNode}) {
+function PresentationRenderedPreview({preview, plan, client, selectedNodeId, onSelectNode, disableMotion = false}) {
   const deck = buildPresentation(preview, plan, client)
   const theme = getPresentationTheme(deck.theme)
   const profile = getPresentationProfile(plan, deck, theme)
-  const reduceMotion = useReducedMotion()
+  const reduceMotion = useReducedMotion() || disableMotion
   const previewKey = [deck.title, deck.theme, deck.transition, ...(plan?.selectedAssets || []).map((item) => item.id)].join('|')
 
   return (
     <motion.div
       key={previewKey}
-      initial={{opacity: 0, y: 18}}
-      animate={{opacity: 1, y: 0}}
-      transition={{duration: 0.42, ease: [0.22, 1, 0.36, 1]}}
+      initial={disableMotion ? false : {opacity: 0, y: 18}}
+      animate={disableMotion ? undefined : {opacity: 1, y: 0}}
+      transition={disableMotion ? undefined : {duration: 0.42, ease: [0.22, 1, 0.36, 1]}}
       style={{height: 780, overflow: 'auto', borderRadius: 32, border: `1px solid ${theme.border}`, background: theme.background, padding: 24, display: 'grid', gap: 18}}
     >
+      {disableMotion ? (
+        <style>{`
+          *, *::before, *::after {
+            animation: none !important;
+            transition: none !important;
+            scroll-behavior: auto !important;
+          }
+        `}</style>
+      ) : null}
       <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '4px 4px 12px'}}>
         <div>
           <div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.14em', color: theme.accent}}>Deck preview</div>
@@ -1929,9 +1953,9 @@ function PresentationRenderedPreview({preview, plan, client, selectedNodeId, onS
   )
 }
 
-function CinematicFlowRenderedPreview({preview, plan, styleMode, client, attachments, outputMode, selectedNodeId, onSelectNode}) {
+function CinematicFlowRenderedPreview({preview, plan, styleMode, client, attachments, outputMode, selectedNodeId, onSelectNode, disableMotion = false}) {
   const flow = buildCinematicFlow(preview, plan, client, styleMode, outputMode, attachments)
-  const reduceMotion = useReducedMotion()
+  const reduceMotion = useReducedMotion() || disableMotion
   const containerRef = React.useRef(null)
   const [currentIndex, setCurrentIndex] = React.useState(0)
 
@@ -1960,9 +1984,9 @@ function CinematicFlowRenderedPreview({preview, plan, styleMode, client, attachm
   return (
     <motion.div
       key={previewKey}
-      initial={{opacity: 0, y: 18}}
-      animate={{opacity: 1, y: 0}}
-      transition={{duration: 0.42, ease: [0.22, 1, 0.36, 1]}}
+      initial={disableMotion ? false : {opacity: 0, y: 18}}
+      animate={disableMotion ? undefined : {opacity: 1, y: 0}}
+      transition={disableMotion ? undefined : {duration: 0.42, ease: [0.22, 1, 0.36, 1]}}
       style={{
         height: 780,
         overflow: 'hidden',
@@ -1973,6 +1997,15 @@ function CinematicFlowRenderedPreview({preview, plan, styleMode, client, attachm
         transform: 'translateZ(0)',
       }}
     >
+      {disableMotion ? (
+        <style>{`
+          *, *::before, *::after {
+            animation: none !important;
+            transition: none !important;
+            scroll-behavior: auto !important;
+          }
+        `}</style>
+      ) : null}
       <div
         aria-hidden="true"
         style={{
@@ -2444,8 +2477,8 @@ function CinematicFlowRenderedPreview({preview, plan, styleMode, client, attachm
   )
 }
 
-export default function BuilderLivePreview({outputMode, preview, plan, styleMode, client, attachments, selectedNodeId, onSelectNode}) {
-  if (shouldUseCinematicPreview(outputMode, plan, preview)) {
+export default function BuilderLivePreview({outputMode, preview, plan, styleMode, client, attachments, selectedNodeId, onSelectNode, disableMotion = false}) {
+  if (shouldUseCinematicPreview(outputMode, plan, preview, styleMode)) {
     return (
       <CinematicFlowRenderedPreview
         outputMode={outputMode}
@@ -2456,12 +2489,13 @@ export default function BuilderLivePreview({outputMode, preview, plan, styleMode
         attachments={attachments}
         selectedNodeId={selectedNodeId}
         onSelectNode={onSelectNode}
+        disableMotion={disableMotion}
       />
     )
   }
 
   if (outputMode === 'presentation') {
-    return <PresentationRenderedPreview preview={preview} plan={plan} client={client} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} />
+    return <PresentationRenderedPreview preview={preview} plan={plan} client={client} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} disableMotion={disableMotion} />
   }
 
   if (outputMode === 'cinematic-code') {
@@ -2501,5 +2535,5 @@ export default function BuilderLivePreview({outputMode, preview, plan, styleMode
     )
   }
 
-  return <PortalRenderedPreview preview={preview} plan={plan} styleMode={styleMode} client={client} attachments={attachments} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} />
+  return <PortalRenderedPreview preview={preview} plan={plan} styleMode={styleMode} client={client} attachments={attachments} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} disableMotion={disableMotion} />
 }

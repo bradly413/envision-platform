@@ -3302,41 +3302,31 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
   if (waitingForApproval) {
     return (
       <div style={{maxWidth: 1180, margin: '0 auto', minHeight: '100%', display: 'grid', placeItems: 'center'}}>
-        <div style={{width: '100%', maxWidth: 980, position: 'relative', overflow: 'hidden', borderRadius: 28, border: '1px solid rgba(255,255,255,.08)', background: 'linear-gradient(180deg, rgba(10,15,28,.92), rgba(7,11,22,.96))', padding: 'clamp(22px, 3vw, 30px)', animation: 'planWordIn .5s cubic-bezier(.16,1,.3,1)'}}>
+        <div style={{width: '100%', maxWidth: 1040, position: 'relative', overflow: 'hidden', borderRadius: 28, border: '1px solid rgba(255,255,255,.08)', background: 'linear-gradient(180deg, rgba(10,15,28,.92), rgba(7,11,22,.96))', padding: 'clamp(24px, 3vw, 34px)', animation: 'planWordIn .5s cubic-bezier(.16,1,.3,1)'}}>
           <div style={{position: 'absolute', inset: 0, background: `radial-gradient(circle at 18% 18%, ${theme.glowA}, transparent 28%), radial-gradient(circle at 82% 22%, ${theme.glowB}, transparent 30%)`, opacity: 0.7}} />
           <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: 18}}>
             <div style={{display: 'grid', gap: 8}}>
               <div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.16em', color: theme.accent}}>
                 Plan ready
               </div>
-              <div style={{fontSize: 24, lineHeight: 1.05, fontWeight: 800, letterSpacing: '-.04em', color: '#F8FAFC'}}>
+              <div style={{fontSize: 'clamp(28px, 4vw, 44px)', lineHeight: 0.98, fontWeight: 800, letterSpacing: '-.05em', color: '#F8FAFC', maxWidth: 820}}>
                 {stageTitle}
               </div>
-              <div style={{fontSize: 14, color: 'rgba(226,232,240,.78)', lineHeight: 1.75}}>
+              <div style={{fontSize: 15, color: 'rgba(226,232,240,.78)', lineHeight: 1.82, maxWidth: 780}}>
                 {stageSummary}
               </div>
             </div>
 
-            <div style={{display: 'grid', gap: 12}}>
-              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14}}>
-                <div style={{padding: '16px 18px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
-                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>What it is</div>
-                  <div style={{fontSize: 13, lineHeight: 1.65, color: '#E2E8F0'}}>
-                    {OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label} for {focusLabel}
-                  </div>
-                </div>
-                <div style={{padding: '16px 18px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
-                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Sections</div>
-                  <div style={{fontSize: 13, lineHeight: 1.65, color: '#E2E8F0'}}>
-                    {Array.isArray(plan?.structure) && plan.structure.length ? plan.structure.slice(0, 4).join(' • ') : 'Plan structure is ready.'}
-                  </div>
-                </div>
-                <div style={{padding: '16px 18px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
-                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Motion</div>
-                  <div style={{fontSize: 13, lineHeight: 1.65, color: '#E2E8F0'}}>
-                    {cleanText(plan?.understanding?.motionStyle || plan?.interactionThesis?.[0] || 'Measured motion with one clear visual idea.')}
-                  </div>
-                </div>
+            <div style={{display: 'grid', gap: 12, padding: '18px 20px', borderRadius: 22, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)'}}>
+              <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Summary</div>
+              <div style={{fontSize: 14, lineHeight: 1.72, color: '#E2E8F0'}}>
+                {OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label} for {focusLabel}
+              </div>
+              <div style={{fontSize: 14, lineHeight: 1.72, color: '#CBD5E1'}}>
+                {Array.isArray(plan?.structure) && plan.structure.length ? plan.structure.slice(0, 6).join(' • ') : 'Plan structure is ready.'}
+              </div>
+              <div style={{fontSize: 14, lineHeight: 1.72, color: '#94A3B8'}}>
+                {cleanText(plan?.understanding?.motionStyle || plan?.interactionThesis?.[0] || 'Measured motion with one clear visual idea.')}
               </div>
             </div>
 
@@ -3373,6 +3363,42 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
                   ⚙
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'building') {
+    return (
+      <div style={{maxWidth: 1120, margin: '0 auto', minHeight: '100%', display: 'grid', placeItems: 'center'}}>
+        <div style={{width: '100%', maxWidth: 920, position: 'relative', overflow: 'hidden', borderRadius: 32, border: '1px solid rgba(255,255,255,.08)', background: 'linear-gradient(180deg, rgba(10,15,28,.94), rgba(7,11,22,.98))', padding: 'clamp(26px, 4vw, 40px)'}}>
+          <style>{`
+            @keyframes builderBuildGlow {
+              0% { transform: translate3d(-2%, -1%, 0) scale(1); opacity: .48; }
+              50% { transform: translate3d(3%, 2%, 0) scale(1.08); opacity: .84; }
+              100% { transform: translate3d(-2%, -1%, 0) scale(1); opacity: .48; }
+            }
+            @keyframes builderBuildWordIn {
+              0% { opacity: 0; transform: perspective(900px) rotateX(-66deg) translateY(12px); }
+              100% { opacity: 1; transform: perspective(900px) rotateX(0deg) translateY(0); }
+            }
+            @keyframes builderBuildSpinner {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+          <div style={{position: 'absolute', inset: -120, background: 'radial-gradient(circle at 18% 18%, rgba(59,130,246,.26), transparent 30%), radial-gradient(circle at 80% 70%, rgba(20,184,166,.22), transparent 32%), radial-gradient(circle at 56% 56%, rgba(14,165,233,.12), transparent 36%)', filter: 'blur(22px)', animation: 'builderBuildGlow 10s ease-in-out infinite'}} />
+          <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: 18, justifyItems: 'center', textAlign: 'center'}}>
+            <div style={{padding: '7px 12px', borderRadius: 999, border: '1px solid rgba(96,165,250,.18)', background: 'rgba(8,47,73,.32)', color: '#BAE6FD', fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase'}}>
+              Building preview
+            </div>
+            <div style={{width: 44, height: 44, borderRadius: 999, border: '2px solid rgba(148,163,184,.16)', borderTopColor: '#67E8F9', animation: 'builderBuildSpinner 1s linear infinite'}} />
+            <div key={stageTitle} style={{fontSize: 'clamp(34px, 5vw, 54px)', lineHeight: .96, fontWeight: 800, letterSpacing: '-.05em', color: '#F8FAFC', maxWidth: 740, animation: 'builderBuildWordIn .5s cubic-bezier(.16,1,.3,1)'}}>
+              {stageTitle}
+            </div>
+            <div style={{maxWidth: 620, fontSize: 15, color: 'rgba(226,232,240,.78)', lineHeight: 1.8}}>
+              Building the first reviewable frame now. The preview will replace this canvas as soon as the result is ready.
             </div>
           </div>
         </div>
@@ -4429,7 +4455,7 @@ export default function PortalEditorV2Page() {
   const isIdleEmpty = !plan && !latestUserMessage && !loading && phase === 'idle';
   const showRailModes = true;
   const collapseIdleRail = isIdleEmpty && !isTablet;
-  const canShowPromptComposer = !planNeedsApproval || isEditingPlan || canPatchPreview;
+  const canShowPromptComposer = true;
 
   useEffect(() => {
     setSelectedPreviewNode(getDefaultPreviewNode(outputMode));
@@ -5426,30 +5452,22 @@ export default function PortalEditorV2Page() {
           ) : null}
 
           {leftRailMode === 'brief' ? (
-            <div style={{display: 'grid', gap: 14}}>
-              {plan ? (
-                <div style={{padding: '14px 15px', borderRadius: 16, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 8}}>
-                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: phase === 'planning' ? '#67E8F9' : phase === 'awaiting_approval' ? '#93C5FD' : '#64748B'}}>
-                    {phase === 'planning' ? 'Thinking' : phase === 'awaiting_approval' ? 'Plan on canvas' : phase === 'preview_ready' ? 'Preview ready' : 'Builder status'}
+            <div style={{display: 'grid', gap: 10}}>
+              {(phase !== 'idle' || plan) ? (
+                <div style={{padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
+                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: phase === 'planning' ? '#67E8F9' : phase === 'awaiting_approval' ? '#93C5FD' : phase === 'building' ? '#7DD3FC' : '#64748B'}}>
+                    {phase === 'planning' ? 'Thinking' : phase === 'awaiting_approval' ? 'Plan ready' : phase === 'building' ? 'Building' : phase === 'preview_ready' ? 'Preview ready' : 'Builder status'}
                   </div>
-                  <div style={{fontSize: 13, color: '#E2E8F0', lineHeight: 1.7}}>
-                    {phase === 'planning'
-                      ? 'Shaping the plan now.'
-                      : phase === 'awaiting_approval'
-                        ? 'The plan summary is on the right. Edit or approve there.'
+                  <div style={{fontSize: 12, color: '#CBD5E1', lineHeight: 1.65}}>
+                    {phase === 'awaiting_approval'
+                      ? 'Review the summary on the right or refine the prompt below.'
+                      : phase === 'building'
+                        ? 'The first preview is building now.'
                         : phase === 'preview_ready'
-                          ? 'Preview is live. Use the prompt below to patch it.'
+                          ? 'Keep prompting below to patch the preview.'
                           : chatStatusCopy}
                   </div>
                 </div>
-              ) : null}
-
-              {phase === 'building' ? (
-                <WorkflowProgressCard
-                  phase={phase}
-                  buildProgress={buildProgress}
-                  buildEvents={buildEvents}
-                />
               ) : null}
             </div>
           ) : null}
@@ -6148,6 +6166,7 @@ export default function PortalEditorV2Page() {
                     client={selectedClientRecord}
                     attachments={attachments}
                     selectedNodeId={selectedPreviewNode}
+                    disableMotion
                     onSelectNode={(nodeId) => {
                       setSelectedPreviewNode(nodeId);
                     }}

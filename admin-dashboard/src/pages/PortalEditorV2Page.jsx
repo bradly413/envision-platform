@@ -4871,6 +4871,85 @@ export default function PortalEditorV2Page() {
                   </div>
                 ) : null}
 
+                {attachments.some((item) => item.parsedTemplate) ? (
+                  <div style={{display: 'grid', gap: 8}}>
+                    <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#475569'}}>Imported templates</div>
+                    <div style={{display: 'grid', gap: 8}}>
+                      {attachments.filter((item) => item.parsedTemplate).map((item) => {
+                        const templateRef = createLibraryTemplateEntryFromAttachment(item, selectedClientRecord);
+                        const alreadyAdded = references.some((reference) => reference.id === templateRef?.id);
+
+                        return (
+                          <div
+                            key={`attachment-template-${item.id}`}
+                            style={{
+                              padding: '12px 12px',
+                              borderRadius: 16,
+                              border: '1px solid rgba(45,212,191,.16)',
+                              background: 'linear-gradient(180deg, rgba(15,118,110,.14) 0%, rgba(15,23,42,.56) 100%)',
+                              display: 'grid',
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 10}}>
+                              <div style={{display: 'grid', gap: 4}}>
+                                <div style={{fontSize: 12, fontWeight: 700, color: '#E2E8F0'}}>{item.parsedTemplate.title}</div>
+                                <div style={{fontSize: 11, color: '#94A3B8', lineHeight: 1.5}}>{item.parsedTemplate.summary}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!templateRef || alreadyAdded) return;
+                                  setReferences((current) => mergeReferenceItems(current, [templateRef]));
+                                  setToolNotice(`${item.parsedTemplate.title} added as an imported template reference.`);
+                                  appendBuildEvent('Template applied', item.parsedTemplate.title);
+                                }}
+                                style={{
+                                  padding: '7px 10px',
+                                  borderRadius: 999,
+                                  border: alreadyAdded ? '1px solid rgba(255,255,255,.08)' : '1px solid rgba(45,212,191,.24)',
+                                  background: alreadyAdded ? 'rgba(255,255,255,.04)' : 'rgba(45,212,191,.12)',
+                                  color: alreadyAdded ? '#94A3B8' : '#99F6E4',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: alreadyAdded ? 'default' : 'pointer',
+                                }}
+                              >
+                                {alreadyAdded ? 'In build' : 'Use in build'}
+                              </button>
+                            </div>
+                            <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                              {item.parsedTemplate.vibe ? (
+                                <span style={{padding: '5px 8px', borderRadius: 999, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)', color: '#CCFBF1', fontSize: 10, fontWeight: 700}}>
+                                  {item.parsedTemplate.vibe}
+                                </span>
+                              ) : null}
+                              {item.parsedTemplate.bestFor ? (
+                                <span style={{padding: '5px 8px', borderRadius: 999, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)', color: '#CBD5E1', fontSize: 10, fontWeight: 700}}>
+                                  {item.parsedTemplate.bestFor}
+                                </span>
+                              ) : null}
+                            </div>
+                            {item.parsedTemplate.structure?.length ? (
+                              <div style={{fontSize: 11, color: '#94A3B8', lineHeight: 1.5}}>
+                                Structure: {item.parsedTemplate.structure.join(' • ')}
+                              </div>
+                            ) : null}
+                            {item.parsedTemplate.motion?.length ? (
+                              <div style={{fontSize: 11, color: '#5EEAD4', lineHeight: 1.5}}>
+                                Motion: {item.parsedTemplate.motion.join(' • ')}
+                              </div>
+                            ) : null}
+                            <div style={{fontSize: 10, color: '#64748B'}}>
+                              Source file: {item.name}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
                 {references.length || attachments.length ? (
                   <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
                     {references.map((item) => (
@@ -4880,7 +4959,7 @@ export default function PortalEditorV2Page() {
                     ))}
                     {attachments.map((item) => (
                       <span key={item.id} style={{padding: '6px 9px', borderRadius: 999, background: 'rgba(244,114,182,.12)', border: '1px solid rgba(244,114,182,.18)', color: '#FBCFE8', fontSize: 11, fontWeight: 700}}>
-                        File · {item.name}
+                        {item.parsedTemplate ? 'Template file' : 'File'} · {item.name}
                       </span>
                     ))}
                   </div>

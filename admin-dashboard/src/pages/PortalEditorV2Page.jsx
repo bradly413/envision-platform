@@ -3218,6 +3218,7 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
   const theme = getPreviewTheme(styleMode, outputMode);
   const isEmpty = !plan;
   const waitingForApproval = Boolean(plan && phase === 'awaiting_approval');
+  const [thinkingIndex, setThinkingIndex] = useState(0);
   const focusLabel = cleanText(plan?.briefSubject || client?.name || client?.company || inferPromptSubject(plan?.prompt || '', outputMode) || 'This build');
   const stageTitle = waitingForApproval
     ? cleanText(plan?.title || `${focusLabel} ${outputMode === 'presentation' ? 'presentation' : 'portal'}`)
@@ -3237,6 +3238,19 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
       ])
     .filter(Boolean)
     .slice(0, 3);
+  const thinkingPhrases = [
+    'Mapping the strongest structure',
+    'Shaping motion and pacing',
+    'Condensing it into a clean brief',
+  ];
+
+  useEffect(() => {
+    if (phase !== 'planning') return undefined;
+    const timer = window.setInterval(() => {
+      setThinkingIndex((current) => (current + 1) % thinkingPhrases.length);
+    }, 1250);
+    return () => window.clearInterval(timer);
+  }, [phase]);
 
   if (phase === 'planning') {
     return (
@@ -3253,6 +3267,13 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
               50% { transform: translateX(12%); opacity: .26; }
               100% { transform: translateX(-18%); opacity: .12; }
             }
+            @keyframes builderPlanPhraseIn {
+              0% { opacity: 0; transform: perspective(900px) rotateX(-72deg) translateY(14px); }
+              100% { opacity: 1; transform: perspective(900px) rotateX(0deg) translateY(0); }
+            }
+            @keyframes builderPlanSpinner {
+              to { transform: rotate(360deg); }
+            }
           `}</style>
           <div style={{position: 'absolute', inset: -110, background: 'radial-gradient(circle at 20% 22%, rgba(59,130,246,.32), transparent 28%), radial-gradient(circle at 80% 70%, rgba(20,184,166,.30), transparent 30%), radial-gradient(circle at 54% 50%, rgba(14,165,233,.16), transparent 34%)', filter: 'blur(22px)', animation: 'builderPlanThinkGlow 11s ease-in-out infinite'}} />
           <div style={{position: 'absolute', inset: '-8% -18%', background: 'linear-gradient(118deg, transparent 20%, rgba(34,211,238,.12) 44%, transparent 60%)', mixBlendMode: 'screen', animation: 'builderPlanThinkScan 8.6s ease-in-out infinite'}} />
@@ -3260,8 +3281,14 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
             <div style={{padding: '7px 12px', borderRadius: 999, border: '1px solid rgba(96,165,250,.18)', background: 'rgba(8,47,73,.32)', color: '#BAE6FD', fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase'}}>
               Thinking
             </div>
-            <div style={{fontSize: 'clamp(34px, 5vw, 48px)', lineHeight: .96, fontWeight: 800, letterSpacing: '-.05em', color: '#F8FAFC', maxWidth: 620}}>
-              Shaping the plan
+            <div style={{display: 'grid', gap: 14, justifyItems: 'center'}}>
+              <div style={{width: 42, height: 42, borderRadius: 999, border: '2px solid rgba(148,163,184,.16)', borderTopColor: '#67E8F9', animation: 'builderPlanSpinner 1s linear infinite'}} />
+              <div
+                key={thinkingPhrases[thinkingIndex]}
+                style={{fontSize: 'clamp(34px, 5vw, 52px)', lineHeight: .96, fontWeight: 800, letterSpacing: '-.05em', color: '#F8FAFC', maxWidth: 720, animation: 'builderPlanPhraseIn .5s cubic-bezier(.16,1,.3,1)'}}
+              >
+                {thinkingPhrases[thinkingIndex]}
+              </div>
             </div>
             <div style={{maxWidth: 560, fontSize: 15, color: 'rgba(226,232,240,.78)', lineHeight: 1.8}}>
               Pulling structure, pacing, and motion into a cleaner summary before anything is built.
@@ -3274,8 +3301,8 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
 
   if (waitingForApproval) {
     return (
-      <div style={{maxWidth: 980, margin: '0 auto', minHeight: '100%', display: 'grid', placeItems: 'center'}}>
-        <div style={{width: '100%', maxWidth: 780, position: 'relative', overflow: 'hidden', borderRadius: 28, border: '1px solid rgba(255,255,255,.08)', background: 'linear-gradient(180deg, rgba(10,15,28,.92), rgba(7,11,22,.96))', padding: 'clamp(20px, 3vw, 28px)', animation: 'planWordIn .5s cubic-bezier(.16,1,.3,1)'}}>
+      <div style={{maxWidth: 1180, margin: '0 auto', minHeight: '100%', display: 'grid', placeItems: 'center'}}>
+        <div style={{width: '100%', maxWidth: 980, position: 'relative', overflow: 'hidden', borderRadius: 28, border: '1px solid rgba(255,255,255,.08)', background: 'linear-gradient(180deg, rgba(10,15,28,.92), rgba(7,11,22,.96))', padding: 'clamp(22px, 3vw, 30px)', animation: 'planWordIn .5s cubic-bezier(.16,1,.3,1)'}}>
           <div style={{position: 'absolute', inset: 0, background: `radial-gradient(circle at 18% 18%, ${theme.glowA}, transparent 28%), radial-gradient(circle at 82% 22%, ${theme.glowB}, transparent 30%)`, opacity: 0.7}} />
           <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: 18}}>
             <div style={{display: 'grid', gap: 8}}>
@@ -3291,20 +3318,20 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
             </div>
 
             <div style={{display: 'grid', gap: 12}}>
-              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12}}>
-                <div style={{padding: '14px 16px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14}}>
+                <div style={{padding: '16px 18px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
                   <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>What it is</div>
                   <div style={{fontSize: 13, lineHeight: 1.65, color: '#E2E8F0'}}>
                     {OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label} for {focusLabel}
                   </div>
                 </div>
-                <div style={{padding: '14px 16px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
+                <div style={{padding: '16px 18px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
                   <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Sections</div>
                   <div style={{fontSize: 13, lineHeight: 1.65, color: '#E2E8F0'}}>
                     {Array.isArray(plan?.structure) && plan.structure.length ? plan.structure.slice(0, 4).join(' • ') : 'Plan structure is ready.'}
                   </div>
                 </div>
-                <div style={{padding: '14px 16px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
+                <div style={{padding: '16px 18px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
                   <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Motion</div>
                   <div style={{fontSize: 13, lineHeight: 1.65, color: '#E2E8F0'}}>
                     {cleanText(plan?.understanding?.motionStyle || plan?.interactionThesis?.[0] || 'Measured motion with one clear visual idea.')}
@@ -5417,20 +5444,11 @@ export default function PortalEditorV2Page() {
                 </div>
               ) : null}
 
-              {(phase === 'building' || phase === 'preview_ready' || buildEvents.length > 1) ? (
+              {phase === 'building' ? (
                 <WorkflowProgressCard
                   phase={phase}
                   buildProgress={buildProgress}
                   buildEvents={buildEvents}
-                />
-              ) : null}
-
-              {!isIdleEmpty ? (
-                <WorkflowPromptCard
-                  prompt={briefSummary}
-                  onToggleRaw={() => setShowRawBrief((current) => !current)}
-                  showRaw={showRawBrief}
-                  isStructured={briefSummary.isStructured}
                 />
               ) : null}
             </div>
@@ -6004,6 +6022,122 @@ export default function PortalEditorV2Page() {
         <div style={{flex: 1, minHeight: 0, display: 'flex', flexDirection: isTablet ? 'column' : 'row'}}>
           <div ref={previewViewportRef} style={{flex: 1, minWidth: 0, padding: isMobile ? 16 : 24, overflow: 'auto'}}>
             <div ref={previewCaptureRef} style={{maxWidth: showInspector ? 1320 : 1480, margin: '0 auto', minHeight: '100%', display: 'grid', gap: 20, transition: 'max-width .22s ease'}}>
+              {normalizedPreview && showDeployPanel ? (
+                <div style={{borderRadius: 24, border: '1px solid rgba(16,185,129,.22)', background: 'linear-gradient(180deg, rgba(6,78,59,.48), rgba(15,23,42,.9))', padding: isMobile ? 18 : 24, display: 'grid', gap: 18}}>
+                  <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
+                    <div style={{display: 'grid', gap: 6}}>
+                      <div style={{fontSize: 12, fontWeight: 700, color: '#6EE7B7', textTransform: 'uppercase', letterSpacing: '.08em'}}>Portal ready</div>
+                      <div style={{fontSize: isMobile ? 24 : 28, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-.03em'}}>Publish to client portal</div>
+                      <div style={{fontSize: 13, color: '#CBD5E1', lineHeight: 1.7, maxWidth: 760}}>
+                        Approve & Build only creates the preview. Publish sends this version live to the selected client portal with the current slug, template, and access settings.
+                      </div>
+                    </div>
+                    <div style={{fontSize: 12, color: '#A7F3D0', padding: '8px 12px', borderRadius: 999, border: '1px solid rgba(110,231,183,.22)', background: 'rgba(16,185,129,.12)'}}>
+                      {selectedPortalRecord ? `Updating ${selectedPortalRecord.slug || 'selected portal'}` : 'Select a target portal'}
+                    </div>
+                  </div>
+
+                  {publishUrl ? (
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)'}}>
+                      <div style={{display: 'grid', gap: 4}}>
+                        <div style={{fontSize: 10, fontWeight: 700, color: '#A7F3D0', textTransform: 'uppercase', letterSpacing: '.08em'}}>Live URL</div>
+                        <div style={{fontSize: 13, color: '#E2E8F0', lineHeight: 1.5, wordBreak: 'break-all'}}>{publishUrl}</div>
+                      </div>
+                      <button
+                        onClick={() => window.open(publishUrl, '_blank', 'noopener,noreferrer')}
+                        style={{padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.05)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
+                      >
+                        Open live portal
+                      </button>
+                    </div>
+                  ) : null}
+
+                  <div style={{display: 'grid', gridTemplateColumns: isTablet ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 14}}>
+                    <label style={{display: 'grid', gap: 6}}>
+                      <span style={{fontSize: 11, fontWeight: 700, color: '#A7F3D0', textTransform: 'uppercase', letterSpacing: '.08em'}}>URL slug</span>
+                      <input
+                        value={deploySlug}
+                        onChange={(e) => setDeploySlug(slugifyValue(e.target.value))}
+                        placeholder="client-portal"
+                        style={{width: '100%', padding: '11px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13, outline: 'none'}}
+                      />
+                    </label>
+                    <label style={{display: 'grid', gap: 6}}>
+                      <span style={{fontSize: 11, fontWeight: 700, color: '#A7F3D0', textTransform: 'uppercase', letterSpacing: '.08em'}}>Template</span>
+                      <select
+                        value={deployTemplateId}
+                        onChange={(e) => setDeployTemplateId(e.target.value)}
+                        style={{width: '100%', padding: '11px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13, outline: 'none'}}
+                      >
+                        {TEMPLATE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value} style={{color: '#111827'}}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={{display: 'grid', gap: 6}}>
+                      <span style={{fontSize: 11, fontWeight: 700, color: '#A7F3D0', textTransform: 'uppercase', letterSpacing: '.08em'}}>Status</span>
+                      <select
+                        value={deployStatus}
+                        onChange={(e) => setDeployStatus(e.target.value)}
+                        style={{width: '100%', padding: '11px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13, outline: 'none'}}
+                      >
+                        <option value="draft" style={{color: '#111827'}}>Draft</option>
+                        <option value="active" style={{color: '#111827'}}>Active</option>
+                        <option value="archived" style={{color: '#111827'}}>Archived</option>
+                      </select>
+                    </label>
+                    <label style={{display: 'grid', gap: 6}}>
+                      <span style={{fontSize: 11, fontWeight: 700, color: '#A7F3D0', textTransform: 'uppercase', letterSpacing: '.08em'}}>Password</span>
+                      <input
+                        value={deployPassword}
+                        onChange={(e) => setDeployPassword(e.target.value)}
+                        placeholder={selectedPortalRecord?.plain_password ? 'Leave blank to keep current password' : 'Optional password'}
+                        style={{width: '100%', padding: '11px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13, outline: 'none'}}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap'}}>
+                    <label style={{display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#CBD5E1'}}>
+                      <input
+                        type="checkbox"
+                        checked={deployNotifyClient}
+                        onChange={(e) => setDeployNotifyClient(e.target.checked)}
+                      />
+                      Send a client handoff email draft after publish
+                    </label>
+                    <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
+                      <button
+                        onClick={() => {
+                          const nextSlug = publishSlug;
+                          if (!nextSlug) return;
+                          navigator.clipboard.writeText(`${PORTAL_URL}/${nextSlug}`);
+                          setSaveMsg('Share link copied.');
+                        }}
+                        disabled={!publishSlug}
+                        style={{padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: !publishSlug ? 'default' : 'pointer'}}
+                      >
+                        Copy share link
+                      </button>
+                      <button
+                        onClick={() => window.open(publishUrl, '_blank', 'noopener,noreferrer')}
+                        disabled={!publishUrl}
+                        style={{padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: !publishUrl ? 'default' : 'pointer'}}
+                      >
+                        Open live portal
+                      </button>
+                      <button
+                        onClick={saveToPortal}
+                        disabled={!selectedPortal || !extractedJSON || saving || !deploySlug}
+                        style={{padding: '11px 16px', borderRadius: 12, border: 'none', background: !selectedPortal || !extractedJSON || saving || !deploySlug ? '#334155' : '#10B981', color: '#F8FAFC', fontSize: 12, fontWeight: 800, cursor: !selectedPortal || !extractedJSON || saving || !deploySlug ? 'default' : 'pointer'}}
+                      >
+                        {saving ? 'Publishing…' : 'Publish to client portal'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               {normalizedPreview ? (
                 <PreviewErrorBoundary resetKey={previewBoundaryKey}>
                   <BuilderLivePreview
@@ -6036,122 +6170,6 @@ export default function PortalEditorV2Page() {
                   }}
                 />
               )}
-
-              {normalizedPreview && showDeployPanel ? (
-                  <div style={{borderRadius: 24, border: '1px solid rgba(16,185,129,.22)', background: 'linear-gradient(180deg, rgba(6,78,59,.48), rgba(15,23,42,.9))', padding: isMobile ? 18 : 24, display: 'grid', gap: 18}}>
-                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
-                      <div style={{display: 'grid', gap: 6}}>
-                        <div style={{fontSize: 12, fontWeight: 700, color: '#6EE7B7', textTransform: 'uppercase', letterSpacing: '.08em'}}>Portal ready</div>
-                        <div style={{fontSize: isMobile ? 24 : 28, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-.03em'}}>Publish to client portal</div>
-                        <div style={{fontSize: 13, color: '#CBD5E1', lineHeight: 1.7, maxWidth: 760}}>
-                          Approve & Build only creates the preview. Publish sends this version live to the selected client portal with the current slug, template, and access settings.
-                        </div>
-                      </div>
-                      <div style={{fontSize: 12, color: '#A7F3D0', padding: '8px 12px', borderRadius: 999, border: '1px solid rgba(110,231,183,.22)', background: 'rgba(16,185,129,.12)'}}>
-                        {selectedPortalRecord ? `Updating ${selectedPortalRecord.slug || 'selected portal'}` : 'Select a target portal'}
-                      </div>
-                    </div>
-
-                    {publishUrl ? (
-                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)'}}>
-                        <div style={{display: 'grid', gap: 4}}>
-                          <div style={{fontSize: 10, fontWeight: 700, color: '#A7F3D0', textTransform: 'uppercase', letterSpacing: '.08em'}}>Live URL</div>
-                          <div style={{fontSize: 13, color: '#E2E8F0', lineHeight: 1.5, wordBreak: 'break-all'}}>{publishUrl}</div>
-                        </div>
-                        <button
-                          onClick={() => window.open(publishUrl, '_blank', 'noopener,noreferrer')}
-                          style={{padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.05)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
-                        >
-                          Open live portal
-                        </button>
-                      </div>
-                    ) : null}
-
-                    <div style={{display: 'grid', gridTemplateColumns: isTablet ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 14}}>
-                      <label style={{display: 'grid', gap: 6}}>
-                        <span style={{fontSize: 11, fontWeight: 700, color: '#A7F3D0', textTransform: 'uppercase', letterSpacing: '.08em'}}>URL slug</span>
-                        <input
-                          value={deploySlug}
-                          onChange={(e) => setDeploySlug(slugifyValue(e.target.value))}
-                          placeholder="client-portal"
-                          style={{width: '100%', padding: '11px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13, outline: 'none'}}
-                        />
-                      </label>
-                      <label style={{display: 'grid', gap: 6}}>
-                        <span style={{fontSize: 11, fontWeight: 700, color: '#A7F3D0', textTransform: 'uppercase', letterSpacing: '.08em'}}>Template</span>
-                        <select
-                          value={deployTemplateId}
-                          onChange={(e) => setDeployTemplateId(e.target.value)}
-                          style={{width: '100%', padding: '11px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13, outline: 'none'}}
-                        >
-                          {TEMPLATE_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value} style={{color: '#111827'}}>{option.label}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label style={{display: 'grid', gap: 6}}>
-                        <span style={{fontSize: 11, fontWeight: 700, color: '#A7F3D0', textTransform: 'uppercase', letterSpacing: '.08em'}}>Status</span>
-                        <select
-                          value={deployStatus}
-                          onChange={(e) => setDeployStatus(e.target.value)}
-                          style={{width: '100%', padding: '11px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13, outline: 'none'}}
-                        >
-                          <option value="draft" style={{color: '#111827'}}>Draft</option>
-                          <option value="active" style={{color: '#111827'}}>Active</option>
-                          <option value="archived" style={{color: '#111827'}}>Archived</option>
-                        </select>
-                      </label>
-                      <label style={{display: 'grid', gap: 6}}>
-                        <span style={{fontSize: 11, fontWeight: 700, color: '#A7F3D0', textTransform: 'uppercase', letterSpacing: '.08em'}}>Password</span>
-                        <input
-                          value={deployPassword}
-                          onChange={(e) => setDeployPassword(e.target.value)}
-                          placeholder={selectedPortalRecord?.plain_password ? 'Leave blank to keep current password' : 'Optional password'}
-                          style={{width: '100%', padding: '11px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13, outline: 'none'}}
-                        />
-                      </label>
-                    </div>
-
-                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap'}}>
-                      <label style={{display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#CBD5E1'}}>
-                        <input
-                          type="checkbox"
-                          checked={deployNotifyClient}
-                          onChange={(e) => setDeployNotifyClient(e.target.checked)}
-                        />
-                        Send a client handoff email draft after publish
-                      </label>
-                      <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
-                        <button
-                          onClick={() => {
-                            const nextSlug = publishSlug;
-                            if (!nextSlug) return;
-                            navigator.clipboard.writeText(`${PORTAL_URL}/${nextSlug}`);
-                            setSaveMsg('Share link copied.');
-                          }}
-                          disabled={!publishSlug}
-                          style={{padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: !publishSlug ? 'default' : 'pointer'}}
-                        >
-                          Copy share link
-                        </button>
-                        <button
-                          onClick={() => window.open(publishUrl, '_blank', 'noopener,noreferrer')}
-                          disabled={!publishUrl}
-                          style={{padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: !publishUrl ? 'default' : 'pointer'}}
-                        >
-                          Open live portal
-                        </button>
-                        <button
-                          onClick={saveToPortal}
-                          disabled={!selectedPortal || !extractedJSON || saving || !deploySlug}
-                          style={{padding: '11px 16px', borderRadius: 12, border: 'none', background: !selectedPortal || !extractedJSON || saving || !deploySlug ? '#334155' : '#10B981', color: '#F8FAFC', fontSize: 12, fontWeight: 800, cursor: !selectedPortal || !extractedJSON || saving || !deploySlug ? 'default' : 'pointer'}}
-                        >
-                          {saving ? 'Publishing…' : 'Publish to client portal'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
 
                 {(showStructuredOutput || saveMsg) ? (
                   <div style={{borderRadius: 24, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(15,23,42,.72)', padding: 20}}>

@@ -1227,7 +1227,7 @@ function PortalRenderedPreview({preview, plan, styleMode, client, attachments, s
                       </div>
                     </div>
                   )}
-                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12}}>
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12}}>
                     {[
                       ['Portal type', plan?.understanding?.portalType || structure[0] || 'Brand reveal'],
                       ['Motion', plan?.understanding?.motionStyle || 'Scroll-led pacing'],
@@ -1278,7 +1278,7 @@ function PortalRenderedPreview({preview, plan, styleMode, client, attachments, s
                 {content.brand?.headline ? (
                   <div style={{fontSize: styleMode === 'minimal' ? 28 : 34, lineHeight: 1.08, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 18}}>{content.brand.headline}</div>
                 ) : null}
-                <div style={{display: 'grid', gridTemplateColumns: styleMode === 'luxury' ? '1fr' : '1.02fr 0.98fr', gap: 22, alignItems: 'start'}}>
+                <div style={{display: 'grid', gridTemplateColumns: styleMode === 'luxury' ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: 22, alignItems: 'start'}}>
                   <p style={{fontSize: 14, color: '#94A3B8', lineHeight: 1.8, margin: 0}}>{content.brand?.positioning}</p>
                   {pillars.length ? <PreviewBulletList items={pillars} accentColor={accentColor} compact={styleMode === 'minimal'} /> : null}
                 </div>
@@ -1293,7 +1293,7 @@ function PortalRenderedPreview({preview, plan, styleMode, client, attachments, s
                 {content.logo?.headline ? (
                   <div style={{fontSize: 30, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 18}}>{content.logo.headline}</div>
                 ) : null}
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 18}}>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18}}>
                   {(content.logo?.variants?.length ? content.logo.variants.map(v => v.type) : ['Wordmark', 'Symbol', 'Lockup']).map((item, index) => (
                     <div key={item} style={{minHeight: 104, borderRadius: 18, border: direction.cardBorder, background: index === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)', display: 'grid', placeItems: 'center', color: index === 0 ? '#F8FAFC' : '#CBD5E1', fontWeight: 700, fontSize: 13}}>{item}</div>
                   ))}
@@ -1311,7 +1311,7 @@ function PortalRenderedPreview({preview, plan, styleMode, client, attachments, s
                   <div style={{fontSize: 30, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em', marginBottom: 20}}>{content.colors.headline}</div>
                 ) : null}
                 {palette.length ? (
-                  <div style={{display: 'grid', gridTemplateColumns: `repeat(${Math.min(palette.length, 4)}, minmax(0, 1fr))`, gap: 12}}>
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12}}>
                     {palette.map((color) => (
                       <div key={color.hex}>
                         <div style={{height: 120, borderRadius: 18, background: color.hex, border: '1px solid rgba(255,255,255,0.08)', marginBottom: 10}} />
@@ -1332,7 +1332,7 @@ function PortalRenderedPreview({preview, plan, styleMode, client, attachments, s
                 {fonts.length ? (
                   <div style={{display: 'grid', gap: 16}}>
                     {fonts.slice(0, 3).map((font, index) => (
-                      <div key={`${font.name}-${index}`} style={{display: 'grid', gridTemplateColumns: '0.9fr 1.1fr', gap: 16, alignItems: 'baseline'}}>
+                      <div key={`${font.name}-${index}`} style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, alignItems: 'baseline'}}>
                         <div style={{fontSize: index === 0 ? 32 : 24, lineHeight: 1.04, fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.04em'}}>{font.typeface}</div>
                         <div style={{fontSize: 13, color: '#94A3B8', lineHeight: 1.65}}>{font.usage}{font.scale ? ` · ${font.scale}` : ''}</div>
                       </div>
@@ -1348,7 +1348,7 @@ function PortalRenderedPreview({preview, plan, styleMode, client, attachments, s
             <div key="applications" style={{display: 'grid', gridTemplateColumns: direction.moduleColumns, gap: 18}}>
               <PortalPreviewCard id="applications" label="Applications" selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} direction={direction} style={{minHeight: 200}}>
                 <PreviewSectionLabel eyebrow="05 — Applications" accentColor={accentColor} />
-                <div style={{display: 'grid', gridTemplateColumns: `repeat(${Math.min(content.applications.length, 3)}, minmax(0, 1fr))`, gap: 14}}>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14}}>
                   {content.applications.map((app, i) => (
                     <div key={i} style={{padding: 16, borderRadius: 18, border: direction.cardBorder, background: 'rgba(255,255,255,0.03)'}}>
                       <div style={{fontSize: 13, fontWeight: 700, color: '#F8FAFC', marginBottom: 8}}>{app.context}</div>

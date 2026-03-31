@@ -1044,26 +1044,24 @@ function inferBriefFocus({prompt, client, referenceIntelligence, outputMode}) {
   return `a portal with stronger hierarchy, clearer messaging, and a more specific client point of view`;
 }
 
-function createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept, templateInfluence = null}) {
+function createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept}) {
   const styleLabel = STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode;
   const clientLabel = client?.name || client?.company || inferPromptSubject(prompt, outputMode) || 'the client';
   const focus = inferBriefFocus({prompt, client, referenceIntelligence, outputMode});
   const mood = cleanText(concept?.mood || '');
   const medium = outputMode === 'presentation' ? 'presentation' : 'portal';
-  const templatePhrase = templateInfluence?.title ? `, using structure cues from ${templateInfluence.title}` : '';
 
-  return `${styleLabel} ${medium} for ${clientLabel}, centered on ${focus}${templatePhrase}${mood ? `, with ${mood}.` : '.'}`;
+  return `${styleLabel} ${medium} for ${clientLabel}, centered on ${focus}${mood ? `, with ${mood}.` : '.'}`;
 }
 
-function createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence, templateInfluence = null}) {
+function createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence}) {
   const styleLabel = STYLE_MODES.find((option) => option.value === styleMode)?.label || styleMode;
   const clientLabel = client?.name || client?.company || 'the client';
   const focus = inferBriefFocus({prompt, client, referenceIntelligence, outputMode});
   const mood = cleanText(concept?.mood || 'clear hierarchy, stronger typography, and more deliberate pacing');
   const medium = outputMode === 'presentation' ? 'presentation' : 'portal';
-  const templatePhrase = templateInfluence?.title ? ` borrowing from the ${templateInfluence.title} structure` : '';
 
-  return `${styleLabel} ${medium} for ${clientLabel}, built around ${focus}${templatePhrase} with ${mood}.`;
+  return `${styleLabel} ${medium} for ${clientLabel}, built around ${focus} with ${mood}.`;
 }
 
 function createInteractionThesis({outputMode, styleMode, prompt, referenceIntelligence, concept}) {
@@ -1816,8 +1814,8 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     briefSubject,
     outputMode,
     conceptLabel: concept?.label || '',
-    summary: createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept, templateInfluence}),
-    visualThesis: createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence, templateInfluence}),
+    summary: createPlanSummary({outputMode, styleMode, client, prompt, referenceIntelligence, concept}),
+    visualThesis: createVisualThesis({styleMode, outputMode, concept, client, prompt, referenceIntelligence}),
     interactionThesis,
     contentPlan: createContentPlan(outputMode, structure),
     architecture,
@@ -1837,7 +1835,6 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
     ].filter(Boolean),
     structure,
     understanding,
-    templateInfluence,
     selectedAssets,
     concept,
     designGuardrails,
@@ -1849,7 +1846,6 @@ function createPlan({prompt, outputMode, styleMode, client, references = [], att
       references: references.length,
       attachments: attachments.length,
       libraryMatches,
-      templateInfluence: templateInfluence?.title || '',
       referenceItems: references,
       attachmentItems: attachments.map((item) => ({name: item.name, type: item.type})),
       output: outputMode,

@@ -3238,10 +3238,44 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
     .filter(Boolean)
     .slice(0, 3);
 
+  if (phase === 'planning') {
+    return (
+      <div style={{maxWidth: 1080, margin: '0 auto', minHeight: '100%', display: 'grid', placeItems: 'center'}}>
+        <div style={{width: '100%', maxWidth: 820, position: 'relative', overflow: 'hidden', borderRadius: 32, border: '1px solid rgba(255,255,255,.08)', background: 'linear-gradient(180deg, rgba(10,15,28,.92), rgba(7,11,22,.98))', padding: 'clamp(22px, 4vw, 40px) clamp(20px, 4vw, 38px)'}}>
+          <style>{`
+            @keyframes builderPlanThinkGlow {
+              0% { transform: translate3d(-2%, -1%, 0) scale(1); opacity: .54; }
+              50% { transform: translate3d(3%, 2%, 0) scale(1.08); opacity: .92; }
+              100% { transform: translate3d(-2%, -1%, 0) scale(1); opacity: .54; }
+            }
+            @keyframes builderPlanThinkScan {
+              0% { transform: translateX(-18%); opacity: .12; }
+              50% { transform: translateX(12%); opacity: .26; }
+              100% { transform: translateX(-18%); opacity: .12; }
+            }
+          `}</style>
+          <div style={{position: 'absolute', inset: -110, background: 'radial-gradient(circle at 20% 22%, rgba(59,130,246,.32), transparent 28%), radial-gradient(circle at 80% 70%, rgba(20,184,166,.30), transparent 30%), radial-gradient(circle at 54% 50%, rgba(14,165,233,.16), transparent 34%)', filter: 'blur(22px)', animation: 'builderPlanThinkGlow 11s ease-in-out infinite'}} />
+          <div style={{position: 'absolute', inset: '-8% -18%', background: 'linear-gradient(118deg, transparent 20%, rgba(34,211,238,.12) 44%, transparent 60%)', mixBlendMode: 'screen', animation: 'builderPlanThinkScan 8.6s ease-in-out infinite'}} />
+          <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: 16, justifyItems: 'center', textAlign: 'center'}}>
+            <div style={{padding: '7px 12px', borderRadius: 999, border: '1px solid rgba(96,165,250,.18)', background: 'rgba(8,47,73,.32)', color: '#BAE6FD', fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase'}}>
+              Thinking
+            </div>
+            <div style={{fontSize: 'clamp(34px, 5vw, 48px)', lineHeight: .96, fontWeight: 800, letterSpacing: '-.05em', color: '#F8FAFC', maxWidth: 620}}>
+              Shaping the plan
+            </div>
+            <div style={{maxWidth: 560, fontSize: 15, color: 'rgba(226,232,240,.78)', lineHeight: 1.8}}>
+              Pulling structure, pacing, and motion into a cleaner summary before anything is built.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (waitingForApproval) {
     return (
       <div style={{maxWidth: 980, margin: '0 auto', minHeight: '100%', display: 'grid', placeItems: 'center'}}>
-        <div style={{width: '100%', maxWidth: 760, position: 'relative', overflow: 'hidden', borderRadius: 28, border: '1px solid rgba(255,255,255,.08)', background: 'linear-gradient(180deg, rgba(10,15,28,.92), rgba(7,11,22,.96))', padding: '28px 28px 24px'}}>
+        <div style={{width: '100%', maxWidth: 780, position: 'relative', overflow: 'hidden', borderRadius: 28, border: '1px solid rgba(255,255,255,.08)', background: 'linear-gradient(180deg, rgba(10,15,28,.92), rgba(7,11,22,.96))', padding: 'clamp(20px, 3vw, 28px)', animation: 'planWordIn .5s cubic-bezier(.16,1,.3,1)'}}>
           <div style={{position: 'absolute', inset: 0, background: `radial-gradient(circle at 18% 18%, ${theme.glowA}, transparent 28%), radial-gradient(circle at 82% 22%, ${theme.glowB}, transparent 30%)`, opacity: 0.7}} />
           <div style={{position: 'relative', zIndex: 1, display: 'grid', gap: 18}}>
             <div style={{display: 'grid', gap: 8}}>
@@ -3252,36 +3286,65 @@ function PreviewCanvas({plan, previewSummary, outputMode, styleMode, client, pha
                 {stageTitle}
               </div>
               <div style={{fontSize: 14, color: 'rgba(226,232,240,.78)', lineHeight: 1.75}}>
-                Review the brief in the left column, then either refine it or approve the build. The main canvas will stay clean until there’s a real preview to show.
+                {stageSummary}
               </div>
             </div>
 
-            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-              <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
-                {OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label}
-              </span>
-              <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
-                {STYLE_MODES.find((mode) => mode.value === styleMode)?.label || styleMode}
-              </span>
-              <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
-                {focusLabel}
-              </span>
-            </div>
-
-            <div style={{display: 'grid', gap: 10}}>
-              <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>
-                Next
-              </div>
-              <div style={{display: 'grid', gap: 8}}>
-                {[
-                  'Edit the prompt if the direction is close but needs adjustment.',
-                  'Approve & Build when the brief feels right.',
-                  'Use the built preview for visual review, not the plan itself.',
-                ].map((item) => (
-                  <div key={item} style={{fontSize: 13, color: '#CBD5E1', lineHeight: 1.65}}>
-                    {item}
+            <div style={{display: 'grid', gap: 12}}>
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12}}>
+                <div style={{padding: '14px 16px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
+                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>What it is</div>
+                  <div style={{fontSize: 13, lineHeight: 1.65, color: '#E2E8F0'}}>
+                    {OUTPUT_MODES.find((mode) => mode.value === outputMode)?.label} for {focusLabel}
                   </div>
-                ))}
+                </div>
+                <div style={{padding: '14px 16px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
+                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Sections</div>
+                  <div style={{fontSize: 13, lineHeight: 1.65, color: '#E2E8F0'}}>
+                    {Array.isArray(plan?.structure) && plan.structure.length ? plan.structure.slice(0, 4).join(' • ') : 'Plan structure is ready.'}
+                  </div>
+                </div>
+                <div style={{padding: '14px 16px', borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 6}}>
+                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: '#64748B'}}>Motion</div>
+                  <div style={{fontSize: 13, lineHeight: 1.65, color: '#E2E8F0'}}>
+                    {cleanText(plan?.understanding?.motionStyle || plan?.interactionThesis?.[0] || 'Measured motion with one clear visual idea.')}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap'}}>
+              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
+                  {STYLE_MODES.find((mode) => mode.value === styleMode)?.label || styleMode}
+                </span>
+                <span style={{padding: '7px 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', fontSize: 12, color: '#E2E8F0'}}>
+                  Ready to review
+                </span>
+              </div>
+              <div style={{display: 'grid', gap: 8, justifyItems: 'end'}}>
+                <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+                  <button
+                    onClick={onEditPlan}
+                    style={{padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: 'pointer'}}
+                  >
+                    Edit plan
+                  </button>
+                  <button
+                    onClick={onApprove}
+                    style={{padding: '11px 16px', borderRadius: 12, border: 'none', background: '#2563EB', color: '#F8FAFC', fontSize: 12, fontWeight: 800, cursor: 'pointer'}}
+                  >
+                    Approve & Build
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('builder-open-history'))}
+                  style={{width: 34, height: 34, borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#CBD5E1', fontSize: 16, fontWeight: 700, cursor: 'pointer'}}
+                  title="Open recent history"
+                >
+                  ⚙
+                </button>
               </div>
             </div>
           </div>
@@ -3621,6 +3684,7 @@ function PlanConceptStage({plan, styleMode, outputMode, client, planNeedsApprova
 function PhasePill({phase}) {
   const map = {
     idle: {label: 'Idle', color: '#A1A1AA'},
+    planning: {label: 'Thinking', color: '#22D3EE'},
     awaiting_approval: {label: 'Awaiting approval', color: '#FBBF24'},
     building: {label: 'Building', color: '#60A5FA'},
     patching: {label: 'Patching', color: '#C084FC'},
@@ -4039,6 +4103,7 @@ function ConfigChip({ label, value, options, onChange, isOpen, onToggle }) {
 export default function PortalEditorV2Page() {
   const previewCaptureRef = useRef(null);
   const fileInputRef = useRef(null);
+  const promptTextareaRef = useRef(null);
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1440 : window.innerWidth));
   const [outputMode, setOutputMode] = useState('portal');
   const [provider, setProvider] = useState('anthropic');
@@ -4070,6 +4135,7 @@ export default function PortalEditorV2Page() {
   const [showDeployPanel, setShowDeployPanel] = useState(false);
   const [showFullConversation, setShowFullConversation] = useState(false);
   const [leftRailMode, setLeftRailMode] = useState('brief');
+  const [isEditingPlan, setIsEditingPlan] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showRawBrief, setShowRawBrief] = useState(false);
   const [references, setReferences] = useState([]);
@@ -4093,6 +4159,15 @@ export default function PortalEditorV2Page() {
     const handleResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenHistory = () => {
+      setLeftRailMode('history');
+      setToolNotice('Recent history opened.');
+    };
+    window.addEventListener('builder-open-history', handleOpenHistory);
+    return () => window.removeEventListener('builder-open-history', handleOpenHistory);
   }, []);
 
   useEffect(() => {
@@ -4223,7 +4298,7 @@ export default function PortalEditorV2Page() {
       : outputMode === 'presentation'
         ? 'Describe the story, audience, and the motion language you want…'
         : 'Describe the portal, reference site, mood, components, and motion you want…';
-  const promptActionLabel = planNeedsApproval ? 'Update plan' : canPatchPreview ? 'Patch preview' : 'Create plan';
+  const promptActionLabel = planNeedsApproval ? 'Refine plan' : canPatchPreview ? 'Patch preview' : 'Create plan';
   const primaryHeaderAction = planNeedsApproval ? 'approve' : (normalizedPreview && phase === 'preview_ready') ? 'save' : 'none';
   const showInspector = resolvedActiveView === 'preview' && showInspectorPanel && Boolean(normalizedPreview && inspector);
   const conversationMessages = messages.filter((message, index) => !(
@@ -4306,7 +4381,9 @@ export default function PortalEditorV2Page() {
       ? 'Polishing your prompt…'
       : helperLoading === 'generate'
         ? 'Generating a stronger prompt from your references…'
-        : phase === 'awaiting_approval'
+      : phase === 'planning'
+        ? 'Thinking through the plan and shaping the right structure…'
+      : phase === 'awaiting_approval'
           ? 'Plan ready. Review it when you want, then approve to build.'
           : phase === 'building'
             ? `Building now${activeBuildStep ? `: ${activeBuildStep.label}` : '…'}`
@@ -4325,6 +4402,7 @@ export default function PortalEditorV2Page() {
   const isIdleEmpty = !plan && !latestUserMessage && !loading && phase === 'idle';
   const showRailModes = true;
   const collapseIdleRail = isIdleEmpty && !isTablet;
+  const canShowPromptComposer = !planNeedsApproval || isEditingPlan || canPatchPreview;
 
   useEffect(() => {
     setSelectedPreviewNode(getDefaultPreviewNode(outputMode));
@@ -4534,6 +4612,7 @@ export default function PortalEditorV2Page() {
     setSelectedPreviewNode(getDefaultPreviewNode(version.outputMode || outputMode));
     appendBuildEvent('Version restored', version.description);
     setToolNotice(`Restored ${version.title}.`);
+    setIsEditingPlan(false);
   };
 
   const handleAssetSwap = (currentAsset, nextAssetId) => {
@@ -4578,6 +4657,7 @@ export default function PortalEditorV2Page() {
     setShowStructuredOutput(false);
     setShowActivity(false);
     setToolNotice('');
+    setIsEditingPlan(false);
     setBuildProgress([]);
     setVersions([]);
     setBuildEvents([{label: 'Builder reset', detail: 'New session started.'}]);
@@ -4601,6 +4681,7 @@ export default function PortalEditorV2Page() {
     setShowInspectorPanel(false);
     setShowStructuredOutput(false);
     setToolNotice('');
+    setIsEditingPlan(false);
     setBuildProgress([]);
     setVersions([]);
     appendBuildEvent('Mode changed', `Switched to ${nextMode}.`);
@@ -4608,6 +4689,7 @@ export default function PortalEditorV2Page() {
 
   const handleClientChange = (nextClientId) => {
     setSelectedClient(nextClientId);
+    setIsEditingPlan(false);
     if (selectedPortal) {
       const portalStillValid = portals.some(
         (portal) => String(portal.id) === String(selectedPortal) && String(portal.client_id) === String(nextClientId),
@@ -4618,6 +4700,7 @@ export default function PortalEditorV2Page() {
 
   const handlePortalChange = (nextPortalId) => {
     setSelectedPortal(nextPortalId);
+    setIsEditingPlan(false);
     const portal = portals.find((entry) => String(entry.id) === String(nextPortalId));
     if (portal) setSelectedClient(String(portal.client_id));
   };
@@ -4856,12 +4939,17 @@ export default function PortalEditorV2Page() {
 
     if (planNeedsApproval && plan) {
       stopBuildProgress();
+      setPhase('planning');
+      setError('');
+      setToolNotice('Thinking through a sharper revision…');
       const revisedPrompt = [
         plan.briefSubject ? `Subject: ${plan.briefSubject}` : '',
         plan.visualThesis ? `Current direction: ${plan.visualThesis}` : '',
         plan.structure?.length ? `Current structure: ${plan.structure.join(' • ')}` : '',
         `Revision request: ${userPrompt}`,
       ].filter(Boolean).join('\n');
+
+      await new Promise((resolve) => window.setTimeout(resolve, 950));
 
       const revisedPlan = createPlan({
         prompt: revisedPrompt,
@@ -4883,6 +4971,7 @@ export default function PortalEditorV2Page() {
       setBuildProgress([]);
       setInput('');
       setPhase('awaiting_approval');
+      setIsEditingPlan(false);
       setActiveView('preview');
       setError('');
       setSaveMsg('');
@@ -4978,6 +5067,10 @@ export default function PortalEditorV2Page() {
     }
 
     stopBuildProgress();
+    setPhase('planning');
+    setError('');
+    setToolNotice('Thinking through the right structure and motion system…');
+    await new Promise((resolve) => window.setTimeout(resolve, 1150));
     const nextPlan = createPlan({
       prompt: userPrompt,
       outputMode,
@@ -4998,6 +5091,7 @@ export default function PortalEditorV2Page() {
     setBuildProgress([]);
     setInput('');
     setPhase('awaiting_approval');
+    setIsEditingPlan(false);
     setActiveView('preview');
     setError('');
     setSaveMsg('');
@@ -5010,6 +5104,7 @@ export default function PortalEditorV2Page() {
 
   const approveAndBuild = async () => {
     if (!plan || loading) return;
+    setIsEditingPlan(false);
 
     const provisionalOutput = createFallbackStructuredOutput({
       outputMode,
@@ -5195,7 +5290,7 @@ export default function PortalEditorV2Page() {
     const selectedModeLabel = OUTPUT_MODES.find(m => m.value === outputMode)?.label || 'Portal';
 
     return (
-      <div style={{minHeight: '100vh', background: 'radial-gradient(ellipse at 30% 20%, rgba(37,99,235,.12), transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(217,70,239,.08), transparent 50%), #09090B', color: '#E2E8F0', fontFamily: 'Inter, sans-serif', display: 'grid', placeItems: 'center', padding: 24}}>
+      <div style={{minHeight: '100vh', background: 'radial-gradient(ellipse at 30% 20%, rgba(37,99,235,.14), transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(20,184,166,.10), transparent 50%), #09090B', color: '#E2E8F0', fontFamily: 'Inter, sans-serif', display: 'grid', placeItems: 'center', padding: 24}}>
         <div style={{width: '100%', maxWidth: 640, display: 'grid', gap: 24, justifyItems: 'center', textAlign: 'center'}}>
           <div style={{display: 'grid', gap: 10}}>
             <div style={{fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 700, letterSpacing: '-.04em', color: '#F8FAFC', lineHeight: 1.1}}>
@@ -5252,11 +5347,11 @@ export default function PortalEditorV2Page() {
 
   return (
     <div style={{display: 'flex', flexDirection: isTablet ? 'column' : 'row', minHeight: '100vh', background: '#020617', color: '#E2E8F0', fontFamily: 'Inter, sans-serif'}}>
-      <aside style={{width: isTablet ? '100%' : 300, minWidth: isTablet ? 0 : 300, borderRight: isTablet ? 'none' : '1px solid rgba(255,255,255,.06)', borderBottom: isTablet ? '1px solid rgba(255,255,255,.06)' : 'none', background: 'linear-gradient(180deg, rgba(15,23,42,1) 0%, rgba(2,6,23,1) 100%)', display: 'flex', flexDirection: 'column'}}>
+      <aside style={{width: isTablet ? '100%' : 286, minWidth: isTablet ? 0 : 286, borderRight: isTablet ? 'none' : '1px solid rgba(255,255,255,.06)', borderBottom: isTablet ? '1px solid rgba(255,255,255,.06)' : 'none', background: 'linear-gradient(180deg, rgba(15,23,42,1) 0%, rgba(2,6,23,1) 100%)', display: 'flex', flexDirection: 'column'}}>
         <div style={{padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', display: 'grid', gap: 10}}>
           <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
             <button
-              onClick={() => { setInput(''); setPhase('idle'); setPlan(null); setMessages([]); setExtractedJSON(null); setError(null); }}
+              onClick={() => { setInput(''); setPhase('idle'); setPlan(null); setMessages([]); setExtractedJSON(null); setError(null); setIsEditingPlan(false); }}
               style={{width: 30, height: 30, borderRadius: 10, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#94A3B8', fontSize: 14, cursor: 'pointer', display: 'grid', placeItems: 'center'}}
               title="Back to start"
             >←</button>
@@ -5275,7 +5370,6 @@ export default function PortalEditorV2Page() {
             {[
               {id: 'brief', label: 'Brief'},
               {id: 'library', label: 'Library'},
-              {id: 'history', label: 'History'},
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -5307,19 +5401,20 @@ export default function PortalEditorV2Page() {
           {leftRailMode === 'brief' ? (
             <div style={{display: 'grid', gap: 14}}>
               {plan ? (
-                <WorkflowPlanCard
-                  plan={plan}
-                  outputMode={outputMode}
-                  styleMode={styleMode}
-                  client={selectedClientRecord}
-                  loading={loading}
-                  phase={phase}
-                  onApprove={approveAndBuild}
-                  onEditPlan={() => {
-                    setActiveView('preview');
-                    setToolNotice('Describe what to change, then click Update plan.');
-                  }}
-                />
+                <div style={{padding: '14px 15px', borderRadius: 16, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', display: 'grid', gap: 8}}>
+                  <div style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', color: phase === 'planning' ? '#67E8F9' : phase === 'awaiting_approval' ? '#93C5FD' : '#64748B'}}>
+                    {phase === 'planning' ? 'Thinking' : phase === 'awaiting_approval' ? 'Plan on canvas' : phase === 'preview_ready' ? 'Preview ready' : 'Builder status'}
+                  </div>
+                  <div style={{fontSize: 13, color: '#E2E8F0', lineHeight: 1.7}}>
+                    {phase === 'planning'
+                      ? 'Shaping the plan now.'
+                      : phase === 'awaiting_approval'
+                        ? 'The plan summary is on the right. Edit or approve there.'
+                        : phase === 'preview_ready'
+                          ? 'Preview is live. Use the prompt below to patch it.'
+                          : chatStatusCopy}
+                  </div>
+                </div>
               ) : null}
 
               {(phase === 'building' || phase === 'preview_ready' || buildEvents.length > 1) ? (
@@ -5816,63 +5911,63 @@ export default function PortalEditorV2Page() {
               {toolNotice}
             </div>
           ) : null}
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                submitPrompt();
-              }
-            }}
-            placeholder={promptPlaceholder}
-            rows={4}
-            style={{width: '100%', resize: 'none', padding: '14px 16px', borderRadius: 16, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13, lineHeight: 1.6, outline: 'none'}}
-          />
-          <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-            <button
-              type="button"
-              onClick={() => handleToolMenuAction('attach')}
-              style={{padding: '9px 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 11, fontWeight: 700, cursor: 'pointer'}}
-            >
-              Attach file
-            </button>
-            <button
-              type="button"
-              onClick={() => handleToolMenuAction('reference')}
-              style={{padding: '9px 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 11, fontWeight: 700, cursor: 'pointer'}}
-            >
-              Add reference
-            </button>
-            <button
-              type="button"
-              onClick={() => handleToolMenuAction('history')}
-              style={{padding: '9px 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#CBD5E1', fontSize: 11, fontWeight: 700, cursor: 'pointer'}}
-            >
-              History
-            </button>
-          </div>
-          <div style={{display: 'flex', gap: 10, alignItems: 'center'}}>
-            <button
-              onClick={submitPrompt}
-              disabled={!cleanText(input) || loading}
-              style={{flex: 1, padding: '11px 14px', borderRadius: 12, border: 'none', background: !cleanText(input) || loading ? '#334155' : '#2563EB', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: !cleanText(input) || loading ? 'default' : 'pointer'}}
-            >
-              {loading
-                ? phase === 'patching'
-                  ? 'Patching…'
-                  : 'Building…'
-                : promptActionLabel}
-            </button>
-          </div>
+          {canShowPromptComposer ? (
+            <>
+              <textarea
+                ref={promptTextareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submitPrompt();
+                  }
+                }}
+                placeholder={promptPlaceholder}
+                rows={4}
+                style={{width: '100%', resize: 'none', padding: '14px 16px', borderRadius: 16, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 13, lineHeight: 1.6, outline: 'none'}}
+              />
+              <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+                <button
+                  type="button"
+                  onClick={() => handleToolMenuAction('attach')}
+                  style={{padding: '9px 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 11, fontWeight: 700, cursor: 'pointer'}}
+                >
+                  Attach file
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToolMenuAction('reference')}
+                  style={{padding: '9px 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: '#F8FAFC', fontSize: 11, fontWeight: 700, cursor: 'pointer'}}
+                >
+                  Add reference
+                </button>
+              </div>
+              <div style={{display: 'flex', gap: 10, alignItems: 'center'}}>
+                <button
+                  onClick={submitPrompt}
+                  disabled={!cleanText(input) || loading || phase === 'planning'}
+                  style={{flex: 1, padding: '11px 14px', borderRadius: 12, border: 'none', background: !cleanText(input) || loading || phase === 'planning' ? '#334155' : '#2563EB', color: '#F8FAFC', fontSize: 12, fontWeight: 700, cursor: !cleanText(input) || loading || phase === 'planning' ? 'default' : 'pointer'}}
+                >
+                  {phase === 'planning'
+                    ? 'Thinking…'
+                    : loading
+                      ? phase === 'patching'
+                        ? 'Patching…'
+                        : 'Building…'
+                      : promptActionLabel}
+                </button>
+              </div>
+            </>
+          ) : null}
         </div>
       </aside>
 
-      <section style={{flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'radial-gradient(circle at top left, rgba(37,99,235,.18), transparent 28%), radial-gradient(circle at bottom right, rgba(217,70,239,.14), transparent 26%), #09090B'}}>
+      <section style={{flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'radial-gradient(circle at top left, rgba(37,99,235,.18), transparent 28%), radial-gradient(circle at bottom right, rgba(20,184,166,.14), transparent 26%), #09090B'}}>
         <header style={{padding: isMobile ? '16px' : '18px 24px', borderBottom: '1px solid rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap'}}>
           <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
             <div style={{padding: '9px 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', color: '#F8FAFC', fontSize: 12, fontWeight: 700}}>
-              {normalizedPreview ? 'Live preview' : planNeedsApproval ? 'Build-ready canvas' : 'Preview canvas'}
+              {normalizedPreview ? 'Live preview' : planNeedsApproval ? 'Plan summary' : phase === 'planning' ? 'Thinking canvas' : 'Preview canvas'}
             </div>
           </div>
 
@@ -5934,8 +6029,10 @@ export default function PortalEditorV2Page() {
                   phase={phase}
                   onApprove={approveAndBuild}
                   onEditPlan={() => {
-                    setActiveView('preview');
-                    setToolNotice('Describe what to change, then click Update plan.');
+                    setIsEditingPlan(true);
+                    setLeftRailMode('brief');
+                    setToolNotice('Describe what to change, then refine the plan.');
+                    window.requestAnimationFrame(() => promptTextareaRef.current?.focus());
                   }}
                 />
               )}

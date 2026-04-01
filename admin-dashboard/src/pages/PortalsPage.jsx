@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { portals, clients, agents } from '../lib/api';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || 'https://envision-portal.netlify.app';
@@ -140,6 +140,9 @@ export default function PortalsPage() {
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClientForm, setNewClientForm] = useState({ name: '', company: '', email: '' });
   const [savingClient, setSavingClient] = useState(false);
+  const [uploadingPortalId, setUploadingPortalId] = useState(null);
+  const fileInputRef = useRef(null);
+  const [pendingUploadPortal, setPendingUploadPortal] = useState(null);
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -190,6 +193,34 @@ export default function PortalsPage() {
     onSuccess: () => qc.invalidateQueries('portals'),
   });
 
+  const uploadHtmlMutation = useMutation(
+    async ({ portalId, fileName, html }) => {
+      const payload = {
+        mode: 'uploaded-html',
+        htmlUpload: {
+          title: fileName.replace(/\.html?$/i, ''),
+          fileName,
+          document: html,
+          uploadedAt: new Date().toISOString(),
+        },
+      };
+
+      await portals.update(portalId, { template_id: 'uploaded-html-presentation' });
+      return portals.updateContent(portalId, payload);
+    },
+    {
+      onSuccess: () => {
+        setUploadingPortalId(null);
+        setPendingUploadPortal(null);
+        qc.invalidateQueries('portals');
+      },
+      onError: () => {
+        setUploadingPortalId(null);
+        setPendingUploadPortal(null);
+      },
+    }
+  );
+
   const [openMenu, setOpenMenu] = useState(null);
   const isMobile = viewportWidth < 768;
   const isTablet = viewportWidth < 1024;
@@ -212,6 +243,38 @@ export default function PortalsPage() {
       setCopied(portal.id);
       setTimeout(() => setCopied(null), 2000);
     });
+  };
+
+  const promptHtmlUpload = (portal) => {
+    setPendingUploadPortal(portal);
+    fileInputRef.current?.click();
+  };
+
+  const handleHtmlUpload = async (event) => {
+    const file = event.target.files?.[0];
+    const portal = pendingUploadPortal;
+    event.target.value = '';
+
+    if (!file || !portal) return;
+
+    const isHtml = file.type === 'text/html' || /\.html?$/i.test(file.name);
+    if (!isHtml) {
+      window.alert('Please choose an HTML file.');
+      setPendingUploadPortal(null);
+      return;
+    }
+
+    try {
+      setUploadingPortalId(portal.id);
+      const html = await file.text();
+      await uploadHtmlMutation.mutateAsync({
+        portalId: portal.id,
+        fileName: file.name,
+        html,
+      });
+    } catch (error) {
+      window.alert(typeof error === 'string' ? error : 'Could not upload HTML presentation.');
+    }
   };
 
   const sendToClient = (portal) => {
@@ -245,6 +308,13 @@ export default function PortalsPage() {
       style={{ padding: isMobile ? 16 : isTablet ? 24 : 32, fontFamily: 'Inter, sans-serif' }}
       onClick={() => setOpenMenu(null)}
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".html,text/html"
+        style={{ display: 'none' }}
+        onChange={handleHtmlUpload}
+      />
       <div style={{ maxWidth: 1440, margin: '0 auto' }}>
       {/* Header */}
       <div
@@ -397,6 +467,27 @@ export default function PortalsPage() {
                     {portal.status === 'active' ? '● Active' : '○ Set Active'}
                   </button>
                   <button onClick={() => navigate('/portal-editor')} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151', width: isMobile ? 'calc(50% - 4px)' : 'auto' }}>Builder</button>
+                  <button
+                    onClick={() => promptHtmlUpload(portal)}
+                    disabled={uploadingPortalId === portal.id}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #BFDBFE',
+                      background: uploadingPortalId === portal.id ? '#DBEAFE' : '#EFF6FF',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: uploadingPortalId === portal.id ? 'wait' : 'pointer',
+                      color: '#1D4ED8',
+                      width: isMobile ? 'calc(50% - 4px)' : 'auto',
+                    }}
+                  >
+                    {uploadingPortalId === portal.id
+                      ? 'Uploading...'
+                      : portal.content?.mode === 'uploaded-html'
+                        ? 'Replace HTML'
+                        : 'Upload HTML'}
+                  </button>
                   <button onClick={() => sendToClient(portal)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#374151', width: isMobile ? 'calc(50% - 4px)' : 'auto' }}>Send ↗</button>
                   <button onClick={() => loadAnalytics(portal)} style={{
                     padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',

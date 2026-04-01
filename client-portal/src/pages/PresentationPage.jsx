@@ -79,6 +79,44 @@ function ContentNotRecognized({ mode }) {
   );
 }
 
+function UploadedHtmlPresentation({ htmlUpload }) {
+  const rawDocument = htmlUpload?.document || '';
+  const title = htmlUpload?.title || htmlUpload?.fileName || 'HTML presentation';
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#050816' }}>
+      <div style={{
+        position: 'fixed',
+        inset: '0 auto auto 0',
+        zIndex: 20,
+        padding: '10px 14px',
+        fontFamily: 'Inter, sans-serif',
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: '.08em',
+        textTransform: 'uppercase',
+        color: 'rgba(226,232,240,0.72)',
+        background: 'linear-gradient(180deg, rgba(5,8,22,0.86), rgba(5,8,22,0))',
+        pointerEvents: 'none',
+      }}>
+        {title}
+      </div>
+      <iframe
+        title={title}
+        srcDoc={rawDocument}
+        sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-popups allow-downloads"
+        style={{
+          width: '100%',
+          minHeight: '100vh',
+          border: 'none',
+          display: 'block',
+          background: '#fff',
+        }}
+      />
+    </div>
+  );
+}
+
 export default function PresentationPage() {
   const { portal } = usePortalStore();
   const [scrollDepth, setScrollDepth] = useState(0);
@@ -87,6 +125,7 @@ export default function PresentationPage() {
   const isPresentationMode = rawContent?.mode === 'presentation' && rawContent?.presentation;
   const isCinematicFlowMode = rawContent?.mode === 'cinematic-flow' && rawContent?.cinematicFlow;
   const isCinematicCodeMode = rawContent?.mode === 'cinematic-code' && rawContent?.cinematicCode?.files;
+  const isUploadedHtmlMode = rawContent?.mode === 'uploaded-html' && rawContent?.htmlUpload?.document;
   const isPortalMode = isWrappedPortal || (!isPresentationMode && !isCinematicFlowMode && !isCinematicCodeMode && rawContent?.hero);
   const content = isWrappedPortal ? rawContent.portal : rawContent;
   const experience = resolveExperience(content.experience || {});
@@ -145,6 +184,14 @@ export default function PresentationPage() {
     return (
       <PortalErrorBoundary>
         <CinematicCodeRenderer files={rawContent.cinematicCode.files} />
+      </PortalErrorBoundary>
+    );
+  }
+
+  if (isUploadedHtmlMode) {
+    return (
+      <PortalErrorBoundary>
+        <UploadedHtmlPresentation htmlUpload={rawContent.htmlUpload} />
       </PortalErrorBoundary>
     );
   }

@@ -19,6 +19,7 @@ import {
 } from '../lib/referenceLibrary';
 import {
   createReferenceFromStarterTemplate,
+  detectStarterTemplateFromFilename,
   pickStarterTemplateMatches,
   STARTER_TEMPLATE_LIBRARY,
 } from '../lib/starterTemplateLibrary';
@@ -1727,6 +1728,23 @@ function createLibraryTemplateEntryFromAttachment(attachment, client = null) {
     templateVibe: template.vibe || '',
     templateBestFor: template.bestFor || '',
     templateSource: attachment?.name || template.sourceLabel || '',
+  };
+}
+
+function createParsedTemplateFromUpload(file) {
+  const template = detectStarterTemplateFromFilename(file?.name || '');
+  if (!template) return null;
+
+  return {
+    id: `uploaded-template-${slugifyLibraryValue(template.id)}`,
+    title: template.title,
+    summary: `${template.summary}${template.sourceLabel ? ` Source: ${template.sourceLabel}.` : ''}`,
+    vibe: template.vibe || '',
+    bestFor: template.bestFor || '',
+    structure: template.structure || [],
+    motion: template.motion || [],
+    tags: uniq(template.tags || []),
+    sourceLabel: file?.name || template.sourceLabel || '',
   };
 }
 
@@ -4816,6 +4834,14 @@ export default function PortalEditorV2Page() {
             }
           } catch {
             textContent = '';
+          }
+        }
+
+        if (!parsedTemplate) {
+          try {
+            parsedTemplate = createParsedTemplateFromUpload(file);
+          } catch {
+            parsedTemplate = null;
           }
         }
 

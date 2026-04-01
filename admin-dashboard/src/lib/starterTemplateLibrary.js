@@ -397,6 +397,40 @@ export function pickStarterTemplateMatches({prompt = '', client = null, styleMod
     .map((entry) => entry.template);
 }
 
+export function detectStarterTemplateFromFilename(filename = '') {
+  const lower = cleanText(filename).toLowerCase();
+  if (!lower) return null;
+
+  const directMatches = [
+    ['curv-parallax-onepage', /curv|one-page-multipurpose-parallax-template|one page multipurpose parallax template/],
+    ['nicex-creative-portfolio', /nicex/],
+    ['challenge-premium-theme', /challenge(?:_v|\b)|challenge\.zip/],
+    ['fort-premium-theme', /\bfort(?:_v|\b)|fort\.zip/],
+    ['uniiq-creative-portfolio', /uniiq|mainfiles/],
+    ['cinematic-logo-reveal', /logo-reveal|brand-identity-presentation|wordmark-reveal/],
+  ];
+
+  for (const [id, pattern] of directMatches) {
+    if (pattern.test(lower)) {
+      return STARTER_TEMPLATE_LIBRARY.find((template) => template.id === id) || null;
+    }
+  }
+
+  if (/parallax/.test(lower)) {
+    return STARTER_TEMPLATE_LIBRARY.find((template) => template.id === 'curv-parallax-onepage') || null;
+  }
+
+  if (/portfolio|creative-portfolio/.test(lower)) {
+    return STARTER_TEMPLATE_LIBRARY.find((template) => template.id === 'nicex-creative-portfolio') || null;
+  }
+
+  if (/presentation|deck|slides/.test(lower)) {
+    return STARTER_TEMPLATE_LIBRARY.find((template) => template.id === 'deck-keynote-dark') || null;
+  }
+
+  return null;
+}
+
 export function createReferenceFromStarterTemplate(template) {
   if (!template) return null;
 

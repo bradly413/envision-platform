@@ -41,6 +41,33 @@ router.get('/', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Portal: fetch current authenticated portal session
+router.get('/session/current', requirePortalAuth, async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT p.*, c.name as client_name, c.company FROM portals p JOIN clients c ON p.client_id = c.id WHERE p.id = $1',
+      [req.portal.portalId]
+    );
+    const portal = rows[0];
+    if (!portal) return res.status(404).json({ error: 'Portal not found' });
+    if (portal.status !== 'active') return res.status(403).json({ error: 'Portal is not active' });
+    if (portal.expires_at && new Date(portal.expires_at) < new Date()) {
+      return res.status(403).json({ error: 'This presentation has expired' });
+    }
+
+    res.json({
+      portal: {
+        id: portal.id,
+        slug: portal.slug,
+        templateId: portal.template_id,
+        clientName: portal.client_name,
+        company: portal.company,
+        content: portal.content,
+      },
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Admin: get single portal
 router.get('/:id', requireAdmin, async (req, res) => {
   try {
@@ -164,33 +191,6 @@ router.post('/:id/events', requirePortalAuth, async (req, res) => {
       [req.params.id, event_type, JSON.stringify(payload || {}), req.headers['user-agent']]
     );
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Portal: fetch current authenticated portal session
-router.get('/session/current', requirePortalAuth, async (req, res) => {
-  try {
-    const { rows } = await db.query(
-      'SELECT p.*, c.name as client_name, c.company FROM portals p JOIN clients c ON p.client_id = c.id WHERE p.id = $1',
-      [req.portal.portalId]
-    );
-    const portal = rows[0];
-    if (!portal) return res.status(404).json({ error: 'Portal not found' });
-    if (portal.status !== 'active') return res.status(403).json({ error: 'Portal is not active' });
-    if (portal.expires_at && new Date(portal.expires_at) < new Date()) {
-      return res.status(403).json({ error: 'This presentation has expired' });
-    }
-
-    res.json({
-      portal: {
-        id: portal.id,
-        slug: portal.slug,
-        templateId: portal.template_id,
-        clientName: portal.client_name,
-        company: portal.company,
-        content: portal.content,
-      },
-    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

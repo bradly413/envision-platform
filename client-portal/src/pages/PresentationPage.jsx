@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { usePortalStore } from '../lib/store';
-import { track } from '../lib/api';
+import { portalAuth, track } from '../lib/api';
 import HeroSection from '../components/Hero/HeroSection';
 import BrandSection from '../components/ScrollSections/BrandSection';
 import LogoSection from '../components/ScrollSections/LogoSection';
@@ -79,6 +79,50 @@ function ContentNotRecognized({ mode }) {
   );
 }
 
+function LoadingPresentation() {
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'grid', placeItems: 'center',
+      background: '#09090B', color: '#E2E8F0', fontFamily: 'Inter, sans-serif',
+      padding: 32, textAlign: 'center',
+    }}>
+      <div style={{ maxWidth: 420 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.14em', color: '#A7F3D0', marginBottom: 16 }}>
+          Loading Presentation
+        </div>
+        <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>
+          Restoring your session
+        </div>
+        <div style={{ fontSize: 14, color: '#94A3B8', lineHeight: 1.7 }}>
+          Your presentation is being securely refreshed.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SessionUnavailable({ message }) {
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'grid', placeItems: 'center',
+      background: '#09090B', color: '#E2E8F0', fontFamily: 'Inter, sans-serif',
+      padding: 32, textAlign: 'center',
+    }}>
+      <div style={{ maxWidth: 480 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.14em', color: '#FBBF24', marginBottom: 16 }}>
+          Session Unavailable
+        </div>
+        <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>
+          Please sign in again
+        </div>
+        <div style={{ fontSize: 14, color: '#94A3B8', lineHeight: 1.7 }}>
+          {message || 'We could not refresh this presentation session.'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function UploadedHtmlPresentation({ htmlUpload }) {
   const rawDocument = htmlUpload?.document || '';
   const title = htmlUpload?.title || htmlUpload?.fileName || 'HTML presentation';
@@ -118,8 +162,11 @@ function UploadedHtmlPresentation({ htmlUpload }) {
 }
 
 export default function PresentationPage() {
-  const { portal } = usePortalStore();
+  const { token, portal, setPortalAuth, logout } = usePortalStore();
   const [scrollDepth, setScrollDepth] = useState(0);
+  const [sessionError, setSessionError] = useState('');
+  const hasHydratedContent = Boolean(portal) && portal.content !== null && portal.content !== undefined;
+  const needsSessionRefresh = Boolean(token) && !hasHydratedContent;
   const rawContent = portal?.content || {};
   const isWrappedPortal = rawContent?.mode === 'portal' && rawContent?.portal;
   const isPresentationMode = rawContent?.mode === 'presentation' && rawContent?.presentation;
@@ -130,6 +177,39 @@ export default function PresentationPage() {
   const content = isWrappedPortal ? rawContent.portal : rawContent;
   const experience = resolveExperience(content.experience || {});
   const theme = resolvePortalTheme({ content, experience, portal });
+
+  useEffect(() => {
+    if (!needsSessionRefresh) return undefined;
+
+    let active = true;
+    setSessionError('');
+
+    portalAuth.current()
+      .then((data) => {
+        if (!active) return;
+        const resolvedPortal = data?.portal || {};
+        setPortalAuth(token, {
+          id: resolvedPortal.id || portal?.id,
+          slug: resolvedPortal.slug || portal?.slug,
+          templateId: resolvedPortal.templateId || portal?.templateId || '',
+          clientName: resolvedPortal.clientName || portal?.clientName || '',
+          company: resolvedPortal.company || portal?.company || '',
+          content: resolvedPortal.content ?? {},
+        });
+      })
+      .catch((err) => {
+        if (!active) return;
+        const status = err?.response?.status;
+        if (status === 401 || status === 403 || status === 404) {
+          logout();
+        }
+        setSessionError(err?.response?.data?.error || 'Please return to your portal link and sign in again.');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [logout, needsSessionRefresh, portal, setPortalAuth, token]);
 
   useEffect(() => {
     if (isPresentationMode || isCinematicFlowMode || !portal?.id) return undefined;
@@ -162,7 +242,10 @@ export default function PresentationPage() {
     return () => observer.disconnect();
   }, [isCinematicFlowMode, isPresentationMode, portal?.id]);
 
-  if (!portal) return null;
+  if (!portal && !token) return null;
+  if (!hasHydratedContent) {
+    return sessionError ? <SessionUnavailable message={sessionError} /> : <LoadingPresentation />;
+  }
 
   if (isPresentationMode) {
     return (

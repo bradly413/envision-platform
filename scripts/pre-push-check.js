@@ -4,10 +4,20 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const BACKEND = path.join(ROOT, 'backend', 'src');
+const jsonOutput = !process.stdout.isTTY;
+const outputLines = [];
 let errors = 0;
 
+function print(line = '') {
+  if (jsonOutput) {
+    outputLines.push(line);
+    return;
+  }
+  console.log(line);
+}
+
 // ─── 1. Backend syntax check ───────────────────────────────────
-console.log('Backend JS syntax check...\n');
+print('Backend JS syntax check...\n');
 
 const dirs = [
   '',              // index.js
@@ -31,17 +41,17 @@ for (const dir of dirs) {
 
     try {
       execSync(`node --check "${filePath}"`, { stdio: 'pipe' });
-      console.log(`  OK  ${dir ? dir + '/' : ''}${file}`);
+      print(`  OK  ${dir ? dir + '/' : ''}${file}`);
     } catch (e) {
-      console.log(`  ERR ${dir ? dir + '/' : ''}${file}`);
-      console.log(`      ${e.stderr.toString().trim().split('\n')[0]}`);
+      print(`  ERR ${dir ? dir + '/' : ''}${file}`);
+      print(`      ${e.stderr.toString().trim().split('\n')[0]}`);
       errors++;
     }
   }
 }
 
 // ─── 2. Railway env var parity check ────────────────────────────
-console.log('\nEnv var check...\n');
+print('\nEnv var check...\n');
 
 const EXPECTED_VARS = [
   'DATABASE_URL',
@@ -55,19 +65,25 @@ const EXPECTED_VARS = [
 const missing = EXPECTED_VARS.filter(v => !process.env[v]);
 
 if (missing.length > 0) {
-  console.log('  WARN Missing env vars (verify these exist in Railway dashboard):');
+  print('  WARN Missing env vars (verify these exist in Railway dashboard):');
   for (const v of missing) {
-    console.log(`       - ${v}`);
+    print(`       - ${v}`);
   }
 } else {
-  console.log('  OK  All expected env vars present');
+  print('  OK  All expected env vars present');
 }
 
 // ─── 3. Summary ─────────────────────────────────────────────────
-console.log('');
+print('');
 if (errors > 0) {
-  console.log(`FAILED: ${errors} syntax error(s). Fix before pushing.`);
+  print(`FAILED: ${errors} syntax error(s). Fix before pushing.`);
+  if (jsonOutput) {
+    console.log(JSON.stringify({ continue: false, reason: outputLines.join('\n') }));
+  }
   process.exit(1);
 } else {
-  console.log('PASSED: All checks clean.');
+  print('PASSED: All checks clean.');
+  if (jsonOutput) {
+    console.log(JSON.stringify({ continue: true, reason: outputLines.join('\n') }));
+  }
 }

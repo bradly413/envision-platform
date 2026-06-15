@@ -5,6 +5,10 @@ const jwt = require('jsonwebtoken');
 const { v4: uuid } = require('uuid');
 const db = require('../config/db');
 
+function serializePortalContent(content) {
+  return JSON.stringify(content && typeof content === 'object' && !Array.isArray(content) ? content : {});
+}
+
 async function verifyPortalPassword(portal, password) {
   let hashMatched = false;
 
@@ -74,7 +78,10 @@ router.patch('/:id', requireAdmin, async (req, res) => {
     const fields = [];
     const values = [];
     let i = 1;
-    if (content !== undefined) { fields.push(`content = $${i++}`); values.push(JSON.stringify(content)); }
+    if (content !== undefined) {
+      fields.push(`content = COALESCE(content, '{}'::jsonb) || $${i++}::jsonb`);
+      values.push(serializePortalContent(content));
+    }
     if (status !== undefined) { fields.push(`status = $${i++}`); values.push(status); }
     if (expires_at !== undefined) { fields.push(`expires_at = $${i++}`); values.push(expires_at); }
     if (slug !== undefined) { fields.push(`slug = $${i++}`); values.push(slug); }
@@ -107,8 +114,8 @@ router.put('/:id/content', requireAdmin, async (req, res) => {
   const { content } = req.body || {};
   try {
     const { rows } = await db.query(
-      'UPDATE portals SET content = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-      [JSON.stringify(content || {}), req.params.id]
+      "UPDATE portals SET content = COALESCE(content, '{}'::jsonb) || $1::jsonb, updated_at = NOW() WHERE id = $2 RETURNING *",
+      [serializePortalContent(content), req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);

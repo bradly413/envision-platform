@@ -7,4 +7,5 @@
 - [ ]
 
 ## Completed
+- [x] Fixed critical portal HTML upload content merge and sandbox issues
 - [x] Initial Claude Code setup

@@ -5,9 +5,10 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const BACKEND = path.join(ROOT, 'backend', 'src');
 let errors = 0;
+const log = (...args) => console.error(...args);
 
 // ─── 1. Backend syntax check ───────────────────────────────────
-console.log('Backend JS syntax check...\n');
+log('Backend JS syntax check...\n');
 
 const dirs = [
   '',              // index.js
@@ -31,17 +32,17 @@ for (const dir of dirs) {
 
     try {
       execSync(`node --check "${filePath}"`, { stdio: 'pipe' });
-      console.log(`  OK  ${dir ? dir + '/' : ''}${file}`);
+      log(`  OK  ${dir ? dir + '/' : ''}${file}`);
     } catch (e) {
-      console.log(`  ERR ${dir ? dir + '/' : ''}${file}`);
-      console.log(`      ${e.stderr.toString().trim().split('\n')[0]}`);
+      log(`  ERR ${dir ? dir + '/' : ''}${file}`);
+      log(`      ${e.stderr.toString().trim().split('\n')[0]}`);
       errors++;
     }
   }
 }
 
 // ─── 2. Railway env var parity check ────────────────────────────
-console.log('\nEnv var check...\n');
+log('\nEnv var check...\n');
 
 const EXPECTED_VARS = [
   'DATABASE_URL',
@@ -55,19 +56,26 @@ const EXPECTED_VARS = [
 const missing = EXPECTED_VARS.filter(v => !process.env[v]);
 
 if (missing.length > 0) {
-  console.log('  WARN Missing env vars (verify these exist in Railway dashboard):');
+  log('  WARN Missing env vars (verify these exist in Railway dashboard):');
   for (const v of missing) {
-    console.log(`       - ${v}`);
+    log(`       - ${v}`);
   }
 } else {
-  console.log('  OK  All expected env vars present');
+  log('  OK  All expected env vars present');
 }
 
 // ─── 3. Summary ─────────────────────────────────────────────────
-console.log('');
 if (errors > 0) {
-  console.log(`FAILED: ${errors} syntax error(s). Fix before pushing.`);
-  process.exit(1);
+  log('');
+  log(`FAILED: ${errors} syntax error(s). Fix before pushing.`);
+  process.stdout.write(JSON.stringify({
+    permission: 'deny',
+    user_message: `Backend syntax check failed with ${errors} error(s).`,
+    agent_message: 'Fix backend syntax errors before running shell commands or pushing.',
+  }));
+  process.exit(2);
 } else {
-  console.log('PASSED: All checks clean.');
+  log('');
+  log('PASSED: All checks clean.');
+  process.stdout.write(JSON.stringify({ permission: 'allow' }));
 }

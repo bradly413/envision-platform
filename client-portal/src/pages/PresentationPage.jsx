@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { usePortalStore } from '../lib/store';
-import { track } from '../lib/api';
+import { portalAuth, track } from '../lib/api';
 import HeroSection from '../components/Hero/HeroSection';
 import BrandSection from '../components/ScrollSections/BrandSection';
 import LogoSection from '../components/ScrollSections/LogoSection';
@@ -104,7 +104,8 @@ function UploadedHtmlPresentation({ htmlUpload }) {
       <iframe
         title={title}
         srcDoc={rawDocument}
-        sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-popups allow-downloads"
+        sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
+        referrerPolicy="no-referrer"
         style={{
           width: '100%',
           minHeight: '100vh',
@@ -118,8 +119,11 @@ function UploadedHtmlPresentation({ htmlUpload }) {
 }
 
 export default function PresentationPage() {
-  const { portal } = usePortalStore();
+  const { token, portal, setPortalAuth, logout } = usePortalStore();
   const [scrollDepth, setScrollDepth] = useState(0);
+  const [loadingSession, setLoadingSession] = useState(false);
+  const [sessionError, setSessionError] = useState('');
+  const hasPortalContent = portal?.content !== null && portal?.content !== undefined;
   const rawContent = portal?.content || {};
   const isWrappedPortal = rawContent?.mode === 'portal' && rawContent?.portal;
   const isPresentationMode = rawContent?.mode === 'presentation' && rawContent?.presentation;
@@ -130,6 +134,32 @@ export default function PresentationPage() {
   const content = isWrappedPortal ? rawContent.portal : rawContent;
   const experience = resolveExperience(content.experience || {});
   const theme = resolvePortalTheme({ content, experience, portal });
+
+  useEffect(() => {
+    if (!token || hasPortalContent) return undefined;
+
+    let cancelled = false;
+    setLoadingSession(true);
+    setSessionError('');
+
+    portalAuth.current()
+      .then((data) => {
+        if (cancelled) return;
+        setPortalAuth(token, data.portal);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setSessionError(err.response?.data?.error || 'Could not load this presentation.');
+        logout();
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSession(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPortalContent, logout, setPortalAuth, token]);
 
   useEffect(() => {
     if (isPresentationMode || isCinematicFlowMode || !portal?.id) return undefined;
@@ -163,6 +193,12 @@ export default function PresentationPage() {
   }, [isCinematicFlowMode, isPresentationMode, portal?.id]);
 
   if (!portal) return null;
+
+  if (!hasPortalContent) {
+    return (
+      <ContentNotRecognized mode={loadingSession ? 'loading' : sessionError || 'session'} />
+    );
+  }
 
   if (isPresentationMode) {
     return (

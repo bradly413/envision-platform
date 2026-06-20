@@ -11,6 +11,7 @@ api.interceptors.request.use(config => {
 
 export const portalAuth = {
   login: (slug, password) => api.post('/portals/login', { slug, password }).then(r => r.data),
+  currentSession: () => api.get('/portals/session/current').then(r => r.data.portal),
 };
 
 export const track = {

@@ -104,11 +104,24 @@ router.patch('/:id', requireAdmin, async (req, res) => {
 
 // Admin: update only portal content
 router.put('/:id/content', requireAdmin, async (req, res) => {
-  const { content } = req.body || {};
+  const { content, template_id } = req.body || {};
   try {
+    if (content?.mode === 'uploaded-html' && !String(content?.htmlUpload?.document || '').trim()) {
+      return res.status(400).json({ error: 'Uploaded HTML content cannot be empty' });
+    }
+
+    const fields = ['content = $1', 'updated_at = NOW()'];
+    const values = [JSON.stringify(content || {})];
+
+    if (template_id !== undefined) {
+      fields.push(`template_id = $${values.length + 1}`);
+      values.push(template_id);
+    }
+
+    values.push(req.params.id);
     const { rows } = await db.query(
-      'UPDATE portals SET content = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-      [JSON.stringify(content || {}), req.params.id]
+      `UPDATE portals SET ${fields.join(', ')} WHERE id = $${values.length} RETURNING *`,
+      values
     );
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { usePortalStore } from '../lib/store';
-import { track } from '../lib/api';
+import { portalAuth, track } from '../lib/api';
 import HeroSection from '../components/Hero/HeroSection';
 import BrandSection from '../components/ScrollSections/BrandSection';
 import LogoSection from '../components/ScrollSections/LogoSection';
@@ -79,6 +79,28 @@ function ContentNotRecognized({ mode }) {
   );
 }
 
+function SessionRefreshState({ error }) {
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'grid', placeItems: 'center',
+      background: '#09090B', color: '#E2E8F0', fontFamily: 'Inter, sans-serif',
+      padding: 32, textAlign: 'center',
+    }}>
+      <div style={{ maxWidth: 480 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.14em', color: error ? '#F87171' : '#38BDF8', marginBottom: 16 }}>
+          {error ? 'Session Error' : 'Loading Presentation'}
+        </div>
+        <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>
+          {error ? "This presentation couldn't load" : 'Preparing your portal'}
+        </div>
+        <div style={{ fontSize: 14, color: '#94A3B8', lineHeight: 1.7 }}>
+          {error || 'Restoring your secure portal session...'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function UploadedHtmlPresentation({ htmlUpload }) {
   const rawDocument = htmlUpload?.document || '';
   const title = htmlUpload?.title || htmlUpload?.fileName || 'HTML presentation';
@@ -104,7 +126,7 @@ function UploadedHtmlPresentation({ htmlUpload }) {
       <iframe
         title={title}
         srcDoc={rawDocument}
-        sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-popups allow-downloads"
+        sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
         style={{
           width: '100%',
           minHeight: '100vh',
@@ -118,8 +140,10 @@ function UploadedHtmlPresentation({ htmlUpload }) {
 }
 
 export default function PresentationPage() {
-  const { portal } = usePortalStore();
+  const { token, portal, setPortalAuth, logout } = usePortalStore();
+  const [sessionError, setSessionError] = useState('');
   const [scrollDepth, setScrollDepth] = useState(0);
+  const needsSessionRefresh = Boolean(token && (!portal || !portal.content));
   const rawContent = portal?.content || {};
   const isWrappedPortal = rawContent?.mode === 'portal' && rawContent?.portal;
   const isPresentationMode = rawContent?.mode === 'presentation' && rawContent?.presentation;
@@ -132,7 +156,36 @@ export default function PresentationPage() {
   const theme = resolvePortalTheme({ content, experience, portal });
 
   useEffect(() => {
-    if (isPresentationMode || isCinematicFlowMode || !portal?.id) return undefined;
+    if (!needsSessionRefresh) return undefined;
+
+    let cancelled = false;
+    setSessionError('');
+
+    portalAuth.current()
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.portal) {
+          setPortalAuth(token, { ...data.portal, content: data.portal.content || {} });
+        } else {
+          setSessionError('Your portal session could not be restored. Please sign in again.');
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        if ([401, 403].includes(error.response?.status)) {
+          logout();
+          return;
+        }
+        setSessionError(error.response?.data?.error || 'Your portal session could not be restored. Please refresh or sign in again.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [logout, needsSessionRefresh, setPortalAuth, token]);
+
+  useEffect(() => {
+    if (needsSessionRefresh || isPresentationMode || isCinematicFlowMode || !portal?.id) return undefined;
     const handleScroll = () => {
       const el = document.documentElement;
       const pct = Math.round((el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100);
@@ -145,10 +198,10 @@ export default function PresentationPage() {
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [isCinematicFlowMode, isPresentationMode, scrollDepth, portal?.id]);
+  }, [isCinematicFlowMode, isPresentationMode, needsSessionRefresh, scrollDepth, portal?.id]);
 
   useEffect(() => {
-    if (isPresentationMode || isCinematicFlowMode || !portal?.id) return undefined;
+    if (needsSessionRefresh || isPresentationMode || isCinematicFlowMode || !portal?.id) return undefined;
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -160,7 +213,11 @@ export default function PresentationPage() {
 
     document.querySelectorAll('[data-section]').forEach(el => observer.observe(el));
     return () => observer.disconnect();
-  }, [isCinematicFlowMode, isPresentationMode, portal?.id]);
+  }, [isCinematicFlowMode, isPresentationMode, needsSessionRefresh, portal?.id]);
+
+  if (needsSessionRefresh) {
+    return <SessionRefreshState error={sessionError} />;
+  }
 
   if (!portal) return null;
 

@@ -195,18 +195,22 @@ export default function PortalsPage() {
 
   const uploadHtmlMutation = useMutation(
     async ({ portalId, fileName, html }) => {
+      const document = String(html || '');
+      if (!document.trim()) {
+        throw new Error('HTML file is empty.');
+      }
+
       const payload = {
         mode: 'uploaded-html',
         htmlUpload: {
           title: fileName.replace(/\.html?$/i, ''),
           fileName,
-          document: html,
+          document,
           uploadedAt: new Date().toISOString(),
         },
       };
 
-      await portals.update(portalId, { template_id: 'uploaded-html-presentation' });
-      return portals.updateContent(portalId, payload);
+      return portals.updateContent(portalId, payload, { template_id: 'uploaded-html-presentation' });
     },
     {
       onSuccess: () => {
@@ -267,13 +271,19 @@ export default function PortalsPage() {
     try {
       setUploadingPortalId(portal.id);
       const html = await file.text();
+      if (!html.trim()) {
+        setUploadingPortalId(null);
+        setPendingUploadPortal(null);
+        window.alert('Please choose an HTML file with content.');
+        return;
+      }
       await uploadHtmlMutation.mutateAsync({
         portalId: portal.id,
         fileName: file.name,
         html,
       });
     } catch (error) {
-      window.alert(typeof error === 'string' ? error : 'Could not upload HTML presentation.');
+      window.alert(typeof error === 'string' ? error : error?.message || 'Could not upload HTML presentation.');
     }
   };
 

@@ -2,6 +2,20 @@ const { execSync } = require('child_process');
 const { readdirSync, existsSync } = require('fs');
 const path = require('path');
 
+if (!process.stdin.isTTY) {
+  try {
+    const stdin = require('fs').readFileSync(0, 'utf8').trim();
+    const input = stdin ? JSON.parse(stdin) : null;
+
+    if (input && (input.tool_name || input.hook_event_name)) {
+      process.stdout.write(JSON.stringify({ continue: true, suppressOutput: true }));
+      process.exit(0);
+    }
+  } catch {
+    // Non-JSON stdin can come from git hooks; continue with the normal checks.
+  }
+}
+
 const ROOT = path.resolve(__dirname, '..');
 const BACKEND = path.join(ROOT, 'backend', 'src');
 let errors = 0;

@@ -48,7 +48,7 @@ export const portals = {
   list: () => api.get('/portals'),
   create: (data) => api.post('/portals', data),
   update: (id, data) => api.patch(`/portals/${id}`, data),
-  updateContent: (id, content) => api.put(`/portals/${id}/content`, { content }),
+  updateContent: (id, content, options = {}) => api.put(`/portals/${id}/content`, { content, ...options }),
   analytics: (id) => api.get(`/portals/${id}/analytics`),
 };
 

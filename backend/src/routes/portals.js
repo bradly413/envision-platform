@@ -5,6 +5,22 @@ const jwt = require('jsonwebtoken');
 const { v4: uuid } = require('uuid');
 const db = require('../config/db');
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function appendMergedContentPatch({ fields, values, index, content }) {
+  if (!isPlainObject(content)) {
+    const error = new Error('Portal content PATCH must be a JSON object');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  fields.push(`content = COALESCE(content, '{}'::jsonb) || $${index++}::jsonb`);
+  values.push(JSON.stringify(content));
+  return index;
+}
+
 async function verifyPortalPassword(portal, password) {
   let hashMatched = false;
 
@@ -74,7 +90,9 @@ router.patch('/:id', requireAdmin, async (req, res) => {
     const fields = [];
     const values = [];
     let i = 1;
-    if (content !== undefined) { fields.push(`content = $${i++}`); values.push(JSON.stringify(content)); }
+    if (content !== undefined) {
+      i = appendMergedContentPatch({ fields, values, index: i, content });
+    }
     if (status !== undefined) { fields.push(`status = $${i++}`); values.push(status); }
     if (expires_at !== undefined) { fields.push(`expires_at = $${i++}`); values.push(expires_at); }
     if (slug !== undefined) { fields.push(`slug = $${i++}`); values.push(slug); }
@@ -99,7 +117,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
       values
     );
     res.json({ ...rows[0], url: `${process.env.PORTAL_URL}/${rows[0]?.slug}` });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { res.status(err.statusCode || 500).json({ error: err.message }); }
 });
 
 // Admin: update only portal content
@@ -242,3 +260,4 @@ router.post('/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 module.exports = router;
+module.exports._private = { appendMergedContentPatch, isPlainObject };

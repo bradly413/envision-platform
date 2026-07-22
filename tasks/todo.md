@@ -7,4 +7,5 @@
 - [ ]
 
 ## Completed
+- [x] Block client portal JWTs from admin-only API routes
 - [x] Initial Claude Code setup

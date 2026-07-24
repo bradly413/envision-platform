@@ -104,7 +104,7 @@ function UploadedHtmlPresentation({ htmlUpload }) {
       <iframe
         title={title}
         srcDoc={rawDocument}
-        sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-popups allow-downloads"
+        sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
         style={{
           width: '100%',
           minHeight: '100vh',

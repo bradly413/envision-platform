@@ -4326,9 +4326,7 @@ export default function PortalEditorV2Page() {
       nextClientId ? String(portal.client_id) === String(nextClientId) : true
     ));
     const portalStillExists = nextPortals.some((portal) => String(portal.id) === String(selectedPortal));
-    const nextPortalId = nextPortals.length
-      ? (portalStillExists ? String(selectedPortal) : String(nextPortals[0].id))
-      : '';
+    const nextPortalId = portalStillExists ? String(selectedPortal) : '';
 
     if (nextClientId !== String(selectedClient || '')) {
       setSelectedClient(nextClientId);
@@ -4759,6 +4757,15 @@ export default function PortalEditorV2Page() {
   };
 
   const handleClientChange = (nextClientId) => {
+    if (String(nextClientId) === String(selectedClient)) return;
+    if (loading || saving) {
+      setToolNotice('Wait for the current build or publish to finish before changing its target.');
+      return;
+    }
+    if (plan || extractedJSON) {
+      resetSession();
+      setToolNotice('Client changed. Start a new build so content cannot be published to the wrong portal.');
+    }
     setSelectedClient(nextClientId);
     setIsEditingPlan(false);
     if (selectedPortal) {
@@ -4770,6 +4777,15 @@ export default function PortalEditorV2Page() {
   };
 
   const handlePortalChange = (nextPortalId) => {
+    if (String(nextPortalId) === String(selectedPortal)) return;
+    if (loading || saving) {
+      setToolNotice('Wait for the current build or publish to finish before changing its target.');
+      return;
+    }
+    if (plan || extractedJSON) {
+      resetSession();
+      setToolNotice('Target portal changed. Start a new build before publishing.');
+    }
     setSelectedPortal(nextPortalId);
     setIsEditingPlan(false);
     const portal = portals.find((entry) => String(entry.id) === String(nextPortalId));
@@ -5360,10 +5376,12 @@ export default function PortalEditorV2Page() {
   // ── Idle: Lovable-style centered prompt-first layout ──
   if (isIdleEmpty) {
     const clientOptions = clients.map(c => ({value: c.id, label: c.name + (c.company ? ` — ${c.company}` : '')}));
+    const portalOptions = filteredPortals.map(portal => ({value: portal.id, label: portal.slug || portal.client_name || `Portal ${portal.id}`}));
     const modelOptions = MODEL_OPTIONS[provider].map(o => ({value: o.value, label: o.label}));
     const styleOptions = STYLE_MODES.map(m => ({value: m.value, label: m.label}));
     const modeOptions = OUTPUT_MODES.map(m => ({value: m.value, label: m.label}));
-    const selectedClientLabel = clients.find(c => c.id === selectedClient)?.name || 'Client';
+    const selectedClientLabel = clients.find(c => String(c.id) === String(selectedClient))?.name || 'Client';
+    const selectedPortalLabel = filteredPortals.find(portal => String(portal.id) === String(selectedPortal))?.slug || 'Target portal';
     const selectedModelLabel = MODEL_OPTIONS[provider].find(o => o.value === model)?.label || 'Model';
     const selectedStyleLabel = STYLE_MODES.find(m => m.value === styleMode)?.label || 'Style';
     const selectedModeLabel = OUTPUT_MODES.find(m => m.value === outputMode)?.label || 'Portal';
@@ -5414,6 +5432,7 @@ export default function PortalEditorV2Page() {
           <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center'}}>
             <ConfigChip label="" value={selectedModeLabel} options={modeOptions} onChange={(v) => handleModeChange(v)} isOpen={openChipId === 'mode'} onToggle={(id) => setOpenChipId(id === null ? null : 'mode')} />
             <ConfigChip label="" value={selectedClientLabel} options={clientOptions} onChange={(v) => handleClientChange(v)} isOpen={openChipId === 'client'} onToggle={(id) => setOpenChipId(id === null ? null : 'client')} />
+            <ConfigChip label="" value={selectedPortalLabel} options={portalOptions} onChange={(v) => handlePortalChange(v)} isOpen={openChipId === 'portal'} onToggle={(id) => setOpenChipId(id === null ? null : 'portal')} />
             <ConfigChip label="" value={selectedStyleLabel} options={styleOptions} onChange={(v) => setStyleMode(v)} isOpen={openChipId === 'style'} onToggle={(id) => setOpenChipId(id === null ? null : 'style')} />
             <ConfigChip label="" value={selectedModelLabel} options={modelOptions} onChange={(v) => setModel(v)} isOpen={openChipId === 'model'} onToggle={(id) => setOpenChipId(id === null ? null : 'model')} />
           </div>
@@ -5441,7 +5460,8 @@ export default function PortalEditorV2Page() {
 
           <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
             <ConfigChip label="" value={OUTPUT_MODES.find(m => m.value === outputMode)?.label || 'Portal'} options={OUTPUT_MODES.map(m => ({value: m.value, label: m.label}))} onChange={(v) => handleModeChange(v)} isOpen={openChipId === 'mode'} onToggle={(id) => setOpenChipId(id === null ? null : 'mode')} />
-            <ConfigChip label="" value={clients.find(c => c.id === selectedClient)?.name || 'Client'} options={clients.map(c => ({value: c.id, label: c.name + (c.company ? ` — ${c.company}` : '')}))} onChange={(v) => handleClientChange(v)} isOpen={openChipId === 'client'} onToggle={(id) => setOpenChipId(id === null ? null : 'client')} />
+            <ConfigChip label="" value={clients.find(c => String(c.id) === String(selectedClient))?.name || 'Client'} options={clients.map(c => ({value: c.id, label: c.name + (c.company ? ` — ${c.company}` : '')}))} onChange={(v) => handleClientChange(v)} isOpen={openChipId === 'client'} onToggle={(id) => setOpenChipId(id === null ? null : 'client')} />
+            <ConfigChip label="" value={selectedPortalRecord?.slug || 'Target portal'} options={filteredPortals.map(portal => ({value: portal.id, label: portal.slug || portal.client_name || `Portal ${portal.id}`}))} onChange={(v) => handlePortalChange(v)} isOpen={openChipId === 'portal'} onToggle={(id) => setOpenChipId(id === null ? null : 'portal')} />
             <ConfigChip label="" value={STYLE_MODES.find(m => m.value === styleMode)?.label || 'Style'} options={STYLE_MODES.map(m => ({value: m.value, label: m.label}))} onChange={(v) => setStyleMode(v)} isOpen={openChipId === 'style'} onToggle={(id) => setOpenChipId(id === null ? null : 'style')} />
           </div>
 

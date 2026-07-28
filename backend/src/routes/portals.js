@@ -157,11 +157,15 @@ router.get('/:id/analytics', requireAdmin, async (req, res) => {
 
 // Portal: track event
 router.post('/:id/events', requirePortalAuth, async (req, res) => {
+  // Bind events to the authenticated portal only — never trust :id alone.
+  if (req.portal.portalId !== req.params.id) {
+    return res.status(403).json({ error: 'Portal access denied' });
+  }
   const { event_type, payload } = req.body;
   try {
     await db.query(
       'INSERT INTO portal_events (portal_id, event_type, payload, user_agent) VALUES ($1,$2,$3,$4)',
-      [req.params.id, event_type, JSON.stringify(payload || {}), req.headers['user-agent']]
+      [req.portal.portalId, event_type, JSON.stringify(payload || {}), req.headers['user-agent']]
     );
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

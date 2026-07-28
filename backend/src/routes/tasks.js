@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { requireAdmin } = require('../middleware/auth');
 const db = require('../config/db');
+const { pickAllowlistedFields, buildParameterizedSet } = require('../utils/allowlistedPatch');
 
 router.use(requireAdmin);
 
@@ -29,12 +30,23 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Only allowlisted column names may appear in SET — never interpolate raw Object.keys.
+const TASK_PATCH_FIELDS = [
+  'client_id', 'title', 'description', 'assignee', 'priority', 'status', 'due_date',
+];
+
 router.patch('/:id', async (req, res) => {
-  const fields = Object.keys(req.body);
-  const values = Object.values(req.body);
-  const set = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+  const { fields, values } = pickAllowlistedFields(req.body, TASK_PATCH_FIELDS);
+  if (!fields.length) {
+    return res.status(400).json({ error: 'No valid fields to update' });
+  }
+  const set = buildParameterizedSet(fields);
   try {
-    const { rows } = await db.query(`UPDATE tasks SET ${set}, updated_at = NOW() WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
+    const { rows } = await db.query(
+      `UPDATE tasks SET ${set}, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [req.params.id, ...values]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Task not found' });
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

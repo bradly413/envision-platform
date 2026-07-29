@@ -5216,6 +5216,9 @@ export default function PortalEditorV2Page() {
         {role: 'assistant', content: buildPlanMessage(plan)},
       ].filter(Boolean);
 
+      // Do not pass maxTokens — backend MODE_TOKEN_DEFAULTS are mode-aware
+      // (portal/presentation 12k, cinematic-flow 16k, cinematic-code 24k).
+      // A low override truncates cinematic/portal bundles mid-file.
       const data = await ai.generateBuilderContent({
         provider,
         model,
@@ -5227,7 +5230,6 @@ export default function PortalEditorV2Page() {
           role: message.role,
           content: message.content,
         })),
-        maxTokens: outputMode === 'presentation' ? 2400 : 1800,
       });
 
       const reply = data.reply || 'The builder finished, but did not return a structured response.';

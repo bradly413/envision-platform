@@ -10,19 +10,37 @@ export default function ApprovalSection({ portalId, clientName, content = {} }) 
   const [submitted, setSubmitted] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showRevisionForm, setShowRevisionForm] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleApprove = async () => {
-    await track.event(portalId, 'approve', { timestamp: new Date().toISOString() });
-    setStatus('approved');
-    setSubmitted(true);
-    setShowModal(true);
+    setSubmitError('');
+    setSubmitting(true);
+    try {
+      await track.event(portalId, 'approve', { timestamp: new Date().toISOString() });
+      setStatus('approved');
+      setSubmitted(true);
+      setShowModal(true);
+    } catch {
+      setSubmitError('Approval could not be sent. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleRevision = async () => {
     if (!showRevisionForm) { setShowRevisionForm(true); return; }
-    await track.event(portalId, 'revision_requested', { comment, timestamp: new Date().toISOString() });
-    setStatus('revision');
-    setSubmitted(true);
+    setSubmitError('');
+    setSubmitting(true);
+    try {
+      await track.event(portalId, 'revision_requested', { comment, timestamp: new Date().toISOString() });
+      setStatus('revision');
+      setSubmitted(true);
+    } catch {
+      setSubmitError('Feedback could not be sent. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -105,17 +123,22 @@ export default function ApprovalSection({ portalId, clientName, content = {} }) 
               <div style={{ display: 'flex', gap: 12 }}>
                 <button
                   onClick={handleApprove}
-                  style={{ flex: 1, padding: 16, borderRadius: 10, border: 'none', background: '#F9FAFB', color: '#111827', fontSize: 15, fontWeight: 700, cursor: 'pointer', letterSpacing: '.01em' }}
+                  disabled={submitting}
+                  style={{ flex: 1, padding: 16, borderRadius: 10, border: 'none', background: '#F9FAFB', color: '#111827', fontSize: 15, fontWeight: 700, cursor: submitting ? 'default' : 'pointer', letterSpacing: '.01em', opacity: submitting ? 0.7 : 1 }}
                 >
                   {content.buttonText || 'Approve Proposal ✓'}
                 </button>
                 <button
                   onClick={handleRevision}
-                  style={{ flex: 1, padding: 16, borderRadius: 10, border: '1px solid #374151', background: showRevisionForm ? '#1A1A1A' : 'none', color: showRevisionForm ? '#EF4444' : '#9CA3AF', fontSize: 15, fontWeight: 600, cursor: 'pointer', transition: 'all .2s' }}
+                  disabled={submitting}
+                  style={{ flex: 1, padding: 16, borderRadius: 10, border: '1px solid #374151', background: showRevisionForm ? '#1A1A1A' : 'none', color: showRevisionForm ? '#EF4444' : '#9CA3AF', fontSize: 15, fontWeight: 600, cursor: submitting ? 'default' : 'pointer', transition: 'all .2s', opacity: submitting ? 0.7 : 1 }}
                 >
                   {showRevisionForm ? 'Submit Feedback' : 'Not Approved'}
                 </button>
               </div>
+              {submitError && (
+                <div style={{ marginTop: 14, fontSize: 13, color: '#F87171' }}>{submitError}</div>
+              )}
               {showRevisionForm && (
                 <button onClick={() => setShowRevisionForm(false)} style={{ marginTop: 10, fontSize: 12, color: '#4B5563', background: 'none', border: 'none', cursor: 'pointer' }}>
                   Cancel

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { requireAdmin } = require('../middleware/auth');
 const db = require('../config/db');
+const { normalizeOptionalDate } = require('../utils/portalCorrectness');
 
 router.use(requireAdmin);
 
@@ -23,7 +24,7 @@ router.post('/', async (req, res) => {
   try {
     const { rows } = await db.query(
       'INSERT INTO tasks (client_id, title, description, assignee, priority, due_date) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [client_id, title, description, assignee, priority || 'medium', due_date]
+      [client_id, title, description, assignee, priority || 'medium', normalizeOptionalDate(due_date)]
     );
     res.status(201).json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }

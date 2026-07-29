@@ -13,9 +13,27 @@ export const portalAuth = {
   login: (slug, password) => api.post('/portals/login', { slug, password }).then(r => r.data),
 };
 
+const SILENT_TRACK_EVENTS = new Set([
+  'login',
+  'scroll',
+  'section_view',
+  'video_play',
+  'presentation_open',
+  'slide_view',
+  'logout',
+  'comment',
+]);
+
 export const track = {
-  event: (portalId, event_type, payload = {}) =>
-    api.post(`/portals/${portalId}/events`, { event_type, payload }).catch(() => {}), // silent fail
+  // Analytics beacons may fail silently; approve/revision must surface errors
+  // so the UI never claims a decision was recorded when it was not.
+  event: (portalId, event_type, payload = {}) => {
+    const request = api.post(`/portals/${portalId}/events`, { event_type, payload });
+    if (SILENT_TRACK_EVENTS.has(event_type)) {
+      return request.catch(() => {});
+    }
+    return request.then((r) => r.data);
+  },
 };
 
 export const portalAi = {

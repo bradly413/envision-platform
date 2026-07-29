@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuid } = require('uuid');
 const db = require('../config/db');
+const { latestPortalDecision } = require('../utils/portalCorrectness');
 
 async function verifyPortalPassword(portal, password) {
   let hashMatched = false;
@@ -57,11 +58,15 @@ router.get('/:id', requireAdmin, async (req, res) => {
 router.post('/', requireAdmin, async (req, res) => {
   const { client_id, password, template_id, content, expires_at } = req.body;
   try {
+    const trimmedPassword = String(password || '').trim();
+    if (!trimmedPassword) {
+      return res.status(400).json({ error: 'Password is required' });
+    }
     const slug = uuid().split('-')[0];
-    const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await bcrypt.hash(trimmedPassword, 10);
     const { rows } = await db.query(
       'INSERT INTO portals (client_id, slug, password_hash, plain_password, template_id, content, expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [client_id, slug, password_hash, password, template_id || 'brand-reveal-v1', JSON.stringify(content || {}), expires_at]
+      [client_id, slug, password_hash, trimmedPassword, template_id || 'brand-reveal-v1', JSON.stringify(content || {}), expires_at]
     );
     res.status(201).json({ ...rows[0], url: `${process.env.PORTAL_URL}/${slug}` });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -137,19 +142,14 @@ router.get('/:id/analytics', requireAdmin, async (req, res) => {
     const firstLogin = logins[0]?.created_at;
     const lastEvent = events[events.length - 1]?.created_at;
     const sessionMs = firstLogin && lastEvent ? new Date(lastEvent) - new Date(firstLogin) : 0;
-    const approvalEvent = events.find(e => e.event_type === 'approve');
-    const revisionEvent = events.find(e => e.event_type === 'revision_requested');
+    const decision = latestPortalDecision(events);
     res.json({
       totalVisits: logins.length,
       totalEvents: events.length,
       maxScrollDepth: maxScroll,
       avgSessionMinutes: Math.round(sessionMs / 60000),
       sectionsViewed: [...new Set(sections)],
-      approved: !!approvalEvent,
-      approvedAt: approvalEvent?.created_at || null,
-      revisionRequested: !!revisionEvent,
-      revisionNotes: revisionEvent?.payload?.comment || null,
-      revisionAt: revisionEvent?.created_at || null,
+      ...decision,
       timeline: events,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }

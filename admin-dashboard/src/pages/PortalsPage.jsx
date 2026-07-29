@@ -154,7 +154,7 @@ export default function PortalsPage() {
     onSuccess: () => { qc.invalidateQueries('portals'); setShowCreate(false); setForm({ client_id: '', password: '', template_id: 'brand-reveal-v1' }); setShowNewClient(false); }
   });
 
-  const canGeneratePortal = Boolean(form.client_id) && !createMutation.isLoading && !savingClient;
+  const canGeneratePortal = Boolean(form.client_id) && Boolean(form.password.trim()) && !createMutation.isLoading && !savingClient;
 
   const createNewClient = async () => {
     if (!newClientForm.name.trim()) return;

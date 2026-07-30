@@ -2,6 +2,10 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {toPng} from 'html-to-image';
 import {ai, clients as clientsApi, portals as portalsApi, scrape} from '../lib/api';
 import {
+  BUILDER_DATA_CACHE_KEY,
+  sanitizePortalsForCache,
+} from '../lib/builderWorkspaceCache';
+import {
   formatRegistryCategoryLabel,
   getRegistryOptionsForCategory,
   inferReferenceSite,
@@ -61,7 +65,6 @@ const TEMPLATE_OPTIONS = [
 ];
 
 const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || 'https://envision-portal.netlify.app';
-const BUILDER_DATA_CACHE_KEY = 'envision-builder-v2-workspace-cache';
 const FALLBACK_CLIENT_ID = 'draft-client';
 const FALLBACK_PORTAL_ID = 'draft-portal';
 const FALLBACK_CLIENTS = [
@@ -308,7 +311,11 @@ function readBuilderWorkspaceCache() {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed?.clients) || !Array.isArray(parsed?.portals)) return null;
-    return parsed;
+    // Re-sanitize so older cache entries that stored secrets/content are scrubbed on read.
+    return {
+      ...parsed,
+      portals: sanitizePortalsForCache(parsed.portals),
+    };
   } catch {
     return null;
   }
@@ -320,7 +327,7 @@ function writeBuilderWorkspaceCache(clients = [], portals = []) {
   try {
     window.localStorage.setItem(BUILDER_DATA_CACHE_KEY, JSON.stringify({
       clients,
-      portals,
+      portals: sanitizePortalsForCache(portals),
       cachedAt: new Date().toISOString(),
     }));
   } catch {
@@ -5096,6 +5103,8 @@ export default function PortalEditorV2Page() {
           },
         ].filter(Boolean);
 
+        // Omit maxTokens so backend MODE_TOKEN_DEFAULTS apply (12k+).
+        // Low overrides truncate full-JSON patch replies and can publish incomplete portals.
         const data = await ai.generateBuilderContent({
           provider,
           model,
@@ -5104,7 +5113,6 @@ export default function PortalEditorV2Page() {
           portalIntent: 'brand-identity',
           outputMode,
           messages: requestMessages,
-          maxTokens: outputMode === 'presentation' ? 2600 : 2200,
         });
 
         const reply = data.reply || 'The builder finished the patch request, but did not return a structured response.';

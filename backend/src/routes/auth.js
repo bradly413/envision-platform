@@ -37,7 +37,10 @@ router.post('/login', async (req, res) => {
     const user = rows[0];
     if (!user || !await bcrypt.compare(password, user.password))
       return res.status(401).json({ error: 'Invalid credentials' });
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
+    // jsonwebtoken@9 throws if expiresIn is explicitly undefined — fall back so
+    // a missing Railway JWT_EXPIRES_IN cannot hard-fail admin login with HTTP 500.
+    const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn });
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
     res.status(500).json({ error: err.message });

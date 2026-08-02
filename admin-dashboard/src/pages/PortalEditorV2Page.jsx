@@ -25,6 +25,7 @@ import {
 } from '../lib/starterTemplateLibrary';
 import BuilderLivePreview from '../components/BuilderLivePreview';
 import {parseCreativeBrief, formatBriefForContext} from '../lib/briefParser';
+import {defaultDeployStatus, resolvePublishStatus} from '../lib/publishStatus';
 
 const MODEL_OPTIONS = {
   anthropic: [
@@ -4503,17 +4504,15 @@ export default function PortalEditorV2Page() {
 
   useEffect(() => {
     const nextSlug = selectedPortalRecord?.slug
-      || slugifyValue(selectedClientRecord?.company || selectedClientRecord?.name || plan?.title || '');
+      || slugifyValue(selectedClientRecord?.company || selectedClientRecord?.name || '');
     setDeploySlug(nextSlug);
-    setDeployTemplateId(
-      selectedPortalRecord?.template_id
-      || normalizedPreview?.portalTemplate
-      || 'brand-reveal-v1'
-    );
-    setDeployStatus(selectedPortalRecord?.status || 'active');
+    setDeployTemplateId(selectedPortalRecord?.template_id || 'brand-reveal-v1');
+    // Publish means go live — do not inherit draft. Only target changes should reset the form
+    // (plan/preview updates must not wipe Active/password typed in the deploy panel).
+    setDeployStatus(defaultDeployStatus(selectedPortalRecord?.status));
     setDeployPassword('');
     setLastPublishedUrl('');
-  }, [selectedPortalRecord, selectedClientRecord, plan, normalizedPreview]);
+  }, [selectedPortalRecord, selectedClientRecord]);
 
   const appendBuildEvent = (label, detail) => {
     setBuildEvents((current) => [{label, detail}, ...current].slice(0, 10));
@@ -5312,7 +5311,7 @@ export default function PortalEditorV2Page() {
       const updatePayload = {
         slug: nextSlug,
         template_id: deployTemplateId || 'brand-reveal-v1',
-        status: deployStatus || 'active',
+        status: resolvePublishStatus(deployStatus),
       };
 
       if (deployPassword.trim()) {

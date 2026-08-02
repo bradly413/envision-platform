@@ -59,9 +59,10 @@ router.post('/', requireAdmin, async (req, res) => {
   try {
     const slug = uuid().split('-')[0];
     const password_hash = await bcrypt.hash(password, 10);
+    // Create as active so Send/Open handoff works immediately (login requires status=active).
     const { rows } = await db.query(
-      'INSERT INTO portals (client_id, slug, password_hash, plain_password, template_id, content, expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [client_id, slug, password_hash, password, template_id || 'brand-reveal-v1', JSON.stringify(content || {}), expires_at]
+      'INSERT INTO portals (client_id, slug, password_hash, plain_password, template_id, content, expires_at, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [client_id, slug, password_hash, password, template_id || 'brand-reveal-v1', JSON.stringify(content || {}), expires_at, 'active']
     );
     res.status(201).json({ ...rows[0], url: `${process.env.PORTAL_URL}/${slug}` });
   } catch (err) { res.status(500).json({ error: err.message }); }

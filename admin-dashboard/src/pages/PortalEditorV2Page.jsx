@@ -381,7 +381,38 @@ function collectBalancedJsonCandidates(text = '') {
   return candidates.sort((a, b) => b.length - a.length);
 }
 
-function extractJSON(text) {
+function isStructuredOutputForMode(value, outputMode = 'portal') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+
+  if (outputMode === 'presentation') {
+    return Boolean(
+      value.presentation
+      && typeof value.presentation === 'object'
+      && !Array.isArray(value.presentation)
+      && Array.isArray(value.presentation.slides)
+    );
+  }
+
+  if (outputMode === 'cinematic-flow') {
+    return Boolean(
+      value.cinematicFlow
+      && typeof value.cinematicFlow === 'object'
+      && !Array.isArray(value.cinematicFlow)
+      && Array.isArray(value.cinematicFlow.scenes)
+    );
+  }
+
+  const sectionKeys = ['hero', 'brand', 'logo', 'colors', 'typography', 'cta', 'experience'];
+  const presentSections = sectionKeys.filter((key) => (
+    value[key]
+    && typeof value[key] === 'object'
+    && !Array.isArray(value[key])
+  ));
+
+  return presentSections.includes('hero') && presentSections.length >= 2;
+}
+
+function extractJSON(text, outputMode = 'portal') {
   const source = String(text || '').trim();
   if (!source) return null;
 
@@ -396,13 +427,13 @@ function extractJSON(text) {
 
   for (const candidate of directCandidates) {
     const parsed = tryParseJSONCandidate(candidate);
-    if (parsed && typeof parsed === 'object') return parsed;
+    if (isStructuredOutputForMode(parsed, outputMode)) return parsed;
   }
 
   const balancedCandidates = collectBalancedJsonCandidates(source);
   for (const candidate of balancedCandidates) {
     const parsed = tryParseJSONCandidate(candidate);
-    if (parsed && typeof parsed === 'object') return parsed;
+    if (isStructuredOutputForMode(parsed, outputMode)) return parsed;
   }
 
   return null;
@@ -5108,7 +5139,9 @@ export default function PortalEditorV2Page() {
         });
 
         const reply = data.reply || 'The builder finished the patch request, but did not return a structured response.';
-        const json = data.structured || extractJSON(reply);
+        const json = (data.structured && isStructuredOutputForMode(data.structured, outputMode))
+          ? data.structured
+          : extractJSON(reply, outputMode);
 
         setMessages((current) => [...current, {
           role: 'assistant',
@@ -5231,7 +5264,9 @@ export default function PortalEditorV2Page() {
       });
 
       const reply = data.reply || 'The builder finished, but did not return a structured response.';
-      const json = data.structured || extractJSON(reply);
+      const json = (data.structured && isStructuredOutputForMode(data.structured, outputMode))
+        ? data.structured
+        : extractJSON(reply, outputMode);
 
       setMessages((current) => [...current, {
         role: 'assistant',

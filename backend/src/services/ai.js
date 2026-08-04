@@ -382,7 +382,41 @@ function collectBalancedJsonCandidates(text = '') {
   return candidates.sort((a, b) => b.length - a.length);
 }
 
-function extractStructuredJson(text = '') {
+function isStructuredOutputForMode(value, outputMode = 'portal') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+
+  if (outputMode === 'presentation') {
+    return Boolean(
+      value.presentation
+      && typeof value.presentation === 'object'
+      && !Array.isArray(value.presentation)
+      && Array.isArray(value.presentation.slides)
+    );
+  }
+
+  if (outputMode === 'cinematic-flow') {
+    return Boolean(
+      value.cinematicFlow
+      && typeof value.cinematicFlow === 'object'
+      && !Array.isArray(value.cinematicFlow)
+      && Array.isArray(value.cinematicFlow.scenes)
+    );
+  }
+
+  // Portal contract: require hero plus at least one sibling section so a nested
+  // fragment like {"title":"..."} or a lone {"hero":{...}} from truncated JSON
+  // is not treated as a complete structured build.
+  const sectionKeys = ['hero', 'brand', 'logo', 'colors', 'typography', 'cta', 'experience'];
+  const presentSections = sectionKeys.filter((key) => (
+    value[key]
+    && typeof value[key] === 'object'
+    && !Array.isArray(value[key])
+  ));
+
+  return presentSections.includes('hero') && presentSections.length >= 2;
+}
+
+function extractStructuredJson(text = '', outputMode = 'portal') {
   const source = String(text || '').trim();
   if (!source) return null;
 
@@ -393,13 +427,13 @@ function extractStructuredJson(text = '') {
   const directCandidates = [...fencedBlocks, source];
   for (const candidate of directCandidates) {
     const parsed = tryParseJSONCandidate(candidate);
-    if (parsed && typeof parsed === 'object') return parsed;
+    if (isStructuredOutputForMode(parsed, outputMode)) return parsed;
   }
 
   const balancedCandidates = collectBalancedJsonCandidates(source);
   for (const candidate of balancedCandidates) {
     const parsed = tryParseJSONCandidate(candidate);
-    if (parsed && typeof parsed === 'object') return parsed;
+    if (isStructuredOutputForMode(parsed, outputMode)) return parsed;
   }
 
   return null;
@@ -1167,7 +1201,11 @@ async function generateWithGoogle({ apiKey, model, system, messages, maxTokens =
   throw lastError || new Error('Google AI request failed');
 }
 
-async function repairStructuredResponse({ provider, model, outputMode, originalText }) {
+async function repairStructuredResponse({ provider, model, outputMode, originalText, maxTokens }) {
+  // Repair must be allowed enough room to rewrite a full mode payload.
+  // Hard-capping at 2200 previously re-truncated cinematic/portal rebuilds.
+  const repairTokens = Math.max(Number(maxTokens) || 0, 8192);
+
   const repairSystem = [
     'You repair AI outputs into strict valid JSON.',
     'Do not explain anything.',
@@ -1196,7 +1234,7 @@ async function repairStructuredResponse({ provider, model, outputMode, originalT
       model,
       system: repairSystem,
       messages: repairMessages,
-      maxTokens: 2200,
+      maxTokens: repairTokens,
     });
   }
 
@@ -1206,7 +1244,7 @@ async function repairStructuredResponse({ provider, model, outputMode, originalT
       model,
       system: repairSystem,
       messages: repairMessages,
-      maxTokens: 2200,
+      maxTokens: repairTokens,
     });
   }
 
@@ -1216,7 +1254,7 @@ async function repairStructuredResponse({ provider, model, outputMode, originalT
       model,
       system: repairSystem,
       messages: repairMessages,
-      maxTokens: 2200,
+      maxTokens: repairTokens,
     });
   }
 
@@ -1293,17 +1331,18 @@ async function generateBuilderContent({
     };
   }
 
-  let structured = extractStructuredJson(text);
+  let structured = extractStructuredJson(text, outputMode);
   if (!structured) {
     const repairedText = await repairStructuredResponse({
       provider: config.provider,
       model: config.model,
       outputMode,
       originalText: text,
+      maxTokens,
     });
 
     if (repairedText) {
-      const repairedStructured = extractStructuredJson(repairedText);
+      const repairedStructured = extractStructuredJson(repairedText, outputMode);
       if (repairedStructured) {
         structured = repairedStructured;
         text = repairedText;
@@ -1329,6 +1368,8 @@ module.exports = {
   STYLE_DIRECTIVES,
   PRESENTATION_THEMES,
   PRESENTATION_TRANSITIONS,
+  isStructuredOutputForMode,
+  extractStructuredJson,
   generateBuilderContent,
   generatePortalEditorContent,
 };

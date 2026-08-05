@@ -481,6 +481,38 @@ function shouldRetryProviderError(status, message = '') {
     || normalized.includes('timeout');
 }
 
+function normalizeStopReason(value) {
+  return String(value || '').trim();
+}
+
+// Anthropic: max_tokens | OpenAI: length | Google: MAX_TOKENS
+function isProviderTruncation(stopReason) {
+  const normalized = normalizeStopReason(stopReason).toLowerCase();
+  return normalized === 'max_tokens'
+    || normalized === 'length'
+    || normalized === 'max_output_tokens';
+}
+
+function providerTextResult(text, stopReason) {
+  const normalizedStopReason = normalizeStopReason(stopReason) || null;
+  return {
+    text: String(text || '').trim(),
+    stopReason: normalizedStopReason,
+    truncated: isProviderTruncation(normalizedStopReason),
+  };
+}
+
+function assertCompleteProviderText(result, { stage = 'generation' } = {}) {
+  if (result?.truncated) {
+    const reason = result.stopReason || 'unknown';
+    throw new Error(
+      `AI ${stage} was truncated by the provider (stop_reason=${reason}). `
+      + 'Increase maxTokens or simplify the prompt and retry — incomplete output was discarded.'
+    );
+  }
+  return result?.text || '';
+}
+
 function getProviderConfig(provider, model) {
   const normalizedProvider = (provider || 'anthropic').toLowerCase();
   let resolvedModel = model || PROVIDER_DEFAULTS[normalizedProvider];
@@ -1062,7 +1094,10 @@ async function generateWithAnthropic({ apiKey, model, system, messages, maxToken
 
     const data = await response.json();
     if (response.ok) {
-      return data?.content?.map(part => part?.text || '').join('\n').trim();
+      return providerTextResult(
+        data?.content?.map(part => part?.text || '').join('\n'),
+        data?.stop_reason
+      );
     }
 
     const message = data?.error?.message || data?.error || 'Anthropic request failed';
@@ -1102,7 +1137,10 @@ async function generateWithOpenAI({ apiKey, model, system, messages, maxTokens =
 
     const data = await response.json();
     if (response.ok) {
-      return data?.choices?.[0]?.message?.content?.trim();
+      return providerTextResult(
+        data?.choices?.[0]?.message?.content,
+        data?.choices?.[0]?.finish_reason
+      );
     }
 
     const message = data?.error?.message || 'OpenAI request failed';
@@ -1152,7 +1190,10 @@ async function generateWithGoogle({ apiKey, model, system, messages, maxTokens =
 
     const data = await response.json();
     if (response.ok) {
-      return data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('\n').trim();
+      return providerTextResult(
+        data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('\n'),
+        data?.candidates?.[0]?.finishReason
+      );
     }
 
     const message = data?.error?.message || 'Google AI request failed';
@@ -1247,9 +1288,9 @@ async function generateBuilderContent({
     content: message.content || '',
   }));
 
-  let text;
+  let providerResult;
   if (config.provider === 'anthropic') {
-    text = await generateWithAnthropic({
+    providerResult = await generateWithAnthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
       model: config.model,
       system,
@@ -1257,7 +1298,7 @@ async function generateBuilderContent({
       maxTokens,
     });
   } else if (config.provider === 'openai') {
-    text = await generateWithOpenAI({
+    providerResult = await generateWithOpenAI({
       apiKey: process.env.OPENAI_API_KEY,
       model: config.model,
       system,
@@ -1265,7 +1306,7 @@ async function generateBuilderContent({
       maxTokens,
     });
   } else if (config.provider === 'google') {
-    text = await generateWithGoogle({
+    providerResult = await generateWithGoogle({
       apiKey: process.env.GOOGLE_API_KEY,
       model: config.model,
       system,
@@ -1276,6 +1317,7 @@ async function generateBuilderContent({
     throw new Error(`Unsupported AI provider: ${config.provider}`);
   }
 
+  let text = assertCompleteProviderText(providerResult, { stage: 'generation' });
   if (!text) {
     throw new Error('No response text returned from AI provider');
   }
@@ -1295,12 +1337,13 @@ async function generateBuilderContent({
 
   let structured = extractStructuredJson(text);
   if (!structured) {
-    const repairedText = await repairStructuredResponse({
+    const repairedResult = await repairStructuredResponse({
       provider: config.provider,
       model: config.model,
       outputMode,
       originalText: text,
     });
+    const repairedText = assertCompleteProviderText(repairedResult, { stage: 'repair' });
 
     if (repairedText) {
       const repairedStructured = extractStructuredJson(repairedText);
@@ -1331,4 +1374,7 @@ module.exports = {
   PRESENTATION_TRANSITIONS,
   generateBuilderContent,
   generatePortalEditorContent,
+  isProviderTruncation,
+  providerTextResult,
+  assertCompleteProviderText,
 };

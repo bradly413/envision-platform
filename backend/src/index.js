@@ -61,6 +61,13 @@ app.use('/api/portals',        portalAiRoutes);
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
-app.listen(PORT, () => console.log(`Envision backend running on port ${PORT}`));
+const db = require('./config/db');
+
+async function start() {
+  await db.ensureSchema();
+  app.listen(PORT, () => console.log(`Envision backend running on port ${PORT}`));
+}
+
+start();
 module.exports = app;
 // redeploy Thu Mar 26 23:13:22 UTC 2026

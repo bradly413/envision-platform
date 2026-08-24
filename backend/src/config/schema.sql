@@ -15,7 +15,7 @@ CREATE TABLE clients (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name          VARCHAR(255) NOT NULL,
   company       VARCHAR(255),
-  email         VARCHAR(255) UNIQUE NOT NULL,
+  email         VARCHAR(255) UNIQUE,
   phone         VARCHAR(50),
   stage         VARCHAR(50) DEFAULT 'lead',
   -- stages: lead, proposal, active, revision, delivered, archived
@@ -34,6 +34,7 @@ CREATE TABLE portals (
   client_id     UUID REFERENCES clients(id) ON DELETE CASCADE,
   slug          VARCHAR(100) UNIQUE NOT NULL,  -- used in URL
   password_hash VARCHAR(255) NOT NULL,
+  plain_password VARCHAR(255),  -- stored so admin can resend the client password
   template_id   VARCHAR(50) DEFAULT 'brand-reveal-v1',
   status        VARCHAR(50) DEFAULT 'draft',
   -- statuses: draft, active, expired, archived

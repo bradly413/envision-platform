@@ -6,8 +6,14 @@ const ROOT = path.resolve(__dirname, '..');
 const BACKEND = path.join(ROOT, 'backend', 'src');
 let errors = 0;
 
+// Human-readable progress on stderr so Cursor shell hooks can parse a JSON
+// permission decision from stdout without treating log lines as invalid JSON.
+function log(message = '') {
+  process.stderr.write(`${message}\n`);
+}
+
 // ─── 1. Backend syntax check ───────────────────────────────────
-console.log('Backend JS syntax check...\n');
+log('Backend JS syntax check...\n');
 
 const dirs = [
   '',              // index.js
@@ -15,6 +21,7 @@ const dirs = [
   'services',
   'middleware',
   'config',
+  'utils',
 ];
 
 for (const dir of dirs) {
@@ -31,21 +38,22 @@ for (const dir of dirs) {
 
     try {
       execSync(`node --check "${filePath}"`, { stdio: 'pipe' });
-      console.log(`  OK  ${dir ? dir + '/' : ''}${file}`);
+      log(`  OK  ${dir ? dir + '/' : ''}${file}`);
     } catch (e) {
-      console.log(`  ERR ${dir ? dir + '/' : ''}${file}`);
-      console.log(`      ${e.stderr.toString().trim().split('\n')[0]}`);
+      log(`  ERR ${dir ? dir + '/' : ''}${file}`);
+      log(`      ${e.stderr.toString().trim().split('\n')[0]}`);
       errors++;
     }
   }
 }
 
 // ─── 2. Railway env var parity check ────────────────────────────
-console.log('\nEnv var check...\n');
+log('\nEnv var check...\n');
 
 const EXPECTED_VARS = [
   'DATABASE_URL',
   'JWT_SECRET',
+  'JWT_EXPIRES_IN',
   'ADMIN_URL',
   'PORTAL_URL',
   'CLOUDINARY_CLOUD_NAME',
@@ -55,19 +63,29 @@ const EXPECTED_VARS = [
 const missing = EXPECTED_VARS.filter(v => !process.env[v]);
 
 if (missing.length > 0) {
-  console.log('  WARN Missing env vars (verify these exist in Railway dashboard):');
+  log('  WARN Missing env vars (verify these exist in Railway dashboard):');
   for (const v of missing) {
-    console.log(`       - ${v}`);
+    log(`       - ${v}`);
   }
 } else {
-  console.log('  OK  All expected env vars present');
+  log('  OK  All expected env vars present');
 }
 
 // ─── 3. Summary ─────────────────────────────────────────────────
-console.log('');
+log('');
 if (errors > 0) {
-  console.log(`FAILED: ${errors} syntax error(s). Fix before pushing.`);
+  log(`FAILED: ${errors} syntax error(s). Fix before pushing.`);
+  process.stdout.write(JSON.stringify({
+    permission: 'allow',
+    status: 'failed',
+    errors,
+  }) + '\n');
   process.exit(1);
-} else {
-  console.log('PASSED: All checks clean.');
 }
+
+log('PASSED: All checks clean.');
+process.stdout.write(JSON.stringify({
+  permission: 'allow',
+  status: 'ok',
+  errors: 0,
+}) + '\n');

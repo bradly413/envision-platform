@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { requireAdmin } = require('../middleware/auth');
 const db = require('../config/db');
+const { normalizeOptionalEmail } = require('../utils/optionalEmail');
 
 router.use(requireAdmin);
 
@@ -35,7 +36,7 @@ router.post('/', async (req, res) => {
   try {
     const { rows } = await db.query(
       'INSERT INTO clients (name, company, email, phone, stage, project_type, budget, notes, tags) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-      [name, company, email, phone, stage || 'lead', project_type, budget, notes, tags]
+      [name, company, normalizeOptionalEmail(email), phone, stage || 'lead', project_type, budget, notes, tags]
     );
     res.status(201).json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }

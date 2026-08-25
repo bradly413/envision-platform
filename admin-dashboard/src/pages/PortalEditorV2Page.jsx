@@ -16,6 +16,7 @@ import {
   mergeLibraryEntries,
   removeLibraryEntry,
   saveReferenceLibrary,
+  shouldInlineMediaFile,
 } from '../lib/referenceLibrary';
 import {
   createReferenceFromStarterTemplate,
@@ -4818,12 +4819,14 @@ export default function PortalEditorV2Page() {
         let parsedBrief = null;
         let parsedTemplate = null;
 
-        if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+        if (shouldInlineMediaFile(file)) {
           try {
             dataUrl = await readFileAsDataUrl(file);
           } catch {
             dataUrl = '';
           }
+        } else if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+          dataUrl = '';
         } else if (TEXT_MIME_TYPES.some(t => file.type.startsWith(t)) || file.name.endsWith('.html') || file.name.endsWith('.txt') || file.name.endsWith('.md') || file.name.endsWith('.json')) {
           try {
             textContent = await readFileAsText(file);

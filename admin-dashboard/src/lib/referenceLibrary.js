@@ -1,5 +1,48 @@
 const STORAGE_KEY = 'envision-creative-reference-library-v1';
 
+// Origin localStorage is ~5–10MB. Data-URL media blows that quota and then
+// Zustand cannot persist `envision-admin-auth` (silent admin login failure).
+export const MAX_INLINE_MEDIA_BYTES = 1024 * 1024;
+export const MAX_LIBRARY_JSON_BYTES = 1024 * 1024;
+
+export function stripInlineMedia(value = '') {
+  const text = String(value || '');
+  return /^data:/i.test(text) ? '' : text;
+}
+
+export function shouldInlineMediaFile(file) {
+  if (!file) return false;
+  const type = String(file.type || '');
+  if (!type.startsWith('image/')) return false;
+  const size = Number(file.size);
+  return Number.isFinite(size) && size > 0 && size <= MAX_INLINE_MEDIA_BYTES;
+}
+
+function byteLength(value) {
+  return new TextEncoder().encode(JSON.stringify(value)).length;
+}
+
+export function sanitizeLibraryEntry(item) {
+  if (!item || typeof item !== 'object') return item;
+  return {
+    ...item,
+    previewUrl: stripInlineMedia(item.previewUrl),
+    dataUrl: '',
+  };
+}
+
+export function sanitizeLibraryItems(items = []) {
+  return (Array.isArray(items) ? items : []).map(sanitizeLibraryEntry);
+}
+
+export function fitLibraryWithinQuota(items = [], maxBytes = MAX_LIBRARY_JSON_BYTES) {
+  let next = sanitizeLibraryItems(items);
+  while (next.length && byteLength(next) > maxBytes) {
+    next = next.slice(0, -1);
+  }
+  return next;
+}
+
 function cleanText(value = '') {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
@@ -118,7 +161,7 @@ function createLibraryEntryFromAttachment(attachment, client) {
     tags,
     cues,
     keywords,
-    previewUrl: attachment?.previewUrl || '',
+    previewUrl: stripInlineMedia(attachment?.previewUrl || ''),
     assetType: type || 'file',
     clientId: client?.id ? String(client.id) : '',
     clientName: client?.name || '',
@@ -132,7 +175,7 @@ export function loadReferenceLibrary() {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? sanitizeLibraryItems(parsed) : [];
   } catch {
     return [];
   }
@@ -140,10 +183,15 @@ export function loadReferenceLibrary() {
 
 export function saveReferenceLibrary(items = []) {
   if (typeof window === 'undefined') return;
+  const persistable = fitLibraryWithinQuota(items);
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
   } catch {
-    // Ignore storage failures; library is a convenience layer.
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore storage failures; library is a convenience layer.
+    }
   }
 }
 

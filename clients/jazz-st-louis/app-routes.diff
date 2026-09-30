@@ -1,0 +1,47 @@
+diff --git a/package.json b/package.json
+index e0dd082..c10e21a 100644
+--- a/package.json
++++ b/package.json
+@@ -81,6 +81,7 @@
+     "globals": "^15.15.0",
+     "jsdom": "^20.0.3",
+     "lovable-tagger": "^1.1.13",
++    "playwright": "^1.63.0",
+     "postcss": "^8.5.6",
+     "tailwindcss": "^3.4.17",
+     "typescript": "^5.8.3",
+diff --git a/src/App.tsx b/src/App.tsx
+index 148747c..1801414 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -23,12 +23,30 @@ import Restaurants from "./pages/Restaurants";
+ import Dashboard from "./pages/Dashboard";
+ import Login from "./pages/Login";
+ import NotFound from "./pages/NotFound";
++import JazzDemo from "./jazz/JazzDemo";
++import KickoffPlan from "./jazz/pages/KickoffPlan";
++import JazzSite from "./jazz/site/JazzSite";
+ 
+ const queryClient = new QueryClient();
+ 
+ function AppLayout() {
+   const { pathname } = useLocation();
+   const isDashboard = pathname === "/dashboard" || pathname === "/login";
++  const isJazzDemo = pathname === "/jazz" || pathname.startsWith("/jazz/");
++
++  if (isJazzDemo) {
++    return (
++      <>
++        <ScrollToTop />
++        <Routes>
++          <Route path="/jazz" element={<JazzDemo />} />
++          <Route path="/jazz/plan" element={<KickoffPlan />} />
++          <Route path="/jazz/site" element={<JazzSite />} />
++          <Route path="/jazz/*" element={<JazzDemo />} />
++        </Routes>
++      </>
++    );
++  }
+ 
+   return (
+     <>
